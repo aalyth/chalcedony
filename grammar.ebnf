@@ -1,78 +1,78 @@
 (* program *)
-  program = {var_def | var_declr | func_def | func_declr}
+	program = {var_def | var_declr | func_def | func_declr}
 
 (* basic definitions*)
-  uppercase = "A" | "B" | "C" | "D" | "E" | "F" 
-	    | "G" | "H" | "I" | "J" | "K" | "L" 
-	    | "M" | "N" | "O" | "P" | "Q" | "R" 
-	    | "S" | "T" | "U" | "V" | "W" | "X" 
-	    | "Y" | "Z" 
+	uppercase = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' 
+			  | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' 
+			  | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' 
+			  | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' 
+			  | 'Y' | 'Z' 
 
-  lowercase = "a" | "b" | "c" | "d" | "e" | "f" 
-	    | "g" | "h" | "i" | "j" | "k" | "l" 
-	    | "m" | "n" | "o" | "p" | "q" | "r" 
-	    | "s" | "t" | "u" | "v" | "w" | "x" 
-	    | "y" | "z" 
+	lowercase = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' 
+			  | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' 
+			  | 'm' | 'n' | 'o' | 'p' | 'q' | 'r' 
+			  | 's' | 't' | 'u' | 'v' | 'w' | 'x' 
+			  | 'y' | 'z' 
 
-  num = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" 
-  float = num, {num}, '.', num, {number}
+	num = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' 
+	float = num, {num}, '.', num, {number}
 
-  number = num, {num} | float
+	number = num, {num} | float
 
-  alpha = uppercase | lowercase
-  alphanum = alpha | num
+	alpha = uppercase | lowercase
+	alphanum = alpha | num
 
-  identifier = alpha, {alphanum}
+	identifier = alpha, {alphanum}
 
-(* expression *) 
-  (* operators *)
-    opr = '+' | '-' | '*' | '/'  | '%'
-    bin_opr = opr | opr, '='
+	(* expression *) 
+(* operators *)
+	opr = '+' | '-' | '*' | '/'  | '%'
+	bin_opr = opr | opr, '='
 
-    cmp_opr = '<' | '>' | '==' | '<=' | '>='
+	cmp_opr = '<' | '>' | '==' | '<=' | '>='
 
-    bool_opr = '||' | '&&'
+	bool_opr = '||' | '&&'
 
-  (* values *)
-    string = '"', {alphanum | ' '}, '"'
+(* values *)
+	string = '"', {alphanum | ' '}, '"'
 
-    var_call = identifier
-    func_call = identifier, '(', {identifier, [',']}, ')'
+	var_call = identifier
+	func_call = identifier, '(', {identifier, [',']}, ')'
 
-    value = var_call
-          | func_call
-          | number
-          | string 
+	value = var_call
+		  | func_call
+		  | number
+		  | string 
 
-  expression = value 
-	     | expression, bin_opr, expression
-	     | expression, cmp_opr, expression
-	     | expression, bool_opr, expression
-	     | '!', expression
+	expression = value 
+			   | expression, bin_opr, expression
+			   | expression, cmp_opr, expression
+			   | expression, bool_opr, expression
+			   | '!', expression
 
 
 (* variables *)
-  type = "i8" | "i16" | "i32" | "i64"
-       | "u8" | "u16" | "u32" | "u64"
-       | "f32" | "f64" | "str"
+	type = 'i8' | 'i16' | 'i32' | 'i64'
+		 | 'u8' | 'u16' | 'u32' | 'u64'
+		 | 'f32' | 'f64' | 'str'
 
-  var_type = type | "auto"  
+	value = number | string
 
-  value = number | string
+	var_def   = 'let', identifier, ':', type
 
-  var_def = type, identifier, ";"
-  var_declr = var_type, identifier, '=', expression, ';'
+	var_declr = 'let', identifier, ':', type, '=', expression
+			  | 'let', identifier, '=', expression
 
 (* functions *)
-  func_declr = "fn", identifier, '(', {identifier, ':', type, [',']}, ')', ['->', type], '{', {statement}, '}'
+	func_declr = 'fn', identifier, '(', {identifier, ':', type, [',']}, ')', ['->', type], ':', {'\t', statement}
 
-  func_def = "fn", identifier, '(', {identifier, [',']}, ')', ['->', type], ';'
+	// func_def = 'fn', identifier, '(', {identifier, [',']}, ')', ['->', type], ';'
 
 (* statements *)
-  statement = expression | if_stmnt | while_loop | return_stmnt| var_declr 
+	statement = expression | if_stmnt | while_loop | return_stmnt| var_declr 
 
-  if_stmnt = "if", expression, '{', {statement}, '}'
+	if_stmnt = 'if', expression, '{', {statement}, '}'
 
-  while_loop = "while", expression, '{', {statement}, '}'
+	while_loop = 'while', expression, '{', {statement}, '}'
 
-  return_stmnt = "return", expression, ";"
+	return_stmnt = 'return', expression, ';'

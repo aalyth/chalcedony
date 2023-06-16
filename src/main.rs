@@ -1,28 +1,22 @@
 pub mod errors;
 pub mod lexer;
+// pub mod parser;
 
 use crate::lexer::Lexer;
 use crate::errors::span::Span;
-use crate::errors::span::pos::Position;
+
+#[macro_use]
+extern crate lazy_static;
 
 fn main() {
-    let lexer_opt = Lexer::new("
+    let mut lexer = Lexer::new("
     # this is a comment
-    $ this is a multiline comment
-    asdfasdasd $
-    fn main(argc: i8, argv: str) -> null {
-        auto a = 5 * -3; 
-    }");
-
-
-    let mut lexer: Lexer;
-    match lexer_opt {
-        None => return (),
-        Some(lex) => lexer = lex,
-    }
+    fn main()->i8:
+        let a = 5 * -3
+    nf").ok().unwrap();
 
     while !lexer.is_empty() {
-        println!("{:#?}\n", lexer.advance());
+        let token = lexer.advance().unwrap();
+        println!("{:#?}", token);
     }
-
 }

@@ -51,6 +51,8 @@ impl Span {
             let curr_line = &self.src[start.ln];
             result.push_str(&start.ln.to_string());
             result.push_str("| ");
+
+            #[allow(unused_assignments)]
             let mut res_pos: usize = 0;
 
             if start.col > 15 {
@@ -59,7 +61,7 @@ impl Span {
             } else {
                 result.push_str(&curr_line[ .. start.col + 15].to_string());
             }
-            res_pos = result.len() - 15;
+            res_pos = result.chars().count() - 15;
 
             result.push_str("...");
             result.push_str(&curr_line[end.col-15 .. end.col].to_string());
@@ -73,14 +75,16 @@ impl Span {
         }
         
         let mut result = "".to_string();
-        let mut res = self.context_pos(start_).unwrap();
+        let res = self.context_pos(start_).unwrap();
 
         result.push_str(&res.0);
         result.push_str("\n");
 
-        let ln_len = std::cmp::max(end_.ln.to_string().len(), 4); 
-        for _ in 0 .. ln_len-3 { result.push_str(" "); }
-        result.push_str("...| ...\n");
+        if end.ln - start.ln > 1 {
+            let ln_len = std::cmp::max(end_.ln.to_string().len(), 4); 
+            for _ in 0 .. ln_len-3 { result.push_str(" "); }
+            result.push_str("...| ...\n");
+        }
 
         result.push_str(&self.context_pos(end_).unwrap().0);
 
@@ -109,27 +113,33 @@ impl Span {
 
         let curr_line = &self.src[pos.ln];
         let pos_len = pos_.ln.to_string().len();
-        let ln_len = std::cmp::max(pos_len, 4); //so the '|' is at least one tab
-                                                                 //inside
+        let ln_len = std::cmp::max(pos_len, 4); //so the '|' is at least one tab inside
+
         let mut result = "".to_string();
         for _ in 0 .. (ln_len - pos_len) { result.push_str(" "); }
         result.push_str(&pos_.ln.to_string());
         result.push_str("| ");
+
+        #[allow(unused_assignments)]
         let mut res_pos: usize = 0;
 
         if pos.col > 25 {
             result.push_str("...");
             result.push_str(&curr_line[pos.col-25 .. pos.col + len].to_string());
+
         } else {
-            result.push_str(&curr_line[ .. pos.col + len].to_string());
+            let tmp: String = curr_line.chars().take(pos.col + len).collect(); 
+            result.push_str(&tmp);
         }
-        res_pos = result.len() - len;
+        res_pos = result.chars().count() - len;
 
         if curr_line.len() - (pos.col + len) > 25 {
             result.push_str(&curr_line[pos.col + len .. pos.col + len + 24].to_string()); 
             result.push_str("...");
+
         } else {
-            result.push_str(&curr_line[pos.col + len ..].to_string());    
+            let tmp: String = curr_line.chars().skip(pos.col + len).collect(); 
+            result.push_str(&tmp);
         }
 
         Ok( (result, res_pos) )

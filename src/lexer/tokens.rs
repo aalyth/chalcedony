@@ -1,6 +1,7 @@
 use crate::errors::lexer_errors::LexerError;
 use crate::Span;
 use crate::errors::span::pos::Position;
+use std::collections::HashSet;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Keyword {
@@ -15,15 +16,47 @@ pub enum Keyword {
     F32,
     F64,
     Str,
-    Auto,
+    Let,
     Fn,
+    Nf,
     Return,
-    End,
     If,
+    Fi,
     Else,
     Elif,
     While,
     For,
+    Done,
+}
+
+lazy_static! {
+    static ref SPECIAL: HashSet<char> = {
+        HashSet::from([
+           '(', ')', '[', ']', 
+           '{', '}', ':', ';',
+           '+', '-', '*', '/', 
+           '%', '=', '<', '>', 
+           '!', ',', 
+           // '&', '|', '~', '^', ','
+        ])
+    };
+
+    static ref OPERATORS: HashSet<char> = {
+        HashSet::from([
+           '+', '-', '*', '/', 
+           '%', '=', '<', '>', 
+           '!' 
+        ])
+    };
+}
+
+
+pub fn is_special(c: &char) -> bool {
+    SPECIAL.contains(c)
+}
+
+pub fn is_operator(c: &char) -> bool {
+    OPERATORS.contains(c)
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -52,6 +85,7 @@ pub enum TokenKind {
     Dot,          // . 
     Colon,        // : 
     SemiColon,    // ;
+    Newline,      // \n 
     RightArrow,   // ->
     BigRightArrow,// =>
 
@@ -85,7 +119,9 @@ pub enum TokenKind {
 
 impl From<&str> for TokenKind {
     fn from(src: &str) -> TokenKind {
-        if src.contains(char::is_whitespace) || src == "" {
+        if src == "\n" { return TokenKind::Newline; }
+
+        if src == "" {
             return TokenKind::None; // error kind
         }
 
@@ -103,17 +139,19 @@ impl From<&str> for TokenKind {
            "f32"    => return TokenKind::Keyword(Keyword::F32),
            "f64"    => return TokenKind::Keyword(Keyword::F64),
            "str"    => return TokenKind::Keyword(Keyword::Str),
-           "auto"   => return TokenKind::Keyword(Keyword::Auto),
+           "let"    => return TokenKind::Keyword(Keyword::Let),
            "null"   => return TokenKind::Null,
 
            "fn"     => return TokenKind::Keyword(Keyword::Fn),
+           "nf"     => return TokenKind::Keyword(Keyword::Nf),
            "return" => return TokenKind::Keyword(Keyword::Return),
-           "end"    => return TokenKind::Keyword(Keyword::End),
            "if"     => return TokenKind::Keyword(Keyword::If),
+           "fi"     => return TokenKind::Keyword(Keyword::Fi),
            "else"   => return TokenKind::Keyword(Keyword::Else),
            "elif"   => return TokenKind::Keyword(Keyword::Elif),
            "while"  => return TokenKind::Keyword(Keyword::While),
            "for"    => return TokenKind::Keyword(Keyword::For),
+           "done"   => return TokenKind::Keyword(Keyword::Done),
 
            "#" => return TokenKind::Sharp,
            "$" => return TokenKind::Dollar,
@@ -174,8 +212,13 @@ impl From<&str> for TokenKind {
 
         if src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"') {
             return TokenKind::Str(src.to_string());
+
         } else if src.chars().nth(0) == Some('"') {
             return TokenKind::Error(LexerError::UnclosedString);
+        }
+
+        if src.chars().all(|c: char| is_special(&c) ) {
+            return TokenKind::None;
         }
 
         if src.chars().nth(0).unwrap().is_numeric() || !src.chars().all(|c: char| -> bool {c.is_ascii_alphanumeric()}) {
@@ -189,27 +232,27 @@ impl From<&str> for TokenKind {
 #[derive(PartialEq, Debug, Clone)]
 pub struct Token {
     kind: TokenKind,
-    start_pos: Position,
-    end_pos: Position,
+    start: Position,
+    end: Position,
     src: String,
 }
 
 impl Token {
-    pub fn new(src: String, start_pos: Position, end_pos: Position) -> Token {
+    pub fn new(src: String, start: &Position, end: &Position) -> Token {
         Token {
-            kind: TokenKind::from(&src[..]),
-            start_pos: start_pos,
-            end_pos: end_pos,
-            src: src,
+            kind:  TokenKind::from(&src[..]),
+            start: start.clone(),
+            end:   end.clone(),
+            src,
         }
     }
 
-    pub fn err(start_pos: Position, end_pos: Position, err_kind: LexerError) -> Token {
+    pub fn err(start: &Position, end: &Position, err_kind: &LexerError) -> Token {
         Token {
-            kind: TokenKind::Error(err_kind),
-            start_pos: start_pos,
-            end_pos: end_pos,
+            kind: TokenKind::Error(err_kind.clone()),
             src: "".to_string(),
+            start: start.clone(),
+            end:   end.clone(),
         }
     }
     
@@ -217,52 +260,55 @@ impl Token {
         if let TokenKind::Error(err) = &self.kind {
             match err {
                 LexerError::InvalidIdentifier => {
-                    let span: (String, usize) = src.context_span(self.start_pos(), self.end_pos()).unwrap();
+                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
                     eprintln!("Error: invalid identifier:");
                     eprintln!("{}", span.0);
 
-                    let ln_len = std::cmp::max(self.end_pos.ln.to_string().len(), 4);
+                    // we get the line number offset
+                    let ln_len = std::cmp::max(self.end.ln.to_string().len(), 4);
                     for _ in 0 .. ln_len { eprint!(" "); } 
+
                     eprint!("| ");
-                    for _ in 0 .. span.1 - (ln_len + 2){ eprint!(" "); }
+                    for _ in 0 .. span.1 - (ln_len + 2) { eprint!(" "); }
 
                     // here we don't use self.src.len() in case the invalid chars are UTF-8,
                     // resulting in a difference in length
-                    for _ in 0 .. self.end_pos.col - self.start_pos.col { eprint!("^"); }
-                    eprintln!("");
+                    for _ in 0 .. self.end.col - self.start.col { eprint!("^"); }
+                    eprintln!("\n");
                 },
 
                 LexerError::UnclosedString => {
-                    let span: (String, usize) = src.context_span(self.start_pos(), self.end_pos()).unwrap();
+                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
                     eprintln!("Error: unclosed string:");
-                    eprintln!("{}", span.0);
+                    eprintln!("{}\n", span.0);
                 },
 
                 LexerError::UnclosedComment => {
-                    let span: (String, usize) = src.context_span(self.start_pos(), self.end_pos()).unwrap();
+                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
                     eprintln!("Error: unclosed multiline comment:");
-                    eprintln!("{}", span.0);
+                    eprintln!("{}\n", span.0);
                 },
 
                 LexerError::UnclosedDelimiter(del) => {
-                    let span: (String, usize) = src.context_span(self.start_pos(), self.end_pos()).unwrap();
+                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
                     eprintln!("Error: unclosed delimiter ('{}'):", del);
-                    eprintln!("{}", span.0);
+                    eprintln!("{}\n", span.0);
                 },
 
                 LexerError::UnexpectedClosingDelimiter(del) => {
-                    let span: (String, usize) = src.context_span(self.start_pos(), self.end_pos()).unwrap();
+                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
                     eprintln!("Error: unexpected closing delimiter ('{}'):", del);
-                    eprintln!("{}", span.0);
+                    eprintln!("{}\n", span.0);
                 },
 
                 // odel - opening delimiter, cdel - closing delimiter
                 LexerError::MissmatchingDelimiter(odel, cdel) => {
-                    let span: (String, usize) = src.context_span(self.start_pos(), self.end_pos()).unwrap();
+                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
                     eprintln!("Error: missmatching delimiter ('{}' and '{}'):", odel, cdel);
-                    eprintln!("{}", span.0);
+                    eprintln!("{}\n", span.0);
                 },
             }
+            return Err(());
         }
         Ok(())
     }
@@ -271,12 +317,12 @@ impl Token {
         &self.kind
     }
 
-    pub fn start_pos(&self) ->  &Position {
-        &self.start_pos
+    pub fn start(&self) ->  &Position {
+        &self.start
     }
 
-    pub fn end_pos(&self) -> &Position {
-        &self.end_pos
+    pub fn end(&self) -> &Position {
+        &self.end
     }
 
     pub fn src(&self) -> &str {

@@ -1,15 +1,15 @@
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Position {
-    pub ln: usize,
+    pub ln:  usize,
     pub col: usize,
 }
 
 impl Position {
     pub fn new(ln: usize, col: usize) -> Self {
         Position {
-            ln: ln,
-            col: col,
+            ln,
+            col,
         }
     }
 

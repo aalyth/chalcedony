@@ -2,7 +2,7 @@ mod operators;
 
 use operators::{BinaryOperatorType, UnaryOperatorType};
 
-pub enum VariableType {
+pub enum VarType {
     I8,
     I16,
     I32,
@@ -14,7 +14,6 @@ pub enum VariableType {
     F32,
     F64,
     Str,
-    Auto, // might remove later
     Custom(String), // an user-defined type (ex. struct or enum)
 }
 
@@ -26,28 +25,30 @@ pub enum NodeValue {
 }
 
 pub struct NodeVariableCall {
-    r#type: VariableType,
+    r#type: VarType,
     value: Box<NodeAST>,
 }
 
 pub struct NodeVariableDefinition {
-    r#type: VariableType,
+    r#type: VarType,
     name: String,
     value: Option<Box<NodeValue>>,
 }
 
 pub struct NodeFunctionDefinition {
     name: String,
-    args: Vec<(String, VariableType)>,
-    return_type: VariableType,
+    args: Vec<(String, VarType)>,
+    return_type: VarType,
     body: Vec<Box<NodeAST>>,
 }
 
+/*
 pub struct NodeFunctionDeclaration {
     name: String,
-    args: Vec<(String, VariableType)>,
-    return_type: VariableType,
+    args: Vec<(String, VarType)>,
+    return_type: VarType,
 }
+*/
 
 pub struct NodeFunctionCall {
     name: String,
@@ -86,7 +87,62 @@ pub struct NodeForLoop {
 }
 */
 
+pub struct NodeVarDef {
+    r#type: VarType,
+    name: String, // might not need
+}
+
+pub struct NodeVarDeclr {
+    r#type: VarType,
+    name: String, // might not need
+    value: Box<NodeAST>,
+}
+
+pub struct NodeFuncDef {
+    name: String, // might not need
+    arg_types: Vec<VarType>,
+}
+
+pub struct NodeFuncDeclr {
+    name: String, // might not need
+    arg_types: Vec<VarType>,
+    arg_names: Vec<String>,
+    body: Vec<NodeStatement>, // list of statements
+}
+
+pub enum NodeStatement {
+   Expression(NodeExpression),
+   IfStatement(NodeIfStatement),
+   WhileLoop(NodeWhileLoop),
+   ReturnStatement(NodeReturnStatement),
+}
+
+pub struct NodeExpression {
+    
+}
+
+pub struct NodeIfStatement {
+    condition: NodeExpression,
+    body: Vec<NodeStatement>
+}
+
+pub struct NodeWhileLoop {
+    condition: NodeExpression,
+    body: Vec<NodeStatement>
+}
+
+pub struct ReturnStatement {
+    value: NodeExpression,
+}
+
 pub enum NodeAST {
+   VarDef(NodeVarDef), 
+   VarDeclr(NodeVarDeclr),
+   FuncDef(NodeFuncDef),
+   FuncDeclr(NodeFuncDeclr),
+   Statement(NodeStatement), 
+    
+   /*
     Value(NodeValue), // might not be needed
     VariableCall(NodeVariableCall),
     VariableDefinition(NodeVariableDefinition),
@@ -98,4 +154,5 @@ pub enum NodeAST {
     WhileLoop(NodeWhileLoop),
     Error(String),
 //    ForLoop(NodeForLoop),
+    */
 }
