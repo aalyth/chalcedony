@@ -1,4 +1,4 @@
-use crate::errors::lexer_errors::LexerError;
+use crate::errors::LexerErrors::{self, LexerError};
 use crate::Span;
 use crate::errors::span::pos::Position;
 use std::collections::HashSet;
@@ -18,15 +18,12 @@ pub enum Keyword {
     Str,
     Let,
     Fn,
-    Nf,
     Return,
     If,
-    Fi,
     Else,
     Elif,
     While,
     For,
-    Done,
 }
 
 lazy_static! {
@@ -143,15 +140,12 @@ impl From<&str> for TokenKind {
            "null"   => return TokenKind::Null,
 
            "fn"     => return TokenKind::Keyword(Keyword::Fn),
-           "nf"     => return TokenKind::Keyword(Keyword::Nf),
            "return" => return TokenKind::Keyword(Keyword::Return),
            "if"     => return TokenKind::Keyword(Keyword::If),
-           "fi"     => return TokenKind::Keyword(Keyword::Fi),
            "else"   => return TokenKind::Keyword(Keyword::Else),
            "elif"   => return TokenKind::Keyword(Keyword::Elif),
            "while"  => return TokenKind::Keyword(Keyword::While),
            "for"    => return TokenKind::Keyword(Keyword::For),
-           "done"   => return TokenKind::Keyword(Keyword::Done),
 
            "#" => return TokenKind::Sharp,
            "$" => return TokenKind::Dollar,
@@ -259,54 +253,10 @@ impl Token {
     pub fn err_msg(&self, src: &Span) -> Result<(), ()>{
         if let TokenKind::Error(err) = &self.kind {
             match err {
-                LexerError::InvalidIdentifier => {
-                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
-                    eprintln!("Error: invalid identifier:");
-                    eprintln!("{}", span.0);
-
-                    // we get the line number offset
-                    let ln_len = std::cmp::max(self.end.ln.to_string().len(), 4);
-                    for _ in 0 .. ln_len { eprint!(" "); } 
-
-                    eprint!("| ");
-                    for _ in 0 .. span.1 - (ln_len + 2) { eprint!(" "); }
-
-                    // here we don't use self.src.len() in case the invalid chars are UTF-8,
-                    // resulting in a difference in length
-                    for _ in 0 .. self.end.col - self.start.col { eprint!("^"); }
-                    eprintln!("\n");
-                },
-
-                LexerError::UnclosedString => {
-                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
-                    eprintln!("Error: unclosed string:");
-                    eprintln!("{}\n", span.0);
-                },
-
-                LexerError::UnclosedComment => {
-                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
-                    eprintln!("Error: unclosed multiline comment:");
-                    eprintln!("{}\n", span.0);
-                },
-
-                LexerError::UnclosedDelimiter(del) => {
-                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
-                    eprintln!("Error: unclosed delimiter ('{}'):", del);
-                    eprintln!("{}\n", span.0);
-                },
-
-                LexerError::UnexpectedClosingDelimiter(del) => {
-                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
-                    eprintln!("Error: unexpected closing delimiter ('{}'):", del);
-                    eprintln!("{}\n", span.0);
-                },
-
-                // odel - opening delimiter, cdel - closing delimiter
-                LexerError::MissmatchingDelimiter(odel, cdel) => {
-                    let span: (String, usize) = src.context_span(self.start(), self.end()).unwrap();
-                    eprintln!("Error: missmatching delimiter ('{}' and '{}'):", odel, cdel);
-                    eprintln!("{}\n", span.0);
-                },
+                LexerError::InvalidIdentifier => LexerErrors::InvalidIdentifier::msg(&self.start, &self.end, src),
+                LexerError::UnclosedString    => LexerErrors::UnclosedString::msg(&self.start, &self.end, src), 
+                // we shouldn't reach this case for now
+                LexerError::UnclosedComment   => LexerErrors::UnclosedComment::msg(&self.start, &self.end, src),
             }
             return Err(());
         }

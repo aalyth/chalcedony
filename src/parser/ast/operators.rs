@@ -1,35 +1,46 @@
 
-pub enum BinaryOperatorType {
+pub enum BinOprType {
     Add,          // +
     Sub,          // -
     Mul,          // *
     Div,          // /
     Mod,          // %
     Eq,           // =
-    Lt,           // <
-    Gt,           // >
-
-    BinAnd,       // &
-    BinOr,        // |
-    Xor,          // ^
-    And,          // &&
-    Or,           // ||
 
     AddEq,        // +=
     SubEq,        // -=
     MulEq,        // *=
     DivEq,        // /=
     ModEq,        // %=
+
+    /* not needed for now
+    BinAnd,       // &
+    BinOr,        // |
+    Xor,          // ^
+    */
+}
+
+pub enum BinCondType {
+    Lt,           // <
+    Gt,           // >
     EqEq,         // ==
     LtEq,         // <=
     GtEq,         // >=
     BangEq,       // !=
+    And,          // &&
+    Or,           // ||
 }
 
-pub enum UnaryOperatorType {
-    Sub,          // -
-    Ref,          // &
-    DeRef,        // *
+pub enum UnaryCondType {
     Bang,         // !
+}
+
+pub enum UnaryOprType {
+    Neg,          // - (negative)
+    Ref,          // &
+
+    /* not needed for now
+    DeRef,        // *
     Tilde,        // ~
+    */
 }

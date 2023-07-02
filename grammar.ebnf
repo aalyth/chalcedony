@@ -46,9 +46,13 @@
 
 	expression = value 
 			   | expression, bin_opr, expression
-			   | expression, cmp_opr, expression
-			   | expression, bool_opr, expression
-			   | '!', expression
+			   | (expression)
+
+	condition = value
+			  | condition, cmp_opr, condition
+			  | condition, bool_opr, condition
+			  | '!', condition
+			  | (condition)
 
 
 (* variables *)
@@ -58,15 +62,15 @@
 
 	value = number | string
 
-	var_def   = 'let', identifier, ':', type
+	var_declr = 'let', identifier, ':', type
 
-	var_declr = 'let', identifier, ':', type, '=', expression
-			  | 'let', identifier, '=', expression
+	var_def = 'let', identifier, ':', type, '=', expression
+		    | 'let', identifier, '=', expression
+			| identifier, ':=', expression
 
 (* functions *)
-	func_declr = 'fn', identifier, '(', {identifier, ':', type, [',']}, ')', ['->', type], ':', {'\t', statement}
+	func_def = 'fn', identifier, '(', {identifier, type, [',']}, ')', [type], '{', {statement}, '}'
 
-	// func_def = 'fn', identifier, '(', {identifier, [',']}, ')', ['->', type], ';'
 
 (* statements *)
 	statement = expression | if_stmnt | while_loop | return_stmnt| var_declr 

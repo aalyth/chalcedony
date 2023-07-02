@@ -1,6 +1,11 @@
 mod operators;
+pub mod func;
 
-use operators::{BinaryOperatorType, UnaryOperatorType};
+use operators::*;
+use crate::errors::parser::*;
+use func::*;
+
+use crate::lexer::tokens::*;
 
 pub enum VarType {
     I8,
@@ -14,7 +19,33 @@ pub enum VarType {
     F32,
     F64,
     Str,
-    Custom(String), // an user-defined type (ex. struct or enum)
+    // !TODO Custom(String), // an user-defined type (ex. struct or enum)
+}
+
+impl VarType {
+    pub fn new(tk: &TokenKind) -> Option<Self> {
+        let mut result = VarType::Str;
+        match tk {
+            TokenKind::Keyword(Keyword::I8)  => result = VarType::I8,  
+            TokenKind::Keyword(Keyword::I16) => result = VarType::I16,  
+            TokenKind::Keyword(Keyword::I32) => result = VarType::I32,  
+            TokenKind::Keyword(Keyword::I64) => result = VarType::I64,  
+
+            TokenKind::Keyword(Keyword::U8)  => result = VarType::U8,  
+            TokenKind::Keyword(Keyword::U16) => result = VarType::U16,  
+            TokenKind::Keyword(Keyword::U32) => result = VarType::U32,  
+            TokenKind::Keyword(Keyword::U64) => result = VarType::U64,  
+
+            TokenKind::Keyword(Keyword::F32) => result = VarType::F32,  
+            TokenKind::Keyword(Keyword::F64) => result = VarType::F64,  
+
+            TokenKind::Str(_) => (), // result is already string
+        
+            _ => return None,
+        }
+        
+        Some(result)
+    }
 }
 
 pub enum NodeValue {
@@ -24,135 +55,75 @@ pub enum NodeValue {
     Str(String),
 }
 
-pub struct NodeVariableCall {
-    r#type: VarType,
-    value: Box<NodeAST>,
-}
-
-pub struct NodeVariableDefinition {
-    r#type: VarType,
+pub struct NodeVarCall {
     name: String,
-    value: Option<Box<NodeValue>>,
 }
-
-pub struct NodeFunctionDefinition {
-    name: String,
-    args: Vec<(String, VarType)>,
-    return_type: VarType,
-    body: Vec<Box<NodeAST>>,
-}
-
-/*
-pub struct NodeFunctionDeclaration {
-    name: String,
-    args: Vec<(String, VarType)>,
-    return_type: VarType,
-}
-*/
-
-pub struct NodeFunctionCall {
-    name: String,
-    args: Vec<NodeAST>,
-}
-
-pub struct NodeBinaryExpression {
-    left: Box<NodeAST>,
-    right: Box<NodeAST>,
-    operator: BinaryOperatorType,
-}
-
-pub struct NodeUnaryExpression {
-    operand: Box<NodeAST>,
-    Operator: UnaryOperatorType,
-}
-
-pub enum NodeExpression {
-    BinaryExpression(NodeBinaryExpression),
-    UnaryExpression(NodeUnaryExpression),
-}
-
-pub struct NodeIfStatement {
-    condition: Box<NodeExpression>,
-    body: Vec<Box<NodeAST>>,
-}
-
-pub struct NodeWhileLoop {
-    condition: Box<NodeExpression>,
-    body: Vec<Box<NodeAST>>,
-}
-
-/*
-pub struct NodeForLoop {
-
-}
-*/
 
 pub struct NodeVarDef {
     r#type: VarType,
-    name: String, // might not need
+    name:   String,
+    value:  Option<NodeExpr>
 }
 
-pub struct NodeVarDeclr {
-    r#type: VarType,
-    name: String, // might not need
-    value: Box<NodeAST>,
+
+pub struct NodeBinExpr {
+    left: Box<NodeExpr>,
+    right: Box<NodeExpr>,
+    operator: BinOprType,
 }
 
-pub struct NodeFuncDef {
-    name: String, // might not need
-    arg_types: Vec<VarType>,
+pub struct NodeUnaryExpr {
+    operand: Box<NodeExpr>,
+    operator: UnaryOprType,
 }
 
-pub struct NodeFuncDeclr {
-    name: String, // might not need
-    arg_types: Vec<VarType>,
-    arg_names: Vec<String>,
-    body: Vec<NodeStatement>, // list of statements
+pub enum NodeExpr {
+    BinExpr(NodeBinExpr),
+    UnaryExpr(NodeUnaryExpr),
+    Value(NodeValue),
 }
 
-pub enum NodeStatement {
-   Expression(NodeExpression),
-   IfStatement(NodeIfStatement),
-   WhileLoop(NodeWhileLoop),
-   ReturnStatement(NodeReturnStatement),
+pub struct NodeUnaryCond {
+    operand:  Box<NodeCond>,
+    operator: UnaryCondType,
 }
 
-pub struct NodeExpression {
-    
+pub struct NodeBinCond {
+    left:     Box<NodeCond>,
+    right:    Box<NodeCond>,
+    operator: BinCondType,
 }
 
-pub struct NodeIfStatement {
-    condition: NodeExpression,
-    body: Vec<NodeStatement>
+pub enum NodeCond {
+    BinCond(NodeBinCond),
+    UnaryCond(NodeUnaryCond),
+    Value(NodeValue),
+}
+
+pub struct NodeIfStmnt {
+    condition: NodeExpr,
+    body: Vec<NodeStmnt>
 }
 
 pub struct NodeWhileLoop {
-    condition: NodeExpression,
-    body: Vec<NodeStatement>
+    condition: NodeExpr,
+    body: Vec<NodeStmnt>
 }
 
-pub struct ReturnStatement {
-    value: NodeExpression,
+pub enum NodeStmnt {
+   Expr(NodeExpr),
+   IfStmnt(NodeIfStmnt),
+   WhileLoop(NodeWhileLoop),
+   RetStmnt(NodeRetStmnt),
 }
 
-pub enum NodeAST {
-   VarDef(NodeVarDef), 
-   VarDeclr(NodeVarDeclr),
-   FuncDef(NodeFuncDef),
-   FuncDeclr(NodeFuncDeclr),
-   Statement(NodeStatement), 
-    
-   /*
-    Value(NodeValue), // might not be needed
-    VariableCall(NodeVariableCall),
-    VariableDefinition(NodeVariableDefinition),
-    FunctionDefinition(NodeFunctionDefinition),
-    FunctionDeclaration(NodeFunctionDeclaration),
-    FunctionCall(NodeFunctionCall),
-    Expression(NodeExpression),
-    IfStatement(NodeIfStatement),
-    WhileLoop(NodeWhileLoop),
-    Error(String),
-//    ForLoop(NodeForLoop),
-    */
+pub struct NodeRetStmnt {
+    value: NodeExpr,
 }
+
+// program node
+pub enum NodeProg {
+    VarDef(NodeVarDef),
+    FuncDef(NodeFuncDef),
+}
+

@@ -1,30 +1,37 @@
-mod tokens;
+pub mod tokens;
 mod reader;
 
-use tokens::{Token, TokenKind, Keyword, is_special, is_operator};
-use crate::errors::lexer_errors::LexerError;
-use super::errors::span::Span;
-use super::errors::span::pos::Position;
+use tokens::{Token, 
+             TokenKind, 
+             is_special, 
+             is_operator};
+
+use crate::errors::{LexerErrors,
+                    span::Span,
+                    span::pos::Position,
+                    ParserErrors,
+                    };
+
 use reader::Reader;
 use std::collections::VecDeque;
 
 pub struct Lexer {  
     next: VecDeque<Token>,
-    span: Span,
 }
 
 impl Lexer {
-    pub fn new(code: &str) -> Result<Lexer, ()> {
+    pub fn new(code: &str) -> Result<(Lexer, Span), ()> {
         let mut res = Lexer {
             next: VecDeque::new(),
-            span: Span::new(code),
         };
 
-        res.generate(code)?;
-        res.check_errors()?;
-        res.check_delim()?;
+        let span = Span::new(code);
 
-        Ok(res)
+        res.generate(code)?;
+        res.check_errors(&span)?;
+        res.check_delimiters(&span)?;
+
+        Ok( (res, span) )
     }
 
     // generates the next sequence of token/s
@@ -108,60 +115,35 @@ impl Lexer {
         }
     }
 
-    fn delim_missmatch(&self, start: &Token, end: &Token) {
-        let err = Token::err(start.start(), end.end(), &LexerError::MissmatchingDelimiter(start.src().to_string(), end.src().to_string()));
-        err.err_msg(&self.span).ok();
-    }
-
-    fn delim_unexpected(&self, token: &Token) {
-        let err = Token::err(token.start(), token.end(), &LexerError::UnexpectedClosingDelimiter(token.src().to_string()));
-        err.err_msg(&self.span).ok();
-    }
-
-    fn check_delimiter(&self, token: &Token, kind: TokenKind, stack: &mut Vec<Token>) -> Result<(), ()> {
+    fn check_delim(&self, span: &Span, token: &Token, kind: TokenKind, stack: &mut Vec<Token>) -> Result<(), ()> {
         if let Some(tk) = stack.last() {
             if *tk.get_kind() != kind {
-                self.delim_missmatch(tk, token);
+                LexerErrors::MissmatchingDelimiter::msg(tk.start(), token.end(), span, tk.src(), token.src());
                 return Err(());
             } else {
                 stack.pop();
             }
         } else {
-            self.delim_unexpected(token);
+            LexerErrors::UnexpectedClosingDelimiter::msg(token.start(), token.end(), span, token.src());
             return Err(());
         }
         Ok(())
     }
 
-    fn check_delim(&mut self) -> Result<(), ()>{
+    fn check_delimiters(&mut self, span: &Span) -> Result<(), ()>{
         let mut stack = Vec::<Token>::new(); 
 
         for token in self.next.clone() {
             match token.get_kind() {
-                TokenKind::Keyword(kw) => match kw {
-                    Keyword::Fn => stack.push(token),
-                    Keyword::If => stack.push(token),
-
-                    Keyword::Nf => {
-                        self.check_delimiter(&token, TokenKind::Keyword(Keyword::Fn), &mut stack)?;
-                    }
-                    
-                    Keyword::Fi => {
-                        self.check_delimiter(&token, TokenKind::Keyword(Keyword::If), &mut stack)?;
-                    }
-
-                    _ => (),
-                },
-
                 TokenKind::OpenPar   => stack.push(token),
                 TokenKind::OpenBrace => stack.push(token),
 
                 TokenKind::ClosePar   => {
-                    self.check_delimiter(&token, TokenKind::OpenPar, &mut stack)?;
+                    self.check_delim(span, &token, TokenKind::OpenPar, &mut stack)?;
                 },
 
                 TokenKind::CloseBrace   => {
-                    self.check_delimiter(&token, TokenKind::OpenBrace, &mut stack)?;
+                    self.check_delim(span, &token, TokenKind::OpenBrace, &mut stack)?;
                 },
 
                 _ => (),
@@ -170,19 +152,18 @@ impl Lexer {
 
         if !stack.is_empty() {
             let end = stack.pop().unwrap();
-            let err = Token::err(end.start(), end.end(), &LexerError::UnclosedDelimiter(end.src().to_string()));
-            err.err_msg(&self.span).ok();
+            LexerErrors::UnclosedDelimiter::msg(end.start(), end.end(), span, end.src());
             return Err(());
         }
 
         Ok(())
     }
 
-    fn check_errors(&mut self) -> Result<(), ()> {
+    fn check_errors(&mut self, span: &Span) -> Result<(), ()> {
         let mut error = false;
 
         for token in &self.next {
-            if let Err(_) = token.err_msg(&self.span) {
+            if let Err(_) = token.err_msg(span) {
                 error = true;
             }
         }
@@ -197,6 +178,34 @@ impl Lexer {
 
     pub fn advance(&mut self) -> Option<Token> {
         self.next.pop_front()
+    }
+
+    pub fn expect(&mut self, span: &Span, exp: TokenKind) -> Result<Token, ()> {
+        if let Some(tok) = self.peek() {
+            // std::mem:discriminant() makes it so we can check only the outer enum variant
+            // for example:
+            // TokenKind::Identifier('main') is equal to TokenKind::Identifier('')
+            if std::mem::discriminant(tok.get_kind()) == std::mem::discriminant(&exp) {
+                return Ok(self.advance().unwrap());
+
+            } else {
+                ParserErrors::UnexpectedToken::msg(&tok, span, exp);
+            }
+
+        } else {
+            eprint!("Error: Lexer: expect(): expecting from an empty lexer.\n");
+            return Err(());
+        }
+
+        Err(())
+    }
+
+    pub fn advance_while(&mut self, condition: fn(&TokenKind) -> bool) -> VecDeque<Token> {
+        let mut result = VecDeque::<Token>::new();
+        while !self.is_empty() && condition(self.peek().unwrap().get_kind()) { 
+            result.push_back(self.advance().unwrap()); 
+        }
+        result
     }
 
     pub fn peek(&mut self) -> Option<&Token> {

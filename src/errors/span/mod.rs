@@ -20,16 +20,32 @@ impl Span {
         Span { src: result }
     }
 
+    pub fn context_print(&self, start: &Position, end: &Position) {
+        let context: (String, usize) = self.context_span(start, end).unwrap();
+        eprintln!("{}", context.0);
+
+        let ln_len = std::cmp::max(end.ln.to_string().len(), 4);
+        for _ in 0 .. ln_len { eprint!(" "); } 
+        eprint!("| ");
+        for _ in 0 .. context.1 - (ln_len + 2) { eprint!(" "); }
+        for _ in 0 .. end.col - start.col { eprint!("^"); }
+        eprintln!("\n");
+    }
+
     // returns the context string and the relative index in the result string of the start position
-    pub fn context_span(&self, start_: &Position, end_: &Position) -> Result<(String, usize), &str> {
+    fn context_span(&self, start_: &Position, end_: &Position) -> Result<(String, usize), &str> {
         if start_.ln == 0 || start_.col == 0 { return Err("Error: span: context_span: invalid start position.\n"); } 
         if end_.ln == 0 || end_.col == 0 { return Err("Error: span: context_span: invalid start position.\n"); } 
 
         let start = Position::new(start_.ln - 1, start_.col - 1);
         let end = Position::new(end_.ln - 1, end_.col - 1);
 
-        if start.ln > end.ln || (start.ln == end.ln && start.col >= end.col) { 
-            return Err("Error: span: context_span: end position matches or preceeds start position.\n");
+        if start.ln == end.ln && start.col == end.col {
+            return self.context_substr(&start, 1);
+        }
+
+        if start.ln > end.ln || (start.ln == end.ln && start.col > end.col) { 
+            return Err("Error: span: context_span: end position  preceeds start position.\n");
         }
 
         if start.ln > self.src.len() || start.col > self.src[start.ln].len() {  
@@ -97,14 +113,14 @@ impl Span {
     // relative to the formated string
     //
     // pos: (ln, col)
-    pub fn context_pos(&self, pos_: &Position) -> Result<(String, usize), &str> {
+    fn context_pos(&self, pos_: &Position) -> Result<(String, usize), &str> {
         self.context_substr(pos_, 0)
     }
 
     // similar to context_pos(), but takes the length of the substring, to which the context wraps around
     //
     // returns the begining of the substring relative to the context output
-    pub fn context_substr(&self, pos_: &Position, len: usize) -> Result<(String, usize), &str> {
+    fn context_substr(&self, pos_: &Position, len: usize) -> Result<(String, usize), &str> {
         if pos_.ln == 0 || pos_.col == 0 { return Err("Error: span: context_substr: invalid position."); } 
 
         let pos: Position = Position::new(pos_.ln - 1, pos_.col - 1);
