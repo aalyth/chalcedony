@@ -1,10 +1,12 @@
 use crate::lexer::tokens::{Token, TokenKind};
 use crate::errors::span::{Span, pos::Position};
+use crate::errors::format::output::Output;
 
 pub struct InvalidToken;
 impl InvalidToken {
     pub fn msg(token: &Token, span: &Span, expected: TokenKind) {
-        eprintln!("Error: invalid token (expected: '{:#?}', received: '{:#?}'):", expected, token.get_kind());
+        let message = format!("invalid token (expected: '{:#?}', received: '{:#?}'):", expected, token.get_kind());
+        Output::err(&message);
         span.context_print(token.start(), token.end());
     }
 }
@@ -12,7 +14,8 @@ impl InvalidToken {
 pub struct ExpectedToken;
 impl ExpectedToken {
     pub fn msg(pos: &Position, span: &Span, expected: TokenKind) {
-        eprintln!("Error: expected a token of type {:#?}.", expected);
+        let message = format!("expected  a token of type {:#?}:", expected);
+        Output::err(&message);
         span.context_print(pos, pos);
     }
 }
@@ -20,7 +23,8 @@ impl ExpectedToken {
 pub struct UnexpectedToken;
 impl UnexpectedToken {
     pub fn msg(token: &Token, span: &Span) {
-        eprintln!("Error: unexpected token ({:#?}):", token.get_kind());
+        let message = format!("unexpected token ({:#?}):", token.get_kind());
+        Output::err(&message);
         span.context_print(token.start(), token.end());
     }
 }

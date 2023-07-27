@@ -1,6 +1,6 @@
 pub mod errors;
 pub mod lexer;
-pub mod parser;
+// pub mod parser;
 
 use crate::lexer::Lexer;
 use crate::errors::span::Span;
@@ -11,7 +11,7 @@ extern crate lazy_static;
 fn main() {
     let (mut lexer, _) = Lexer::new("
     # this is a comment
-    fn main(argc i8, args []str) i8 {
+    fn main(argc: i8, args: []str) -> i8 {
         let a = 5 * -3
     }
     ").ok().unwrap();

@@ -1,4 +1,5 @@
 use crate::errors::span::{pos::Position, Span};
+use crate::errors::format::output::Output;
 
 // the enum is the possible errorous token kinds
 #[derive (PartialEq, Debug, Clone)]
@@ -11,7 +12,7 @@ pub enum LexerError {
 pub struct InvalidIdentifier;
 impl InvalidIdentifier {
     pub fn msg(start: &Position, end: &Position, span: &Span) {
-        eprintln!("Error: invalid identifier:");
+        Output::err("invalid identifier:");
         span.context_print(start, end);
     }
 }
@@ -19,7 +20,7 @@ impl InvalidIdentifier {
 pub struct UnclosedString;
 impl UnclosedString {
     pub fn msg(start: &Position, end: &Position, span: &Span) {
-        eprintln!("Error: unclosed string:");
+        Output::err("unclosed string:");
         span.context_print(start, end);
     }
 }
@@ -27,7 +28,7 @@ impl UnclosedString {
 pub struct UnclosedComment;
 impl UnclosedComment {
     pub fn msg(start: &Position, end: &Position, span: &Span) {
-        eprintln!("Error: unclosed multiline comment:");
+        Output::err("unclosed multiline comment:");
         span.context_print(start, end);
     }
 }
@@ -35,7 +36,8 @@ impl UnclosedComment {
 pub struct UnclosedDelimiter;
 impl UnclosedDelimiter {
     pub fn msg(start: &Position, end: &Position, span: &Span, del: &str) {
-        eprintln!("Error: unclosed delimiter ('{}'):", del);
+        let message = format!("unclosed delimiter ('{}'):", del);
+        Output::err(&message);
         span.context_print(start, end);
     }
 }
@@ -43,7 +45,8 @@ impl UnclosedDelimiter {
 pub struct UnexpectedClosingDelimiter;
 impl UnexpectedClosingDelimiter {
     pub fn msg(start: &Position, end: &Position, span: &Span, del: &str) {
-        eprintln!("Error: unexpected closing delimiter ('{}'):", del);
+        let message = format!("unexpected closing delimiter ('{}'):", del);
+        Output::err(&message);
         span.context_print(start, end);
     }
 }
@@ -51,7 +54,8 @@ impl UnexpectedClosingDelimiter {
 pub struct MissmatchingDelimiter;
 impl MissmatchingDelimiter {
     pub fn msg(start: &Position, end: &Position, span: &Span, open_del: &str, close_del: &str) {
-        eprintln!("Error: missmatching delimiter ('{}' and '{}'):", open_del, close_del);
+        let message = format!("missmatching delimiter ('{}' and '{}'):", open_del, close_del);
+        Output::err(&message);
         span.context_print(start, end);
     }
 }

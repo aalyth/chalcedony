@@ -1,6 +1,7 @@
 pub mod pos;
 
-use pos::Position;
+use crate::errors::span::pos::Position; 
+use crate::errors::format::color::Color;
 
 pub struct Span {
     src: Vec<String>,
@@ -22,13 +23,13 @@ impl Span {
 
     pub fn context_print(&self, start: &Position, end: &Position) {
         let context: (String, usize) = self.context_span(start, end).unwrap();
-        eprintln!("{}", context.0);
+        eprintln!("{}", &context.0);
 
         let ln_len = std::cmp::max(end.ln.to_string().len(), 4);
         for _ in 0 .. ln_len { eprint!(" "); } 
-        eprint!("| ");
+        eprint!("{}", Color::color(Color::Blue, "| "));
         for _ in 0 .. context.1 - (ln_len + 2) { eprint!(" "); }
-        for _ in 0 .. end.col - start.col { eprint!("^"); }
+        for _ in 0 .. end.col - start.col { eprint!("{}", Color::color(Color::Cyan, "^")); }
         eprintln!("\n");
     }
 
@@ -65,8 +66,8 @@ impl Span {
             let ln_len = std::cmp::max(end_ln_str.len(), 4); 
             for _ in 0 .. ln_len - end_ln_str.len() { result.push_str(" "); }
             let curr_line = &self.src[start.ln];
-            result.push_str(&start.ln.to_string());
-            result.push_str("| ");
+            result.push_str(&Color::color(Color::Blue, &start.ln.to_string()));
+            result.push_str(&Color::color(Color::Blue, "| "));
 
             #[allow(unused_assignments)]
             let mut res_pos: usize = 0;
@@ -99,7 +100,8 @@ impl Span {
         if end.ln - start.ln > 1 {
             let ln_len = std::cmp::max(end_.ln.to_string().len(), 4); 
             for _ in 0 .. ln_len-3 { result.push_str(" "); }
-            result.push_str("...| ...\n");
+            result.push_str(&Color::color(Color::Blue, "...| "));
+            result.push_str("...\n");
         }
 
         result.push_str(&self.context_pos(end_).unwrap().0);
@@ -133,8 +135,8 @@ impl Span {
 
         let mut result = "".to_string();
         for _ in 0 .. (ln_len - pos_len) { result.push_str(" "); }
-        result.push_str(&pos_.ln.to_string());
-        result.push_str("| ");
+        result.push_str(&Color::color(Color::Blue, &pos_.ln.to_string()));
+        result.push_str(&Color::color(Color::Blue, "| "));
 
         #[allow(unused_assignments)]
         let mut res_pos: usize = 0;
@@ -147,10 +149,13 @@ impl Span {
             let tmp: String = curr_line.chars().take(pos.col + len).collect(); 
             result.push_str(&tmp);
         }
-        res_pos = result.chars().count() - len;
+        res_pos = pos_.col + (ln_len+1);
 
-        if curr_line.len() - (pos.col + len) > 25 {
-            result.push_str(&curr_line[pos.col + len .. pos.col + len + 24].to_string()); 
+        if curr_line.chars().count() - (pos.col + len) > 25 {
+            // same as curr_line[pos.col + len .. pos.col + len + 24]
+            // but works with UTF-8
+            let tmp: String = curr_line.chars().take(pos.col + len + 24).skip(pos.col+len).collect(); 
+            result.push_str(&tmp);
             result.push_str("...");
 
         } else {

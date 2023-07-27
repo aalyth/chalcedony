@@ -2,14 +2,14 @@ use std::str::Chars;
 use std::iter::Peekable;
 use crate::errors::span::pos::Position;
 
-pub struct Reader<'a> {
+pub struct CharReader<'a> {
     pos: Position,
     src: Peekable<Chars<'a>>,
 }
 
-impl Reader<'_> {
-    pub fn new<'a>(src_code: &'a str) -> Reader<'a> {
-        Reader { 
+impl CharReader<'_> {
+    pub fn new<'a>(src_code: &'a str) -> CharReader<'a> {
+        CharReader { 
             pos: Position::new(1, 1),
             src: src_code.chars().peekable(), 
         }

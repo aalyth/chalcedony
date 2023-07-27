@@ -1,5 +1,6 @@
 pub mod tokens;
-mod reader;
+//pub mod token_reader;
+mod char_reader;
 
 use tokens::{Token, 
              TokenKind, 
@@ -12,7 +13,7 @@ use crate::errors::{LexerErrors,
                     ParserErrors,
                     };
 
-use reader::Reader;
+use char_reader::CharReader;
 use std::collections::VecDeque;
 
 pub struct Lexer {  
@@ -36,7 +37,7 @@ impl Lexer {
 
     // generates the next sequence of token/s
     fn generate(&mut self, code: &str) -> Result<(), ()> { 
-        let mut reader = Reader::new(code);
+        let mut reader = CharReader::new(code);
         if reader.is_empty() { 
             eprintln!("Error: Lexer: generate(): empty string input.");
             return Err(()); 
@@ -84,7 +85,7 @@ impl Lexer {
 
     // this takes all special characters and conjoins any double operators such as '+=', '-=', etc.
     fn split_special(&mut self, src: &str, start: &Position) {
-        let mut specials = Reader::new(src);
+        let mut specials = CharReader::new(src);
 
         while !specials.is_empty() {
             let current = specials.advance().unwrap();
@@ -189,7 +190,7 @@ impl Lexer {
                 return Ok(self.advance().unwrap());
 
             } else {
-                ParserErrors::UnexpectedToken::msg(&tok, span, exp);
+                ParserErrors::UnexpectedToken::msg(&tok, span);
             }
 
         } else {
