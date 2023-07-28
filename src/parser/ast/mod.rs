@@ -1,5 +1,6 @@
 mod operators;
 pub mod func;
+pub mod var;
 
 use operators::*;
 use crate::errors::parser::*;
@@ -48,22 +49,7 @@ impl VarType {
     }
 }
 
-pub enum NodeValue {
-    Int(i64),
-    UInt(u64),
-    Float(f64),
-    Str(String),
-}
 
-pub struct NodeVarCall {
-    name: String,
-}
-
-pub struct NodeVarDef {
-    r#type: VarType,
-    name:   String,
-    value:  Option<NodeExpr>
-}
 
 
 pub struct NodeBinExpr {

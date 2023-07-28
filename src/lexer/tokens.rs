@@ -1,5 +1,5 @@
 use crate::errors::LexerErrors::{self, LexerError};
-use crate::Span;
+use crate::errors::span::Span;
 use crate::errors::span::pos::Position;
 use std::collections::HashSet;
 

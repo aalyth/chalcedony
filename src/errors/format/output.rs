@@ -1,7 +1,7 @@
 
 use crate::errors::format::color::Color;
 
-pub struct Output {}
+pub struct Output;
 
 impl Output {
     pub fn err(msg: &str) {

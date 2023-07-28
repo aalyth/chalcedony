@@ -1,5 +1,5 @@
 (* program *)
-	program = {var_def | var_declr | func_def | func_declr}
+	program = {var_def | var_declr | func_def }
 
 (* basic definitions*)
 	uppercase = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' 
@@ -70,7 +70,6 @@
 
 (* functions *)
 	func_def = 'fn', identifier, '(', {identifier, type, [',']}, ')', [type], '{', {statement}, '}'
-
 
 (* statements *)
 	statement = expression | if_stmnt | while_loop | return_stmnt| var_declr 

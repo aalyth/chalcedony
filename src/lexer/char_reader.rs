@@ -1,6 +1,6 @@
 use std::str::Chars;
 use std::iter::Peekable;
-use crate::errors::span::pos::Position;
+use crate::errors::span::Position;
 
 pub struct CharReader<'a> {
     pos: Position,

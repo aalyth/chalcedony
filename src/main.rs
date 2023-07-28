@@ -1,9 +1,9 @@
 pub mod errors;
 pub mod lexer;
-// pub mod parser;
+pub mod parser;
+pub mod utils;
 
 use crate::lexer::Lexer;
-use crate::errors::span::Span;
 
 #[macro_use]
 extern crate lazy_static;
