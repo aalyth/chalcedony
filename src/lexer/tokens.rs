@@ -5,6 +5,18 @@ use std::collections::HashSet;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Keyword {
+    Let,
+    Fn,
+    Return,
+    If,
+    Else,
+    Elif,
+    While,
+    For,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum Type {
     I8,
     I16,
     I32,
@@ -16,14 +28,7 @@ pub enum Keyword {
     F32,
     F64,
     Str,
-    Let,
-    Fn,
-    Return,
-    If,
-    Else,
-    Elif,
-    While,
-    For,
+    Any,
 }
 
 lazy_static! {
@@ -42,7 +47,7 @@ lazy_static! {
         HashSet::from([
            '+', '-', '*', '/', 
            '%', '=', '<', '>', 
-           '!' 
+           '!', ':'
         ])
     };
 }
@@ -64,6 +69,7 @@ pub enum TokenKind {
     Str(String),
 
     Keyword(Keyword),
+    Type(Type),
     Identifier(String),
     Error(LexerError), // an encountered error
     None,
@@ -112,6 +118,7 @@ pub enum TokenKind {
     LtEq,         // <=
     GtEq,         // >=
     BangEq,       // !=
+    Walrus,       // :=
 }
 
 impl From<&str> for TokenKind {
@@ -123,19 +130,19 @@ impl From<&str> for TokenKind {
         }
 
         match src {
-           "i8"     => return TokenKind::Keyword(Keyword::I8),
-           "i16"    => return TokenKind::Keyword(Keyword::I16),
-           "i32"    => return TokenKind::Keyword(Keyword::I32),
-           "i64"    => return TokenKind::Keyword(Keyword::I64),
+           "i8"     => return TokenKind::Type(Type::I8),
+           "i16"    => return TokenKind::Type(Type::I16),
+           "i32"    => return TokenKind::Type(Type::I32),
+           "i64"    => return TokenKind::Type(Type::I64),
 
-           "u8"     => return TokenKind::Keyword(Keyword::U8),
-           "u16"    => return TokenKind::Keyword(Keyword::U16),
-           "u32"    => return TokenKind::Keyword(Keyword::U32),
-           "u64"    => return TokenKind::Keyword(Keyword::U64),
+           "u8"     => return TokenKind::Type(Type::U8),
+           "u16"    => return TokenKind::Type(Type::U16),
+           "u32"    => return TokenKind::Type(Type::U32),
+           "u64"    => return TokenKind::Type(Type::U64),
 
-           "f32"    => return TokenKind::Keyword(Keyword::F32),
-           "f64"    => return TokenKind::Keyword(Keyword::F64),
-           "str"    => return TokenKind::Keyword(Keyword::Str),
+           "f32"    => return TokenKind::Type(Type::F32),
+           "f64"    => return TokenKind::Type(Type::F64),
+           "str"    => return TokenKind::Type(Type::Str),
            "let"    => return TokenKind::Keyword(Keyword::Let),
            "null"   => return TokenKind::Null,
 
@@ -189,6 +196,8 @@ impl From<&str> for TokenKind {
            "<=" => return TokenKind::LtEq,
            ">=" => return TokenKind::GtEq,
            "!=" => return TokenKind::BangEq,
+           ":=" => return TokenKind::Walrus,
+
            _ => (),
         }
 
@@ -215,7 +224,7 @@ impl From<&str> for TokenKind {
             return TokenKind::None;
         }
 
-        if src.chars().nth(0).unwrap().is_numeric() || !src.chars().all(|c: char| -> bool {c.is_ascii_alphanumeric()}) {
+        if src.chars().nth(0).unwrap().is_numeric() || src.chars().all(|c: char| -> bool {!c.is_ascii_alphanumeric() && c == '_'}) {
             return TokenKind::Error(LexerError::InvalidIdentifier);
         }
 

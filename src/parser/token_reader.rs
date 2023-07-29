@@ -27,8 +27,8 @@ impl TokenReader<'_> {
         &self.pos
     }
 
-    pub fn peek(&mut self) -> Option<&Token> {
-        self.tokens.front()
+    pub fn peek(&self) -> Option<Token> {
+        self.tokens.front().cloned()
     }
 
     pub fn is_empty(&mut self) -> bool {
@@ -76,34 +76,32 @@ impl TokenReader<'_> {
         }
     }
 
-    fn expect_check(&mut  self, 
-                    current: &Token, 
-                    expected: &TokenKind,
-                    condition: fn (&Token, &TokenKind) -> bool 
+    fn expect_check(&mut self, 
+                    current: Token, 
+                    expected: TokenKind,
+                    condition: fn (&Token, TokenKind) -> bool 
     )-> Result<Token, ()> {
-        if condition(current, expected) {
+        if condition(&current, expected) {
             return Ok( self.advance().unwrap() );
         } else {
-            ParserErrors::UnexpectedToken::msg(current, self.span);
+            ParserErrors::UnexpectedToken::msg(&current, self.span);
         }
         Err(())
     }
 
     // advances if the token matches, else throws an error
-    pub fn expect(&mut self, expected: &TokenKind) -> Result<Token, ()> {
+    pub fn expect(&mut self, expected: TokenKind) -> Result<Token, ()> {
         if let Some(token) = self.peek() {
             // std::mem:discriminant() makes it so we can check only the outer enum variant
             // for example:
             // TokenKind::Identifier('main') is equal to TokenKind::Identifier('')
-
             match token.get_kind() {
-                TokenKind::Keyword(_) => return self.expect_check(token, expected, |curr, exp| curr.get_kind() == exp),
-                _ => return self.expect_check(token, expected, |curr, exp| std::mem::discriminant(curr.get_kind()) == std::mem::discriminant(exp)),
+                TokenKind::Keyword(_) => return self.expect_check(token, expected, |curr, exp| *curr.get_kind() == exp),
+                _ => return self.expect_check(token, expected, |curr, exp| std::mem::discriminant(curr.get_kind()) == std::mem::discriminant(&exp)),
             }
 
         } else {
             panic!("Error: TokenReader: expect(): expecting from an empty reader.");
         }
-
     }
 }

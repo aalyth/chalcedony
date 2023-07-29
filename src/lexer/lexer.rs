@@ -12,24 +12,21 @@ use crate::errors::{LexerErrors,
 use crate::lexer::CharReader;
 use std::collections::VecDeque;
 
-pub struct Lexer<'a> {  
+pub struct Lexer {  
     tokens: VecDeque<Token>,
-    span: &'a Span,
 }
 
-impl Lexer<'_>{
+impl Lexer {
     pub fn new(code: &str) -> Result<(Lexer, Span), ()> {
         let span = Span::new(code);
 
         let mut res = Lexer {
             tokens: VecDeque::new(),
-            span: &span,
         };
 
-
         res.generate(code);
-        res.check_errors()?;
-        res.check_delimiters()?;
+        res.check_errors(&span)?;
+        res.check_delimiters(&span)?;
 
         Ok( (res, span) )
     }
@@ -53,7 +50,7 @@ impl Lexer<'_>{
             }
 
             if current.is_alphanumeric() {
-                let src = String::from(current) + &reader.advance_while(|c| c.is_alphanumeric()); 
+                let src = String::from(current) + &reader.advance_while(|c| c.is_alphanumeric() || c == '_'); 
 
                 self.tokens.push_back(Token::new(src, &start, reader.pos()));
             }
@@ -113,22 +110,22 @@ impl Lexer<'_>{
         }
     }
 
-    fn check_delim(&self, token: &Token, kind: TokenKind, stack: &mut Vec<Token>) -> Result<(), ()> {
+    fn check_delim(&self, span: &Span, token: &Token, kind: TokenKind, stack: &mut Vec<Token>) -> Result<(), ()> {
         if let Some(tk) = stack.last() {
             if *tk.get_kind() != kind {
-                LexerErrors::MissmatchingDelimiter::msg(tk.start(), token.end(), self.span, tk.src(), token.src());
+                LexerErrors::MissmatchingDelimiter::msg(tk.start(), token.end(), span, tk.src(), token.src());
                 return Err(());
             } else {
                 stack.pop();
             }
         } else {
-            LexerErrors::UnexpectedClosingDelimiter::msg(token.start(), token.end(), self.span, token.src());
+            LexerErrors::UnexpectedClosingDelimiter::msg(token.start(), token.end(), span, token.src());
             return Err(());
         }
         Ok(())
     }
 
-    fn check_delimiters(&mut self) -> Result<(), ()>{
+    fn check_delimiters(&mut self, span: &Span) -> Result<(), ()>{
         let mut stack = Vec::<Token>::new(); 
 
         for token in self.tokens.clone() {
@@ -137,11 +134,11 @@ impl Lexer<'_>{
                 TokenKind::OpenBrace => stack.push(token),
 
                 TokenKind::ClosePar   => {
-                    self.check_delim(&token, TokenKind::OpenPar, &mut stack)?;
+                    self.check_delim(span, &token, TokenKind::OpenPar, &mut stack)?;
                 },
 
                 TokenKind::CloseBrace   => {
-                    self.check_delim(&token, TokenKind::OpenBrace, &mut stack)?;
+                    self.check_delim(span, &token, TokenKind::OpenBrace, &mut stack)?;
                 },
 
                 _ => (),
@@ -150,18 +147,18 @@ impl Lexer<'_>{
 
         if !stack.is_empty() {
             let end = stack.pop().unwrap();
-            LexerErrors::UnclosedDelimiter::msg(end.start(), end.end(), self.span, end.src());
+            LexerErrors::UnclosedDelimiter::msg(end.start(), end.end(), span, end.src());
             return Err(());
         }
 
         Ok(())
     }
 
-    fn check_errors(&mut self) -> Result<(), ()> {
+    fn check_errors(&mut self, span: &Span) -> Result<(), ()> {
         let mut error = false;
 
         for token in &self.tokens {
-            if let Err(_) = token.err_msg(self.span) {
+            if let Err(_) = token.err_msg(span) {
                 error = true;
             }
         }
@@ -171,13 +168,12 @@ impl Lexer<'_>{
     }
 
     // returns the next program element => var def/declr or function def
-    pub fn advance_program(&mut self) -> Option<VecDeque<Token>> {
+    pub fn advance_program(&mut self, span: &Span) -> Option<VecDeque<Token>> {
         let mut result = VecDeque::new(); 
     
         if let Some(token) = self.tokens.front() {
             match token.get_kind() {
                 TokenKind::Keyword(Keyword::Let) => {
-                    result.push_back(token.clone());
                     result.append(&mut self.advance_while(|tk| *tk != TokenKind::Newline));
                 },
 
@@ -208,8 +204,13 @@ impl Lexer<'_>{
                     return Some(result);
                 },
 
+                TokenKind::Newline => {
+                    self.advance();
+                    return None;
+                },
+
                 _ => {
-                    LexerErrors::InvalidGlobalStatement::msg(token.start(), token.end(), self.span, token.get_kind());
+                    LexerErrors::InvalidGlobalStatement::msg(token.start(), token.end(), span, token.get_kind());
                     return None;
                 }
             }
