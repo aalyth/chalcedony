@@ -14,7 +14,7 @@
 			  | 's' | 't' | 'u' | 'v' | 'w' | 'x' 
 			  | 'y' | 'z' 
 
-	num = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' 
+	num   = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' 
 	float = num, {num}, '.', num, {number}
 
 	number = num, {num} | float
@@ -26,8 +26,10 @@
 
 	(* expression *) 
 (* operators *)
-	opr = '+' | '-' | '*' | '/'  | '%'
-	bin_opr = opr | opr, '='
+	opr 	   = '+' | '-' | '*' | '/'  | '%'
+	bin_opr    = opr 
+	assign_opr = opr, '='
+	un_opr 	   = '-' | '*' 
 
 	cmp_opr = '<' | '>' | '==' | '<=' | '>='
 
@@ -45,11 +47,12 @@
 		  | string 
 
 	expression = value 
+			   | un_opr, value
 			   | expression, bin_opr, expression
 			   | (expression)
 
-	condition = value
-			  | condition, cmp_opr, condition
+	condition = expression
+			  | expression, cmp_opr, expression 
 			  | condition, bool_opr, condition
 			  | '!', condition
 			  | (condition)
@@ -72,7 +75,14 @@
 	func_def = 'fn', identifier, '(', {identifier, type, [',']}, ')', [type], '{', {statement}, '}'
 
 (* statements *)
-	statement = expression | if_stmnt | while_loop | return_stmnt| var_declr 
+	assigment = var_call, assign_opr, expression
+			  | var_call, '=', '&', (var_call | func_call)
+
+	statement = assigment
+			  | if_stmnt 
+			  | while_loop 
+			  | return_stmnt
+			  | var_declr 
 
 	if_stmnt = 'if', expression, '{', {statement}, '}'
 

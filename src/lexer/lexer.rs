@@ -49,10 +49,20 @@ impl Lexer {
                 reader.advance_while(|c| c != '\n');
             }
 
+            // identifier
             if current.is_alphanumeric() {
                 let src = String::from(current) + &reader.advance_while(|c| c.is_alphanumeric() || c == '_'); 
 
                 self.tokens.push_back(Token::new(src, &start, reader.pos()));
+                continue;
+            }
+
+            if current.is_numeric() || 
+               (current == '-' && reader.peek().is_some() && reader.peek().unwrap().is_numeric())
+            {
+                let src = String::from(current) + &reader.advance_while(|c| c.is_numeric() || c == '.');
+                self.tokens.push_back(Token::new(src, &start, reader.pos()));
+                continue;
             }
 
             if is_special(&current) {
@@ -61,6 +71,7 @@ impl Lexer {
                     TokenKind::None => self.split_special(&src, &start),
                     _ => self.tokens.push_back(Token::new(src, &start, reader.pos())),
                 };
+                continue;
             }
             
             if current == '\n' {

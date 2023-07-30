@@ -1,10 +1,12 @@
 mod operators;
+pub mod expr;
 pub mod func;
 pub mod var;
 pub mod program;
 
 pub use var::{NodeVarCall, NodeVarDef};
 pub use func::NodeFuncDef;
+pub use expr::{NodeExpr, NodeBinExpr, NodeUnaryExpr};
 pub use program::NodeProg;
 
 use operators::*;
@@ -65,22 +67,6 @@ pub enum NodeValue {
     // add custom values - structs
 }
 
-pub struct NodeBinExpr {
-    left: Box<NodeExpr>,
-    right: Box<NodeExpr>,
-    operator: BinOprType,
-}
-
-pub struct NodeUnaryExpr {
-    operand: Box<NodeExpr>,
-    operator: UnaryOprType,
-}
-
-pub enum NodeExpr {
-    BinExpr(NodeBinExpr),
-    UnaryExpr(NodeUnaryExpr),
-    Value(NodeValue),
-}
 
 pub struct NodeUnaryCond {
     operand:  Box<NodeCond>,
