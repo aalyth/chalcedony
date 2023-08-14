@@ -58,20 +58,69 @@ impl Lexer {
             }
 
             if current.is_numeric() || 
-               (current == '-' && reader.peek().is_some() && reader.peek().unwrap().is_numeric())
+               (current == '-' && 
+                reader.peek().is_some() && 
+                reader.peek().unwrap().is_numeric()
+                )
             {
+                /* 
+                 * check weather the minus should be interpreted as
+                 * a negative int or an operator, example:
+                 * 'a-5' -> identifier(a), sub(-), uint(5)
+                 * 'a*-5' -> identifier(a), mul(*), int(-5)
+                 */
+                if current == '-' {
+                    match self.tokens.back() {
+                        Some(token) => {
+                            if token.is_terminal() { 
+                                self.tokens.push_back(Token::new(current.to_string(), &start, reader.pos()));
+                                continue;
+                            }
+                        },
+                        None => (),
+                    }
+                }
+
                 let src = String::from(current) + &reader.advance_while(|c| c.is_numeric() || c == '.');
                 self.tokens.push_back(Token::new(src, &start, reader.pos()));
                 continue;
             }
 
             if is_special(&current) {
+                /*
                 let src = String::from(current) + &reader.advance_while(|c| is_special(&c)); 
                 match TokenKind::from(src.as_str()) {
                     TokenKind::None => self.split_special(&src, &start),
                     _ => self.tokens.push_back(Token::new(src, &start, reader.pos())),
                 };
                 continue;
+                */
+
+                let mut end = start.clone();
+                end.advance_col();
+
+                if !is_operator(&current) || 
+                    reader.peek() == None 
+                {
+                    self.tokens.push_back(Token::new(current.to_string(), &start, &end));
+                    continue;
+                }
+
+                let mut buffer = String::from(current);
+                if let Some(c) = reader.peek() { buffer.push(c.clone()) }
+
+                match buffer.as_str() {
+                    "+=" | "-=" | "*=" | "/=" | 
+                    "%=" | "==" | "!=" | "<=" | 
+                    ">=" | "->" | ":=" => {
+                        reader.advance();
+                        end.advance_col();
+                    },
+
+                    _ => _ = buffer.pop(),
+                }
+                self.tokens.push_back(Token::new(buffer, &start, &end))
+
             }
             
             if current == '\n' {

@@ -15,7 +15,10 @@ impl NodeExpr {
         // 1. get the needed tokens from the stream
         // 2. identify the unary expressions
         // 3. start parsing from the lowest precedence binary operators
-        // 4. works???
+        // 4. profit???
+        //
+        // NOTE: filter unnecessary expressions like:
+        // a*--b -> can be simplified to a*b
 
         None
     }

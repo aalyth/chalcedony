@@ -154,7 +154,7 @@ impl From<&str> for TokenKind {
            "while"  => return TokenKind::Keyword(Keyword::While),
            "for"    => return TokenKind::Keyword(Keyword::For),
 
-           "#" => return TokenKind::Sharp,
+           "#" => return TokenKind::Sharp, // TODO! remove later - used as comment currently
            "$" => return TokenKind::Dollar,
 
            "(" => return TokenKind::OpenPar,
@@ -270,6 +270,20 @@ impl Token {
             return Err(());
         }
         Ok(())
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        match self.kind {
+            TokenKind::Int(_) 
+                | TokenKind::Uint(_) 
+                | TokenKind::Float(_)
+                | TokenKind::Str(_) 
+                | TokenKind::Keyword(_)
+                | TokenKind::Identifier(_)
+                | TokenKind::ClosePar 
+                => true,
+            _ => false,
+        }
     }
 
     pub fn get_kind(&self) -> &TokenKind {
