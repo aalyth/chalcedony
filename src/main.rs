@@ -24,7 +24,7 @@ fn main() {
     ").ok().unwrap();
 
     while let Some(node) = parser.advance() {
-        println!("{:#?}", node);
+        // println!("{:#?}", node);
     }
 
 }

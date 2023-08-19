@@ -59,6 +59,7 @@ impl VarType {
 }
 
 
+#[derive(Debug)]
 pub enum NodeValue {
     Int(i64),
     UInt(u64),
@@ -66,7 +67,6 @@ pub enum NodeValue {
     Str(String),
     // add custom values - structs
 }
-
 
 pub struct NodeUnaryCond {
     operand:  Box<NodeCond>,
@@ -83,27 +83,6 @@ pub enum NodeCond {
     BinCond(NodeBinCond),
     UnaryCond(NodeUnaryCond),
     Value(NodeValue),
-}
-
-pub struct NodeIfStmnt {
-    condition: NodeExpr,
-    body: Vec<NodeStmnt>
-}
-
-pub struct NodeWhileLoop {
-    condition: NodeExpr,
-    body: Vec<NodeStmnt>
-}
-
-pub enum NodeStmnt {
-   Expr(NodeExpr),
-   IfStmnt(NodeIfStmnt),
-   WhileLoop(NodeWhileLoop),
-   RetStmnt(NodeRetStmnt),
-}
-
-pub struct NodeRetStmnt {
-    value: NodeExpr,
 }
 
 

@@ -22,7 +22,7 @@ impl TokenReader<'_> {
         }
     }
 
-    // returns the end position of the last removed element
+    /* returns the end position of the last removed element */
     pub fn pos(&self) -> &Position {
         &self.pos
     }
@@ -53,10 +53,11 @@ impl TokenReader<'_> {
 
     // TODO! make it return a proper ast node
     pub fn advance_node(&mut self) -> Option<VecDeque<Token>>  {
-        // check the next token:
-        // keyword 'let' => new variable - end newline
-        // keyword 'if'  => new if       - end closing delimiter
-        // default => new statement      - end newline
+        /* check the next token:
+         * keyword 'let' => new variable - end newline
+         * keyword 'if'  => new if       - end closing delimiter
+         * default => new statement      - end newline 
+         */
         
         if let Some(token) = self.peek() {
             match token.get_kind() {
@@ -79,8 +80,8 @@ impl TokenReader<'_> {
     fn expect_check(&mut self, 
                     current: Token, 
                     expected: TokenKind,
-                    condition: fn (&Token, TokenKind) -> bool 
-    )-> Result<Token, ()> {
+                    condition: fn (&Token, TokenKind) -> bool,
+                )-> Result<Token, ()> {
         if condition(&current, expected) {
             return Ok( self.advance().unwrap() );
         } else {
@@ -89,12 +90,13 @@ impl TokenReader<'_> {
         Err(())
     }
 
-    // advances if the token matches, else throws an error
+    /* advance if the token matches, else throw an error */
     pub fn expect(&mut self, expected: TokenKind) -> Result<Token, ()> {
         if let Some(token) = self.peek() {
-            // std::mem:discriminant() makes it so we can check only the outer enum variant
-            // for example:
-            // TokenKind::Identifier('main') is equal to TokenKind::Identifier('')
+            /* std::mem:discriminant() makes it so we can check only the outer enum variant
+             * for example:
+             * TokenKind::Identifier('main') is equal to TokenKind::Identifier('')
+             */
             match token.get_kind() {
                 TokenKind::Keyword(_) => return self.expect_check(token, expected, |curr, exp| *curr.get_kind() == exp),
                 _ => return self.expect_check(token, expected, |curr, exp| std::mem::discriminant(curr.get_kind()) == std::mem::discriminant(&exp)),
@@ -103,5 +105,9 @@ impl TokenReader<'_> {
         } else {
             panic!("Error: TokenReader: expect(): expecting from an empty reader.");
         }
+    }
+
+    pub fn remainder(self) -> VecDeque<Token> {
+        self.tokens
     }
 }

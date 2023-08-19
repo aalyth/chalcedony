@@ -1,4 +1,5 @@
 
+#[derive(Debug)]
 pub enum BinOprType {
     Add,          // +
     Sub,          // -
@@ -20,6 +21,7 @@ pub enum BinOprType {
     */
 }
 
+#[derive(Debug)]
 pub enum BinCondType {
     Lt,           // <
     Gt,           // >
@@ -31,10 +33,12 @@ pub enum BinCondType {
     Or,           // ||
 }
 
+#[derive(Debug)]
 pub enum UnaryCondType {
     Bang,         // !
 }
 
+#[derive(Debug)]
 pub enum UnaryOprType {
     Neg,          // - (negative)
     Ref,          // &
