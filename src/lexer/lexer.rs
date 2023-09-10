@@ -10,25 +10,47 @@ use crate::errors::{LexerErrors,
                     };
 
 use crate::lexer::CharReader;
+use std::cell::Ref;
 use std::collections::VecDeque;
+use std::rc::Rc;
 
-pub struct Lexer {  
-    tokens: VecDeque<Token>,
+pub struct Lexer<'a> {  
+    read: CharReader<'a>,
+    span: Rc<Span>,
+    prev: Option< Ref<'a, Token> >,
 }
 
-impl Lexer {
-    pub fn new(code: &str) -> Result<(Lexer, Span), ()> {
-        let span = Span::new(code);
+enum LexerError {
+   Err1,
+   Err2,
+   InvalidIndentation,
+}
 
-        let mut res = Lexer {
-            tokens: VecDeque::new(),
-        };
+impl<'a> Lexer<'a> {
+    pub fn new(code: &str) -> Self {
+        let src = str::replace(code, "\t", "    ");
 
-        res.generate(code);
-        res.check_errors(&span)?;
-        res.check_delimiters(&span)?;
+        Lexer {
+            read: CharReader::new(code),
+            span: Rc::new(Span::new(code)),
+            prev: None,
+        }
+    }
 
-        Ok( (res, span) )
+    /* advances the next program node (a fn def or variable def) */
+    pub fn advance_prog() -> Result<VecDeque<Token>, LexerError> {
+        Ok(VecDeque::<Token>::new())
+    }
+
+    fn advance_line(&mut self) -> Result<(VecDeque<Token>, usize), LexerError> {
+        let indent = self.read.advance_while(|c: char| c == ' ');
+        let indent_size = indent.len();
+
+        if indent_size % 4 != 0 {
+            return Err(LexerError::InvalidIndentation);
+        }
+
+
     }
 
     // generates the next sequence of token/s

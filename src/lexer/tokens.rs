@@ -1,4 +1,4 @@
-use crate::errors::LexerErrors::{self, LexerError};
+use crate::errors::LexerError::LexerError;
 use crate::errors::span::Span;
 use crate::errors::span::pos::Position;
 use std::collections::HashSet;
@@ -9,10 +9,11 @@ pub enum Keyword {
     Fn,
     Return,
     If,
-    Else,
     Elif,
+    Else,
     While,
     For,
+    Void,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -31,6 +32,51 @@ pub enum Type {
     Any,
 }
 
+#[derive(PartialEq, Debug, Clone)]
+pub enum Operator {
+    OpenPar,       // ( 
+    ClosePar,      // )
+    OpenBracket,   // [
+    CloseBracket,  // ]
+    OpenBrace,     // {
+    CloseBrace,    // }
+    Comma,         // , 
+    Dot,           // . 
+    Colon,         // : 
+    SemiColon,     // ;
+    Newline,       // \n 
+    RightArrow,    // ->
+    BigRightArrow, // =>
+
+    Add,           // +
+    Sub,           // -
+    Mul,           // *
+    Div,           // /
+    Mod,           // %
+    Eq,            // =
+    Lt,            // <
+    Gt,            // >
+
+    Bang,          // !
+    BinAnd,        // &
+    BinOr,         // |
+    Tilde,         // ~
+    Xor,           // ^
+    And,           // &&
+    Or,            // ||
+
+    AddEq,         // +=
+    SubEq,         // -=
+    MulEq,         // *=
+    DivEq,         // /=
+    ModEq,         // %=
+    EqEq,          // ==
+    LtEq,          // <=
+    GtEq,          // >=
+    BangEq,        // !=
+    Walrus,        // :=
+}
+
 lazy_static! {
     static ref SPECIAL: HashSet<char> = {
         HashSet::from([
@@ -39,7 +85,6 @@ lazy_static! {
            '+', '-', '*', '/', 
            '%', '=', '<', '>', 
            '!', ',', 
-           // '&', '|', '~', '^', ','
         ])
     };
 
@@ -61,6 +106,7 @@ pub fn is_operator(c: &char) -> bool {
     OPERATORS.contains(c)
 }
 
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenKind {
     Int(i64),
@@ -71,150 +117,98 @@ pub enum TokenKind {
     Keyword(Keyword),
     Type(Type),
     Identifier(String),
-    Error(LexerError), // an encountered error
-    None,
-    Null,
-
-    Sharp,        // #
-    Dollar,       // $
-
-    OpenPar,      // ( 
-    ClosePar,     // )
-    OpenBracket,  // [
-    CloseBracket, // ]
-    OpenBrace,    // {
-    CloseBrace,   // }
-    Comma,        // , 
-    Dot,          // . 
-    Colon,        // : 
-    SemiColon,    // ;
-    Newline,      // \n 
-    RightArrow,   // ->
-    BigRightArrow,// =>
-
-    Add,          // +
-    Sub,          // -
-    Mul,          // *
-    Div,          // /
-    Mod,          // %
-    Eq,           // =
-    Lt,           // <
-    Gt,           // >
-
-    Bang,         // !
-    BinAnd,       // &
-    BinOr,        // |
-    Tilde,        // ~
-    Xor,          // ^
-    And,          // &&
-    Or,           // ||
-
-    AddEq,        // +=
-    SubEq,        // -=
-    MulEq,        // *=
-    DivEq,        // /=
-    ModEq,        // %=
-    EqEq,         // ==
-    LtEq,         // <=
-    GtEq,         // >=
-    BangEq,       // !=
-    Walrus,       // :=
+    Operator(Operator),
+    Newline,
 }
 
 impl From<&str> for TokenKind {
-    fn from(src: &str) -> TokenKind {
-        if src == "\n" { return TokenKind::Newline; }
-
-        if src == "" {
-            return TokenKind::None; // error kind
-        }
+    fn from(src: &str) -> Result<TokenKind,  {
+        if src == "" { return None; }
+        if src == "\n" { return Some(TokenKind::Newline); }
 
         match src {
-           "i8"     => return TokenKind::Type(Type::I8),
-           "i16"    => return TokenKind::Type(Type::I16),
-           "i32"    => return TokenKind::Type(Type::I32),
-           "i64"    => return TokenKind::Type(Type::I64),
+           "i8"     => return Some(TokenKind::Type(Type::I8)),
+           "i16"    => return Some(TokenKind::Type(Type::I16)),
+           "i32"    => return Some(TokenKind::Type(Type::I32)),
+           "i64"    => return Some(TokenKind::Type(Type::I64)),
 
-           "u8"     => return TokenKind::Type(Type::U8),
-           "u16"    => return TokenKind::Type(Type::U16),
-           "u32"    => return TokenKind::Type(Type::U32),
-           "u64"    => return TokenKind::Type(Type::U64),
+           "u8"     => return Some(TokenKind::Type(Type::U8)),
+           "u16"    => return Some(TokenKind::Type(Type::U16)),
+           "u32"    => return Some(TokenKind::Type(Type::U32)),
+           "u64"    => return Some(TokenKind::Type(Type::U64)),
 
-           "f32"    => return TokenKind::Type(Type::F32),
-           "f64"    => return TokenKind::Type(Type::F64),
-           "str"    => return TokenKind::Type(Type::Str),
-           "let"    => return TokenKind::Keyword(Keyword::Let),
-           "null"   => return TokenKind::Null,
+           "f32"    => return Some(TokenKind::Type(Type::F32)),
+           "f64"    => return Some(TokenKind::Type(Type::F64)),
+           "str"    => return Some(TokenKind::Type(Type::Str)),
+           "let"    => return Some(TokenKind::Keyword(Keyword::Let)),
+           "void"   => return Some(TokenKind::Keyword(Keyword::Void)),
 
-           "fn"     => return TokenKind::Keyword(Keyword::Fn),
-           "return" => return TokenKind::Keyword(Keyword::Return),
-           "if"     => return TokenKind::Keyword(Keyword::If),
-           "else"   => return TokenKind::Keyword(Keyword::Else),
-           "elif"   => return TokenKind::Keyword(Keyword::Elif),
-           "while"  => return TokenKind::Keyword(Keyword::While),
-           "for"    => return TokenKind::Keyword(Keyword::For),
+           "fn"     => return Some(TokenKind::Keyword(Keyword::Fn)),
+           "return" => return Some(TokenKind::Keyword(Keyword::Return)),
+           "if"     => return Some(TokenKind::Keyword(Keyword::If)),
+           "else"   => return Some(TokenKind::Keyword(Keyword::Else)),
+           "elif"   => return Some(TokenKind::Keyword(Keyword::Elif)),
+           "while"  => return Some(TokenKind::Keyword(Keyword::While)),
+           "for"    => return Some(TokenKind::Keyword(Keyword::For)),
 
-           "#" => return TokenKind::Sharp, // TODO! remove later - used as comment currently
-           "$" => return TokenKind::Dollar,
+           "("  => return Some(TokenKind::Operator(Operator::OpenPar)),
+           ")"  => return Some(TokenKind::Operator(Operator::ClosePar)),
+           "["  => return Some(TokenKind::Operator(Operator::OpenBracket)),
+           "]"  => return Some(TokenKind::Operator(Operator::CloseBracket)),
+           "{"  => return Some(TokenKind::Operator(Operator::OpenBrace)),
+           "}"  => return Some(TokenKind::Operator(Operator::CloseBrace)),
+           ","  => return Some(TokenKind::Operator(Operator::Comma)),
+           "."  => return Some(TokenKind::Operator(Operator::Dot)),
+           ":"  => return Some(TokenKind::Operator(Operator::Colon)),
+           ";"  => return Some(TokenKind::Operator(Operator::SemiColon)),
+           "->" => return Some(TokenKind::Operator(Operator::RightArrow)),
+           "=>" => return Some(TokenKind::Operator(Operator::BigRightArrow)),
 
-           "(" => return TokenKind::OpenPar,
-           ")" => return TokenKind::ClosePar,
-           "[" => return TokenKind::OpenBracket,
-           "]" => return TokenKind::CloseBracket,
-           "{" => return TokenKind::OpenBrace,
-           "}" => return TokenKind::CloseBrace,
-           "," => return TokenKind::Comma,
-           "." => return TokenKind::Dot,
-           ":" => return TokenKind::Colon,
-           ";" => return TokenKind::SemiColon,
-           "->" => return TokenKind::RightArrow,
-           "=>" => return TokenKind::BigRightArrow,
+           "+"  => return Some(TokenKind::Operator(Operator::Add)),
+           "-"  => return Some(TokenKind::Operator(Operator::Sub)),
+           "*"  => return Some(TokenKind::Operator(Operator::Mul)),
+           "/"  => return Some(TokenKind::Operator(Operator::Div)),
+           "%"  => return Some(TokenKind::Operator(Operator::Mod)),
+           "="  => return Some(TokenKind::Operator(Operator::Eq)),
+           "<"  => return Some(TokenKind::Operator(Operator::Lt)),
+           ">"  => return Some(TokenKind::Operator(Operator::Gt)),
 
-           "+" => return TokenKind::Add,
-           "-" => return TokenKind::Sub,
-           "*" => return TokenKind::Mul,
-           "/" => return TokenKind::Div,
-           "%" => return TokenKind::Mod,
-           "=" => return TokenKind::Eq,
-           "<" => return TokenKind::Lt,
-           ">" => return TokenKind::Gt,
+           "!"  => return Some(TokenKind::Operator(Operator::Bang)),
+           "&"  => return Some(TokenKind::Operator(Operator::BinAnd)),
+           "|"  => return Some(TokenKind::Operator(Operator::BinOr)),
+           "~"  => return Some(TokenKind::Operator(Operator::Tilde)),
+           "^"  => return Some(TokenKind::Operator(Operator::Xor)),
+           "&&" => return Some(TokenKind::Operator(Operator::And)),
+           "||" => return Some(TokenKind::Operator(Operator::Or)),
 
-           "!" => return TokenKind::Bang,
-           "&" => return TokenKind::BinAnd,
-           "|" => return TokenKind::BinOr,
-           "~" => return TokenKind::Tilde,
-           "^" => return TokenKind::Xor,
-           "&&" => return TokenKind::And,
-           "||" => return TokenKind::Or,
-
-           "+=" => return TokenKind::AddEq,
-           "-=" => return TokenKind::SubEq,
-           "*=" => return TokenKind::MulEq,
-           "/=" => return TokenKind::DivEq,
-           "%=" => return TokenKind::ModEq,
-           "==" => return TokenKind::EqEq,
-           "<=" => return TokenKind::LtEq,
-           ">=" => return TokenKind::GtEq,
-           "!=" => return TokenKind::BangEq,
-           ":=" => return TokenKind::Walrus,
+           "+=" => return Some(TokenKind::Operator(Operator::AddEq)),
+           "-=" => return Some(TokenKind::Operator(Operator::SubEq)),
+           "*=" => return Some(TokenKind::Operator(Operator::MulEq)),
+           "/=" => return Some(TokenKind::Operator(Operator::DivEq)),
+           "%=" => return Some(TokenKind::Operator(Operator::ModEq)),
+           "==" => return Some(TokenKind::Operator(Operator::EqEq)),
+           "<=" => return Some(TokenKind::Operator(Operator::LtEq)),
+           ">=" => return Some(TokenKind::Operator(Operator::GtEq)),
+           "!=" => return Some(TokenKind::Operator(Operator::BangEq)),
+           ":=" => return Some(TokenKind::Operator(Operator::Walrus)),
 
            _ => (),
         }
 
         if let Ok(kind) = src.parse::<u64>() {
-            return TokenKind::Uint(kind);
+            return Some(TokenKind::Uint(kind));
         }
 
         if let Ok(kind) = src.parse::<i64>() {
-            return TokenKind::Int(kind);
+            return Some(TokenKind::Int(kind));
         }
 
         if let Ok(kind) = src.parse::<f64>() {
-            return TokenKind::Float(kind);
+            return Some(TokenKind::Float(kind));
         }
 
         if src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"') {
-            return TokenKind::Str(src.to_string());
+            return Some(TokenKind::Str(src.to_string()));
 
         } else if src.chars().nth(0) == Some('"') {
             return TokenKind::Error(LexerError::UnclosedString);
@@ -228,7 +222,7 @@ impl From<&str> for TokenKind {
             return TokenKind::Error(LexerError::InvalidIdentifier);
         }
 
-        return TokenKind::Identifier(src.to_string());
+        return Some(TokenKind::Identifier(src.to_string()));
     }
 }
 
@@ -241,13 +235,16 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(src: String, start: &Position, end: &Position) -> Token {
-        Token {
-            kind:  TokenKind::from(&src[..]),
-            start: start.clone(),
-            end:   end.clone(),
-            src,
-        }
+    pub fn new(src: String, start: &Position, end: &Position) -> Result<Self, > {
+
+        Ok (
+            Token {
+                kind:  TokenKind::from(&src[..]),
+                start: start.clone(),
+                end:   end.clone(),
+                src,
+            }
+        )
     }
 
     pub fn err(start: &Position, end: &Position, err_kind: &LexerError) -> Token {
@@ -270,20 +267,6 @@ impl Token {
             return Err(());
         }
         Ok(())
-    }
-
-    pub fn is_terminal(&self) -> bool {
-        match self.kind {
-            TokenKind::Int(_) 
-                | TokenKind::Uint(_) 
-                | TokenKind::Float(_)
-                | TokenKind::Str(_) 
-                | TokenKind::Keyword(_)
-                | TokenKind::Identifier(_)
-                | TokenKind::ClosePar 
-                => true,
-            _ => false,
-        }
     }
 
     pub fn get_kind(&self) -> &TokenKind {
