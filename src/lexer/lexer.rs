@@ -2,194 +2,154 @@ use crate::lexer::tokens::{Token,
              TokenKind,
              Keyword,
              is_special, 
-             is_operator};
+             is_operator,
+             };
 
-use crate::errors::{LexerErrors,
-                    span::Span,
-                    span::Position,
-                    };
+use crate::error::{ChalError,
+                   LexerError,
+                   InternalError,
+                   span::Span,
+                   span::Position,
+                   };
 
 use crate::lexer::CharReader;
 use std::cell::Ref;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+use regex::Regex;
+
 pub struct Lexer<'a> {  
-    read: CharReader<'a>,
+    reader: CharReader<'a>,
     span: Rc<Span>,
     prev: Option< Ref<'a, Token> >,
 }
 
-enum LexerError {
-   Err1,
-   Err2,
-   InvalidIndentation,
-}
-
 impl<'a> Lexer<'a> {
     pub fn new(code: &str) -> Self {
-        let src = str::replace(code, "\t", "    ");
+        /* convert tabs to 4 spaces */
+        let src = &str::replace(code, "\t", "    ");
+
+        /* remove comments */
+        let re = Regex::new(r"#.*$").unwrap();
+        let src = &re.replace(src, "").into_owned();
+
+        /* remove empty lines*/
+        let re = Regex::new(r"^[ \t]*$").unwrap();
+        let src = &re.replace(src, "").into_owned();
 
         Lexer {
-            read: CharReader::new(code),
+            reader: CharReader::new(code),
             span: Rc::new(Span::new(code)),
             prev: None,
         }
     }
 
     /* advances the next program node (a fn def or variable def) */
-    pub fn advance_prog() -> Result<VecDeque<Token>, LexerError> {
+    pub fn advance_prog() -> Result<VecDeque<Token>, LexerError<'a>> {
         Ok(VecDeque::<Token>::new())
     }
 
-    fn advance_line(&mut self) -> Result<(VecDeque<Token>, usize), LexerError> {
-        let indent = self.read.advance_while(|c: char| c == ' ');
+    fn advance_line(&mut self) -> Result<(VecDeque<Token>, usize), ChalError> {
+        if self.reader.is_empty() {
+            return Err(InternalError::new("Lexer::advance_line(): advancing an empty lexer"));
+        }
+
+        let start = self.reader.pos();
+        let indent = self.reader.advance_while(|c: char| c == ' ');
         let indent_size = indent.len();
 
         if indent_size % 4 != 0 {
-            return Err(LexerError::InvalidIndentation);
+            return Err(LexerError::invalid_indentation(start, self.reader.pos(), &self.span));
         }
-
-
+        
     }
 
-    // generates the next sequence of token/s
-    fn generate(&mut self, code: &str) { 
-        let mut reader = CharReader::new(code);
-        if reader.is_empty() { 
-            panic!("Error: Lexer: generate(): empty string input.");
+    fn advance_tok(src: String, start: &Position, end: &Position) -> Result<Token, ChalError>{
+        /* 1. create the token
+         * 2. update the prev token
+         * 3. update the delimiter stack
+         * 4. check for delimiter errors
+         */
+
+    }
+    
+    fn advance(&mut self) -> Result<Token, ChalError> {
+        let start = self.reader.pos();
+        let current: char;
+        if let Some(ch) = self.reader.advance() {
+            current = ch;
+        } else {
+            return Err(InternalError::new("Lexer::advance(): advancing an empty lexer"));
+
         }
 
-        while !reader.is_empty() {
-            let start = reader.pos().clone();
-            let current = match reader.advance() {
-                Some(val) => val,
-                None      => return,
-            };
-            
-            if current == '#' {
-                reader.advance_while(|c| c != '\n');
-            }
+        if current.is_alphanumeric() {
+            let src = String::from(current) + &self.reader.advance_while(|c| c.is_alphanumeric() || c == '_'); 
+            return Token::new(src, &start, self.reader.pos());
+        }
 
-            // identifier
-            if current.is_alphanumeric() {
-                let src = String::from(current) + &reader.advance_while(|c| c.is_alphanumeric() || c == '_'); 
-
-                self.tokens.push_back(Token::new(src, &start, reader.pos()));
-                continue;
-            }
-
-            if current.is_numeric() || 
-               (current == '-' && 
-                reader.peek().is_some() && 
-                reader.peek().unwrap().is_numeric()
-                )
-            {
-                /* 
-                 * check weather the minus should be interpreted as
-                 * a negative int or an operator, example:
-                 * 'a-5' -> identifier(a), sub(-), uint(5)
-                 * 'a*-5' -> identifier(a), mul(*), int(-5)
-                 */
-                if current == '-' {
-                    match self.tokens.back() {
-                        Some(token) => {
-                            if token.is_terminal() { 
-                                self.tokens.push_back(Token::new(current.to_string(), &start, reader.pos()));
-                                continue;
-                            }
-                        },
-                        None => (),
-                    }
-                }
-
-                let src = String::from(current) + &reader.advance_while(|c| c.is_numeric() || c == '.');
-                self.tokens.push_back(Token::new(src, &start, reader.pos()));
-                continue;
-            }
-
-            if is_special(&current) {
-                /*
-                let src = String::from(current) + &reader.advance_while(|c| is_special(&c)); 
-                match TokenKind::from(src.as_str()) {
-                    TokenKind::None => self.split_special(&src, &start),
-                    _ => self.tokens.push_back(Token::new(src, &start, reader.pos())),
-                };
-                continue;
-                */
-
-                let mut end = start.clone();
-                end.advance_col();
-
-                if !is_operator(&current) || 
-                    reader.peek() == None 
-                {
-                    self.tokens.push_back(Token::new(current.to_string(), &start, &end));
-                    continue;
-                }
-
-                let mut buffer = String::from(current);
-                if let Some(c) = reader.peek() { buffer.push(c.clone()) }
-
-                match buffer.as_str() {
-                    "+=" | "-=" | "*=" | "/=" | 
-                    "%=" | "==" | "!=" | "<=" | 
-                    ">=" | "->" | ":=" => {
-                        reader.advance();
-                        end.advance_col();
+        if current.is_numeric() || 
+           (current == '-' && 
+            self.reader.peek().is_some() && 
+            self.reader.peek().unwrap().is_numeric()
+            )
+        {
+            /* 
+             * check weather the minus should be interpreted as
+             * a negative int or an operator, example:
+             * 'a-5' -> identifier(a), sub(-), uint(5)
+             * 'a*-5' -> identifier(a), mul(*), int(-5)
+             */
+            if current == '-' {
+                match self.tokens.back() {
+                    Some(token) => {
+                        if token.is_terminal() { 
+                            return Token::new(current.to_string(), &start, self.reader.pos());
+                        }
                     },
-
-                    _ => _ = buffer.pop(),
+                    None => (),
                 }
-                self.tokens.push_back(Token::new(buffer, &start, &end))
-
-            }
-            
-            if current == '\n' {
-                self.tokens.push_back(Token::new(String::from(current), &start, reader.pos()));
             }
 
-            if current == '"' {
-                let mut src = String::from(current) + &reader.advance_while(|c| c != '"' ); 
-                if let Some(c) = reader.advance() { src.push(c); }  // adds the '"' at the end
-
-                self.tokens.push_back(Token::new(src, &start, reader.pos()));
-            }
+            let src = String::from(current) + &self.reader.advance_while(|c| c.is_numeric() || c == '.');
+            return Token::new(src, &start, self.reader.pos());
         }
 
-    }
-
-    // this takes all special characters and conjoins any double operators such as '+=', '-=', etc.
-    fn split_special(&mut self, src: &str, start: &Position) {
-        let mut specials = CharReader::new(src);
-
-        while !specials.is_empty() {
-            let current = specials.advance().unwrap();
+        if is_special(&current) {
             let mut end = start.clone();
             end.advance_col();
 
-            if !is_operator(&current) || 
-                    specials.peek() == None {
-
-                self.tokens.push_back(Token::new(current.to_string(), start, &end));
-                continue;
+            if !is_operator(&current) ||  self.reader.peek() == None {
+                return Token::new(current.to_string(), &start, &end);
             }
 
             let mut buffer = String::from(current);
-            if let Some(c) = specials.peek() { buffer.push(c.clone()) }
+            if let Some(c) = self.reader.peek() { buffer.push(c.clone()) }
 
             match buffer.as_str() {
-                "+=" | "-=" | "*=" | "/=" | 
-                "%=" | "==" | "!=" | "<=" | 
-                ">=" | "->" => {
-                    specials.advance();
+                "+=" | "-=" | "*=" | "/=" | "%=" | "==" | 
+                "!=" | "<=" | ">=" | "->" | ":=" => {
+                    self.reader.advance();
                     end.advance_col();
                 },
-
                 _ => _ = buffer.pop(),
             }
-            self.tokens.push_back(Token::new(buffer, start, &end))
+            return Token::new(buffer, &start, &end);
         }
+        
+        if current == '\n' {
+            return Token::new(String::from(current), &start, self.reader.pos());
+        }
+
+        if current == '"' {
+            let mut src = String::from(current) + &self.reader.advance_while(|c| c != '"' ); 
+            if let Some(c) = self.reader.advance() { src.push(c); }  // adds the '"' at the end
+
+            return Token::new(src, &start, self.reader.pos());
+        }
+
+        return Err(InternalError::new("Lexer::advance(): could not parse token"));
     }
 
     fn check_delim(&self, span: &Span, token: &Token, kind: TokenKind, stack: &mut Vec<Token>) -> Result<(), ()> {

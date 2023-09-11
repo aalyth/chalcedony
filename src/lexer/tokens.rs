@@ -1,6 +1,6 @@
-use crate::errors::LexerError::LexerError;
-use crate::errors::span::Span;
-use crate::errors::span::pos::Position;
+use crate::error::{ChalError, InternalError, LexerError};
+use crate::error::span::Span;
+use crate::error::span::pos::Position;
 use std::collections::HashSet;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -33,48 +33,55 @@ pub enum Type {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub enum Special {
+    Comma,          // , 
+    Dot,            // . 
+    Colon,          // : 
+    SemiColon,      // ;
+    Newline,        // \n 
+    RightArrow,     // ->
+    BigRightArrow,  // =>
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub enum Operator {
-    OpenPar,       // ( 
-    ClosePar,      // )
-    OpenBracket,   // [
-    CloseBracket,  // ]
-    OpenBrace,     // {
-    CloseBrace,    // }
-    Comma,         // , 
-    Dot,           // . 
-    Colon,         // : 
-    SemiColon,     // ;
-    Newline,       // \n 
-    RightArrow,    // ->
-    BigRightArrow, // =>
+    Add,            // +
+    Sub,            // -
+    Mul,            // *
+    Div,            // /
+    Mod,            // %
+    Eq,             // =
+    Lt,             // <
+    Gt,             // >
 
-    Add,           // +
-    Sub,           // -
-    Mul,           // *
-    Div,           // /
-    Mod,           // %
-    Eq,            // =
-    Lt,            // <
-    Gt,            // >
+    Bang,           // !
+    BinAnd,         // &
+    BinOr,          // |
+    Tilde,          // ~
+    Xor,            // ^
+    And,            // &&
+    Or,             // ||
 
-    Bang,          // !
-    BinAnd,        // &
-    BinOr,         // |
-    Tilde,         // ~
-    Xor,           // ^
-    And,           // &&
-    Or,            // ||
+    AddEq,          // +=
+    SubEq,          // -=
+    MulEq,          // *=
+    DivEq,          // /=
+    ModEq,          // %=
+    EqEq,           // ==
+    LtEq,           // <=
+    GtEq,           // >=
+    BangEq,         // !=
+    Walrus,         // :=
+}
 
-    AddEq,         // +=
-    SubEq,         // -=
-    MulEq,         // *=
-    DivEq,         // /=
-    ModEq,         // %=
-    EqEq,          // ==
-    LtEq,          // <=
-    GtEq,          // >=
-    BangEq,        // !=
-    Walrus,        // :=
+#[derive(PartialEq, Debug, Clone)]
+pub enum Delimiter {
+    OpenPar,        // (
+    ClosePar,       // )
+    OpenBrace,      // {
+    CloseBrace,     // }
+    OpenBracket,    // [
+    CloseBracket,   // ]
 }
 
 lazy_static! {
@@ -117,13 +124,15 @@ pub enum TokenKind {
     Keyword(Keyword),
     Type(Type),
     Identifier(String),
+    Special(Special),
     Operator(Operator),
+    Delimiter(Delimiter),
     Newline,
 }
 
-impl From<&str> for TokenKind {
-    fn from(src: &str) -> Result<TokenKind,  {
-        if src == "" { return None; }
+impl TokenKind {
+    fn new<'a>(src: &str, start: &Position, end: &Position, span: &Span) -> Result<TokenKind, ChalError<'a>>  {
+        if src == "" { return ChalError::from(InternalError::new("TokenKind::new(): lexing an empty string")); }
         if src == "\n" { return Some(TokenKind::Newline); }
 
         match src {
@@ -151,18 +160,19 @@ impl From<&str> for TokenKind {
            "while"  => return Some(TokenKind::Keyword(Keyword::While)),
            "for"    => return Some(TokenKind::Keyword(Keyword::For)),
 
-           "("  => return Some(TokenKind::Operator(Operator::OpenPar)),
-           ")"  => return Some(TokenKind::Operator(Operator::ClosePar)),
-           "["  => return Some(TokenKind::Operator(Operator::OpenBracket)),
-           "]"  => return Some(TokenKind::Operator(Operator::CloseBracket)),
-           "{"  => return Some(TokenKind::Operator(Operator::OpenBrace)),
-           "}"  => return Some(TokenKind::Operator(Operator::CloseBrace)),
-           ","  => return Some(TokenKind::Operator(Operator::Comma)),
-           "."  => return Some(TokenKind::Operator(Operator::Dot)),
-           ":"  => return Some(TokenKind::Operator(Operator::Colon)),
-           ";"  => return Some(TokenKind::Operator(Operator::SemiColon)),
-           "->" => return Some(TokenKind::Operator(Operator::RightArrow)),
-           "=>" => return Some(TokenKind::Operator(Operator::BigRightArrow)),
+           "("  => return Some(TokenKind::Delimiter(Delimiter::OpenPar)),
+           ")"  => return Some(TokenKind::Delimiter(Delimiter::ClosePar)),
+           "["  => return Some(TokenKind::Delimiter(Delimiter::OpenBracket)),
+           "]"  => return Some(TokenKind::Delimiter(Delimiter::CloseBracket)),
+           "{"  => return Some(TokenKind::Delimiter(Delimiter::OpenBrace)),
+           "}"  => return Some(TokenKind::Delimiter(Delimiter::CloseBrace)),
+
+           ","  => return Some(TokenKind::Special(Special::Comma)),
+           "."  => return Some(TokenKind::Special(Special::Dot)),
+           ":"  => return Some(TokenKind::Special(Special::Colon)),
+           ";"  => return Some(TokenKind::Special(Special::SemiColon)),
+           "->" => return Some(TokenKind::Special(Special::RightArrow)),
+           "=>" => return Some(TokenKind::Special(Special::BigRightArrow)),
 
            "+"  => return Some(TokenKind::Operator(Operator::Add)),
            "-"  => return Some(TokenKind::Operator(Operator::Sub)),
@@ -211,15 +221,11 @@ impl From<&str> for TokenKind {
             return Some(TokenKind::Str(src.to_string()));
 
         } else if src.chars().nth(0) == Some('"') {
-            return TokenKind::Error(LexerError::UnclosedString);
-        }
-
-        if src.chars().all(|c: char| is_special(&c) ) {
-            return TokenKind::None;
+            return Err(ChalError::from(LexerError::unclosed_string(start, end, span)));
         }
 
         if src.chars().nth(0).unwrap().is_numeric() || src.chars().all(|c: char| -> bool {!c.is_ascii_alphanumeric() && c == '_'}) {
-            return TokenKind::Error(LexerError::InvalidIdentifier);
+            return Err(ChalError::from(LexerError::invalid_identifier(start, end, span)));
         }
 
         return Some(TokenKind::Identifier(src.to_string()));
@@ -235,11 +241,11 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(src: String, start: &Position, end: &Position) -> Result<Self, > {
-
+    pub fn new<'a>(src: String, start: &Position, end: &Position) -> Result<Self, ChalError<'a>> {
+        let kind = TokenKind::from(&src)?;
         Ok (
             Token {
-                kind:  TokenKind::from(&src[..]),
+                kind,
                 start: start.clone(),
                 end:   end.clone(),
                 src,
@@ -247,6 +253,7 @@ impl Token {
         )
     }
 
+    /*
     pub fn err(start: &Position, end: &Position, err_kind: &LexerError) -> Token {
         Token {
             kind: TokenKind::Error(err_kind.clone()),
@@ -255,7 +262,9 @@ impl Token {
             end:   end.clone(),
         }
     }
+    */
     
+    /*
     pub fn err_msg(&self, src: &Span) -> Result<(), ()>{
         if let TokenKind::Error(err) = &self.kind {
             match err {
@@ -268,6 +277,7 @@ impl Token {
         }
         Ok(())
     }
+    */
 
     pub fn get_kind(&self) -> &TokenKind {
         &self.kind

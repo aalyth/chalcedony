@@ -6,6 +6,7 @@ use crate::lexer::tokens::TokenKind;
 #[derive (PartialEq, Debug, Clone)]
 enum LexerErrorKind<'a> {
     InvalidIdentifier,
+    InvalidIndentation,
     UnclosedString,
     UnclosedComment,
     UnclosedDelimiter(&'a str),
@@ -46,6 +47,10 @@ impl<'a> LexerError<'a> {
 
     pub fn unclosed_comment(start: &Position, end: &Position, span: &Span) -> Self {
         LexerError::new(LexerErrorKind::UnclosedComment, start, end, span)
+    }
+
+    pub fn invalid_indentation(start: &Position, end: &Position, span: &Span) -> Self {
+        LexerError::new(LexerErrorKind::InvalidIndentation, start, end, span)
     }
 
     pub fn unclosed_delimiter(
@@ -93,9 +98,10 @@ impl<'a> LexerError<'a> {
 impl std::fmt::Display for LexerError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self.kind {
-            LexerErrorKind::InvalidIdentifier => self.display_err(f, "invalid identifier"),
-            LexerErrorKind::UnclosedString    => self.display_err(f, "unclosed string"),
-            LexerErrorKind::UnclosedComment   => self.display_err(f, "unclosed multiline comment"),
+            LexerErrorKind::InvalidIdentifier  => self.display_err(f, "invalid identifier"),
+            LexerErrorKind::UnclosedString     => self.display_err(f, "unclosed string"),
+            LexerErrorKind::UnclosedComment    => self.display_err(f, "unclosed multiline comment"),
+            LexerErrorKind::InvalidIndentation => self.display_err(f, "invalid indendation"),
 
             LexerErrorKind::UnclosedDelimiter(del) => {
                 let msg = &format!("unclosed delimiter ('{}')", del);
