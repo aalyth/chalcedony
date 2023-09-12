@@ -35,7 +35,7 @@ impl<'a> ParserError<'a> {
         received:  TokenKind,
         start:    &Position, 
         end:      &Position, 
-        span:     &Position,
+        span:     &Span,
     ) -> Self {
         ParserError::new(ParserErrorKind::InvalidToken(expected, received), start, end, span)
     }
@@ -44,16 +44,16 @@ impl<'a> ParserError<'a> {
         expected:  TokenKind,
         start:    &Position, 
         end:      &Position, 
-        span:     &Position,
+        span:     &Span,
     ) -> Self {
         ParserError::new(ParserErrorKind::ExpectedToken(expected), start, end, span)
     }
 
-    pub fn expected_token(
+    pub fn unexpected_token(
         kind:   TokenKind,
         start: &Position, 
         end:   &Position, 
-        span:  &Position,
+        span:  &Span,
     ) -> Self {
         ParserError::new(ParserErrorKind::UnexpectedToken(kind), start, end, span)
     }

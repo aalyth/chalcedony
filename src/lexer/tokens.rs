@@ -132,93 +132,99 @@ pub enum TokenKind {
 
 impl TokenKind {
     fn new<'a>(src: &str, start: &Position, end: &Position, span: &Span) -> Result<TokenKind, ChalError<'a>>  {
-        if src == "" { return ChalError::from(InternalError::new("TokenKind::new(): lexing an empty string")); }
-        if src == "\n" { return Some(TokenKind::Newline); }
+        if src == "" { return Err(ChalError::from( InternalError::new("TokenKind::new(): lexing an empty string") )); }
+        if src == "\n" { return Ok(TokenKind::Newline); }
 
         match src {
-           "i8"     => return Some(TokenKind::Type(Type::I8)),
-           "i16"    => return Some(TokenKind::Type(Type::I16)),
-           "i32"    => return Some(TokenKind::Type(Type::I32)),
-           "i64"    => return Some(TokenKind::Type(Type::I64)),
+            /* TYPES */
+            "i8"     => return Ok(TokenKind::Type(Type::I8)),
+            "i16"    => return Ok(TokenKind::Type(Type::I16)),
+            "i32"    => return Ok(TokenKind::Type(Type::I32)),
+            "i64"    => return Ok(TokenKind::Type(Type::I64)),
 
-           "u8"     => return Some(TokenKind::Type(Type::U8)),
-           "u16"    => return Some(TokenKind::Type(Type::U16)),
-           "u32"    => return Some(TokenKind::Type(Type::U32)),
-           "u64"    => return Some(TokenKind::Type(Type::U64)),
+            "u8"     => return Ok(TokenKind::Type(Type::U8)),
+            "u16"    => return Ok(TokenKind::Type(Type::U16)),
+            "u32"    => return Ok(TokenKind::Type(Type::U32)),
+            "u64"    => return Ok(TokenKind::Type(Type::U64)),
 
-           "f32"    => return Some(TokenKind::Type(Type::F32)),
-           "f64"    => return Some(TokenKind::Type(Type::F64)),
-           "str"    => return Some(TokenKind::Type(Type::Str)),
-           "let"    => return Some(TokenKind::Keyword(Keyword::Let)),
-           "void"   => return Some(TokenKind::Keyword(Keyword::Void)),
+            "f32"    => return Ok(TokenKind::Type(Type::F32)),
+            "f64"    => return Ok(TokenKind::Type(Type::F64)),
+            "str"    => return Ok(TokenKind::Type(Type::Str)),
 
-           "fn"     => return Some(TokenKind::Keyword(Keyword::Fn)),
-           "return" => return Some(TokenKind::Keyword(Keyword::Return)),
-           "if"     => return Some(TokenKind::Keyword(Keyword::If)),
-           "else"   => return Some(TokenKind::Keyword(Keyword::Else)),
-           "elif"   => return Some(TokenKind::Keyword(Keyword::Elif)),
-           "while"  => return Some(TokenKind::Keyword(Keyword::While)),
-           "for"    => return Some(TokenKind::Keyword(Keyword::For)),
+            /* KEYWORDS */
+            "let"    => return Ok(TokenKind::Keyword(Keyword::Let)),
+            "void"   => return Ok(TokenKind::Keyword(Keyword::Void)),
 
-           "("  => return Some(TokenKind::Delimiter(Delimiter::OpenPar)),
-           ")"  => return Some(TokenKind::Delimiter(Delimiter::ClosePar)),
-           "["  => return Some(TokenKind::Delimiter(Delimiter::OpenBracket)),
-           "]"  => return Some(TokenKind::Delimiter(Delimiter::CloseBracket)),
-           "{"  => return Some(TokenKind::Delimiter(Delimiter::OpenBrace)),
-           "}"  => return Some(TokenKind::Delimiter(Delimiter::CloseBrace)),
+            "fn"     => return Ok(TokenKind::Keyword(Keyword::Fn)),
+            "return" => return Ok(TokenKind::Keyword(Keyword::Return)),
+            "if"     => return Ok(TokenKind::Keyword(Keyword::If)),
+            "else"   => return Ok(TokenKind::Keyword(Keyword::Else)),
+            "elif"   => return Ok(TokenKind::Keyword(Keyword::Elif)),
+            "while"  => return Ok(TokenKind::Keyword(Keyword::While)),
+            "for"    => return Ok(TokenKind::Keyword(Keyword::For)),
 
-           ","  => return Some(TokenKind::Special(Special::Comma)),
-           "."  => return Some(TokenKind::Special(Special::Dot)),
-           ":"  => return Some(TokenKind::Special(Special::Colon)),
-           ";"  => return Some(TokenKind::Special(Special::SemiColon)),
-           "->" => return Some(TokenKind::Special(Special::RightArrow)),
-           "=>" => return Some(TokenKind::Special(Special::BigRightArrow)),
+            /* DELIMITERS */
+            "("  => return Ok(TokenKind::Delimiter(Delimiter::OpenPar)),
+            ")"  => return Ok(TokenKind::Delimiter(Delimiter::ClosePar)),
+            "["  => return Ok(TokenKind::Delimiter(Delimiter::OpenBracket)),
+            "]"  => return Ok(TokenKind::Delimiter(Delimiter::CloseBracket)),
+            "{"  => return Ok(TokenKind::Delimiter(Delimiter::OpenBrace)),
+            "}"  => return Ok(TokenKind::Delimiter(Delimiter::CloseBrace)),
 
-           "+"  => return Some(TokenKind::Operator(Operator::Add)),
-           "-"  => return Some(TokenKind::Operator(Operator::Sub)),
-           "*"  => return Some(TokenKind::Operator(Operator::Mul)),
-           "/"  => return Some(TokenKind::Operator(Operator::Div)),
-           "%"  => return Some(TokenKind::Operator(Operator::Mod)),
-           "="  => return Some(TokenKind::Operator(Operator::Eq)),
-           "<"  => return Some(TokenKind::Operator(Operator::Lt)),
-           ">"  => return Some(TokenKind::Operator(Operator::Gt)),
+            /* SPECIALS */
+            ","  => return Ok(TokenKind::Special(Special::Comma)),
+            "."  => return Ok(TokenKind::Special(Special::Dot)),
+            ":"  => return Ok(TokenKind::Special(Special::Colon)),
+            ";"  => return Ok(TokenKind::Special(Special::SemiColon)),
+            "->" => return Ok(TokenKind::Special(Special::RightArrow)),
+            "=>" => return Ok(TokenKind::Special(Special::BigRightArrow)),
 
-           "!"  => return Some(TokenKind::Operator(Operator::Bang)),
-           "&"  => return Some(TokenKind::Operator(Operator::BinAnd)),
-           "|"  => return Some(TokenKind::Operator(Operator::BinOr)),
-           "~"  => return Some(TokenKind::Operator(Operator::Tilde)),
-           "^"  => return Some(TokenKind::Operator(Operator::Xor)),
-           "&&" => return Some(TokenKind::Operator(Operator::And)),
-           "||" => return Some(TokenKind::Operator(Operator::Or)),
+            /* OPERATORS */
+            "+"  => return Ok(TokenKind::Operator(Operator::Add)),
+            "-"  => return Ok(TokenKind::Operator(Operator::Sub)),
+            "*"  => return Ok(TokenKind::Operator(Operator::Mul)),
+            "/"  => return Ok(TokenKind::Operator(Operator::Div)),
+            "%"  => return Ok(TokenKind::Operator(Operator::Mod)),
+            "="  => return Ok(TokenKind::Operator(Operator::Eq)),
+            "<"  => return Ok(TokenKind::Operator(Operator::Lt)),
+            ">"  => return Ok(TokenKind::Operator(Operator::Gt)),
 
-           "+=" => return Some(TokenKind::Operator(Operator::AddEq)),
-           "-=" => return Some(TokenKind::Operator(Operator::SubEq)),
-           "*=" => return Some(TokenKind::Operator(Operator::MulEq)),
-           "/=" => return Some(TokenKind::Operator(Operator::DivEq)),
-           "%=" => return Some(TokenKind::Operator(Operator::ModEq)),
-           "==" => return Some(TokenKind::Operator(Operator::EqEq)),
-           "<=" => return Some(TokenKind::Operator(Operator::LtEq)),
-           ">=" => return Some(TokenKind::Operator(Operator::GtEq)),
-           "!=" => return Some(TokenKind::Operator(Operator::BangEq)),
-           ":=" => return Some(TokenKind::Operator(Operator::Walrus)),
+            "!"  => return Ok(TokenKind::Operator(Operator::Bang)),
+            "&"  => return Ok(TokenKind::Operator(Operator::BinAnd)),
+            "|"  => return Ok(TokenKind::Operator(Operator::BinOr)),
+            "~"  => return Ok(TokenKind::Operator(Operator::Tilde)),
+            "^"  => return Ok(TokenKind::Operator(Operator::Xor)),
+            "&&" => return Ok(TokenKind::Operator(Operator::And)),
+            "||" => return Ok(TokenKind::Operator(Operator::Or)),
 
-           _ => (),
-        }
+            "+=" => return Ok(TokenKind::Operator(Operator::AddEq)),
+            "-=" => return Ok(TokenKind::Operator(Operator::SubEq)),
+            "*=" => return Ok(TokenKind::Operator(Operator::MulEq)),
+            "/=" => return Ok(TokenKind::Operator(Operator::DivEq)),
+            "%=" => return Ok(TokenKind::Operator(Operator::ModEq)),
+            "==" => return Ok(TokenKind::Operator(Operator::EqEq)),
+            "<=" => return Ok(TokenKind::Operator(Operator::LtEq)),
+            ">=" => return Ok(TokenKind::Operator(Operator::GtEq)),
+            "!=" => return Ok(TokenKind::Operator(Operator::BangEq)),
+            ":=" => return Ok(TokenKind::Operator(Operator::Walrus)),
+
+            _ => (),
+        };
 
         if let Ok(kind) = src.parse::<u64>() {
-            return Some(TokenKind::Uint(kind));
+            return Ok(TokenKind::Uint(kind));
         }
 
         if let Ok(kind) = src.parse::<i64>() {
-            return Some(TokenKind::Int(kind));
+            return Ok(TokenKind::Int(kind));
         }
 
         if let Ok(kind) = src.parse::<f64>() {
-            return Some(TokenKind::Float(kind));
+            return Ok(TokenKind::Float(kind));
         }
 
         if src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"') {
-            return Some(TokenKind::Str(src.to_string()));
+            return Ok(TokenKind::Str(src.to_string()));
 
         } else if src.chars().nth(0) == Some('"') {
             return Err(ChalError::from(LexerError::unclosed_string(start, end, span)));
@@ -228,7 +234,7 @@ impl TokenKind {
             return Err(ChalError::from(LexerError::invalid_identifier(start, end, span)));
         }
 
-        return Some(TokenKind::Identifier(src.to_string()));
+        return Ok(TokenKind::Identifier(src.to_string()));
     }
 }
 
@@ -241,8 +247,8 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new<'a>(src: String, start: &Position, end: &Position) -> Result<Self, ChalError<'a>> {
-        let kind = TokenKind::from(&src)?;
+    pub fn new<'a>(src: String, start: &Position, end: &Position, span: &Span) -> Result<Self, ChalError<'a>> {
+        let kind = TokenKind::new(&src, start, end, span)?;
         Ok (
             Token {
                 kind,
@@ -279,7 +285,7 @@ impl Token {
     }
     */
 
-    pub fn get_kind(&self) -> &TokenKind {
+    pub fn kind(&self) -> &TokenKind {
         &self.kind
     }
 

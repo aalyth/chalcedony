@@ -1,5 +1,5 @@
-use crate::errors::span::pos::Position; 
-use crate::errors::format::color::Color;
+use crate::error::span::pos::Position; 
+use crate::error::format::color::Color;
 
 pub struct Span {
     src: Vec<String>,

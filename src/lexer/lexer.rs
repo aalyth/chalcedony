@@ -1,6 +1,7 @@
 use crate::lexer::tokens::{Token, 
              TokenKind,
              Keyword,
+             Delimiter,
              is_special, 
              is_operator,
              };
@@ -13,16 +14,17 @@ use crate::error::{ChalError,
                    };
 
 use crate::lexer::CharReader;
-use std::cell::Ref;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
 use regex::Regex;
 
 pub struct Lexer<'a> {  
-    reader: CharReader<'a>,
-    span: Rc<Span>,
-    prev: Option< Ref<'a, Token> >,
+    /* contains the opening delimiters */
+    delim_stack: VecDeque<&'a Token>,
+    reader:      CharReader<'a>,
+    span:        Rc<Span>,
+    prev:        Option<&'a Token>,
 }
 
 impl<'a> Lexer<'a> {
@@ -39,9 +41,10 @@ impl<'a> Lexer<'a> {
         let src = &re.replace(src, "").into_owned();
 
         Lexer {
-            reader: CharReader::new(code),
-            span: Rc::new(Span::new(code)),
-            prev: None,
+            delim_stack: VecDeque::<&Token>::new(),
+            reader:      CharReader::new(code),
+            span:        Rc::new(Span::new(code)),
+            prev:        None,
         }
     }
 
@@ -52,7 +55,7 @@ impl<'a> Lexer<'a> {
 
     fn advance_line(&mut self) -> Result<(VecDeque<Token>, usize), ChalError> {
         if self.reader.is_empty() {
-            return Err(InternalError::new("Lexer::advance_line(): advancing an empty lexer"));
+            return Err(ChalError::from( InternalError::new("Lexer::advance_line(): advancing an empty lexer") ));
         }
 
         let start = self.reader.pos();
@@ -60,21 +63,61 @@ impl<'a> Lexer<'a> {
         let indent_size = indent.len();
 
         if indent_size % 4 != 0 {
-            return Err(LexerError::invalid_indentation(start, self.reader.pos(), &self.span));
+            return Err(ChalError::from( LexerError::invalid_indentation(start, self.reader.pos(), &self.span) ));
         }
+        
+        Ok( (VecDeque::<Token>::new(), 0) )
+    }
+
+    fn compare_delim(&mut self, &tok) -> Result<(), ChalError<'a>>{
         
     }
 
-    fn advance_tok(src: String, start: &Position, end: &Position) -> Result<Token, ChalError>{
+    fn advance_tok(&mut self, src: String, start: &Position, end: &Position) -> Result<Token, ChalError<'a>>{
         /* 1. create the token
          * 2. update the prev token
          * 3. update the delimiter stack
          * 4. check for delimiter errors
          */
+        let tok = Token::new(src, start, end, self.span.as_ref())?;
 
+        self.prev = Some(&tok);
+
+        match tok.kind() {
+            TokenKind::Delimiter(Delimiter::OpenPar) 
+                | TokenKind::Delimiter(Delimiter::OpenBrace)
+                | TokenKind::Delimiter(Delimiter::OpenBracket) 
+            => self.delim_stack.push_back(&tok),
+
+            TokenKind::Delimiter(Delimiter::ClosePar) => {
+                if self.delim_stack.back() == None {
+                    return Err(
+                        ChalError::from(
+                            LexerError::unexpected_closing_delimiter(tok.src(), start, end, self.span.as_ref())
+                            )
+                        );
+                }
+
+                let open_del = *self.delim_stack.back().unwrap();
+
+                if *open_del.kind() != TokenKind::Delimiter(Delimiter::OpenPar) {
+                    return Err(
+                        ChalError::from( 
+                            LexerError::missmatching_delimiters(open_del.src(), tok.src(), start, end, self.span.as_ref()) 
+                        )
+                    );
+                }
+
+                self.delim_stack.pop_back();     
+            },
+            
+            _ => (),
+        };
+
+        Ok(tok)
     }
     
-    fn advance(&mut self) -> Result<Token, ChalError> {
+    fn advance(&mut self) -> Result<Token, ChalError<'a>> {
         let start = self.reader.pos();
         let current: char;
         if let Some(ch) = self.reader.advance() {
@@ -102,7 +145,7 @@ impl<'a> Lexer<'a> {
              * 'a*-5' -> identifier(a), mul(*), int(-5)
              */
             if current == '-' {
-                match self.tokens.back() {
+                match self.prev {
                     Some(token) => {
                         if token.is_terminal() { 
                             return Token::new(current.to_string(), &start, self.reader.pos());
@@ -287,6 +330,7 @@ impl<'a> Lexer<'a> {
     }
     */
 
+    /*
     pub fn is_empty(&self) -> bool {
         self.tokens.len() == 0
     }
@@ -306,4 +350,5 @@ impl<'a> Lexer<'a> {
         }
         result
     }
+    */
 }

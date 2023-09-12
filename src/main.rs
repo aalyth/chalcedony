@@ -1,8 +1,9 @@
 pub mod error;
 pub mod lexer;
-pub mod parser;
+// pub mod parser;
 
-use crate::parser::Parser; 
+// use crate::parser::Parser; 
+use crate::lexer::Lexer;
 
 #[macro_use]
 extern crate lazy_static;
@@ -16,14 +17,14 @@ fn main() {
     }
     ").ok().unwrap();
     */
-    let (mut parser, _) = Parser::new("
+    let mut lexer = Lexer::new("
     # this is a comment
     let a := -5.2*--3
     # let b := 5 * -3
     fn test(test_arg: i8,) {}
-    ").ok().unwrap();
+    ");
 
-    while let Some(node) = parser.advance() {
+    while let Some(node) = lexer.advance_prog() {
         println!("{:#?}", node);
     }
 
