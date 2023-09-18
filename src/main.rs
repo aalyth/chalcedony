@@ -18,14 +18,19 @@ fn main() {
     ").ok().unwrap();
     */
     let mut lexer = Lexer::new("
-    # this is a comment
-    let a := -5.2*--3
-    # let b := 5 * -3
-    fn test(test_arg: i8,) {}
+# this is a comment
+let a := -5.2*--3
+# let b := 5 * -3
+fn test(args: i8}):
+    let b := 3
+    # test123
     ");
 
-    while let Some(node) = lexer.advance_prog() {
-        println!("{:#?}", node);
+    while !lexer.is_empty() {
+        let current = lexer.advance_prog();
+        match current {
+            Ok(line) => println!("{:#?}", line),
+            Err(err) => println!("{}", err),
+        }
     }
-
 }

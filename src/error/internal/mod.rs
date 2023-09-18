@@ -1,18 +1,18 @@
 use crate::error::format::internal;
 
 /* indicates something is wrong with the interpreter itself*/
-pub struct InternalError<'a> {
-    msg: &'a str,
+pub struct InternalError {
+    msg: String,
 }
 
-impl<'a> InternalError<'a> {
+impl InternalError {
     pub fn new(msg: &str) -> Self {
-        InternalError { msg }
+        InternalError { msg: msg.to_string() }
     }
 }
 
-impl std::fmt::Display for InternalError<'_> {
+impl std::fmt::Display for InternalError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}:\n{}", internal(self.msg), self.span.context(self.start, self.end))
+        write!(f, "{}", internal(&self.msg))
     }
 }

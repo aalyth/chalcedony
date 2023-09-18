@@ -1,7 +1,9 @@
 use crate::error::{ChalError, InternalError, LexerError};
 use crate::error::span::Span;
 use crate::error::span::pos::Position;
+
 use std::collections::HashSet;
+use std::rc::Rc;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Keyword {
@@ -84,6 +86,19 @@ pub enum Delimiter {
     CloseBracket,   // ]
 }
 
+impl Delimiter {
+    pub fn inverse(&self) -> Self {
+        match *self {
+            Delimiter::OpenPar      => Delimiter::ClosePar,
+            Delimiter::ClosePar     => Delimiter::OpenPar,
+            Delimiter::OpenBrace    => Delimiter::CloseBrace,
+            Delimiter::CloseBrace   => Delimiter::OpenBrace,
+            Delimiter::OpenBracket  => Delimiter::CloseBracket,
+            Delimiter::CloseBracket => Delimiter::OpenBracket,
+        }
+    }
+}
+
 lazy_static! {
     static ref SPECIAL: HashSet<char> = {
         HashSet::from([
@@ -131,7 +146,7 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
-    fn new<'a>(src: &str, start: &Position, end: &Position, span: &Span) -> Result<TokenKind, ChalError<'a>>  {
+    fn new(src: &str, start: &Position, end: &Position, span: &Rc<Span>) -> Result<TokenKind, ChalError>  {
         if src == "" { return Err(ChalError::from( InternalError::new("TokenKind::new(): lexing an empty string") )); }
         if src == "\n" { return Ok(TokenKind::Newline); }
 
@@ -227,14 +242,28 @@ impl TokenKind {
             return Ok(TokenKind::Str(src.to_string()));
 
         } else if src.chars().nth(0) == Some('"') {
-            return Err(ChalError::from(LexerError::unclosed_string(start, end, span)));
+            return Err(ChalError::from(LexerError::unclosed_string(*start, *end, Rc::clone(span))));
         }
 
         if src.chars().nth(0).unwrap().is_numeric() || src.chars().all(|c: char| -> bool {!c.is_ascii_alphanumeric() && c == '_'}) {
-            return Err(ChalError::from(LexerError::invalid_identifier(start, end, span)));
+            return Err(ChalError::from(LexerError::invalid_identifier(*start, *end, Rc::clone(span))));
         }
 
         return Ok(TokenKind::Identifier(src.to_string()));
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        match *self {
+            TokenKind::Int(_)
+                | TokenKind::Uint(_)
+                | TokenKind::Float(_)
+                | TokenKind::Str(_)
+                | TokenKind::Keyword(_)
+                | TokenKind::Identifier(_)
+            => true,
+
+            _ => false,
+        }
     }
 }
 
@@ -247,16 +276,9 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new<'a>(src: String, start: &Position, end: &Position, span: &Span) -> Result<Self, ChalError<'a>> {
-        let kind = TokenKind::new(&src, start, end, span)?;
-        Ok (
-            Token {
-                kind,
-                start: start.clone(),
-                end:   end.clone(),
-                src,
-            }
-        )
+    pub fn new(src: String, start: Position, end: Position, span: &Rc<Span>) -> Result<Self, ChalError> {
+        let kind = TokenKind::new(&src, &start, &end, span)?;
+        Ok( Token { kind, start, end, src } )
     }
 
     /*

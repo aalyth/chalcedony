@@ -12,4 +12,3 @@ pub use parser::ParserError;
 pub use internal::InternalError;
 pub use error::ChalError;
 
-pub use format::color::Color;

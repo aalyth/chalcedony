@@ -1,5 +1,7 @@
 pub mod tokens;
 pub mod lexer;
+pub mod line;
+
 mod char_reader;
 
 pub use lexer::Lexer;

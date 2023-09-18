@@ -1,22 +1,21 @@
-use std::str::Chars;
-use std::iter::Peekable;
 use crate::error::span::Position;
+use std::collections::VecDeque;
 
-pub struct CharReader<'a> {
+pub struct CharReader {
     pos: Position,
-    src: Peekable<Chars<'a>>,
+    src: VecDeque<char>,
 }
 
-impl CharReader<'_> {
-    pub fn new<'a>(src_code: &'a str) -> CharReader<'a> {
+impl CharReader {
+    pub fn new(source: String) -> CharReader {
         CharReader { 
             pos: Position::new(1, 1),
-            src: src_code.chars().peekable(), 
+            src: source.chars().collect::<VecDeque<char>>(),
         }
     }
 
     pub fn advance(&mut self) -> Option<char> {
-        let result = self.src.next();
+        let result = self.src.pop_front();
 
         if let Some(val) = result {
             if val == '\n' { self.pos.advance_ln(); }
@@ -26,15 +25,15 @@ impl CharReader<'_> {
         result
     }
 
-    pub fn peek(&mut self) -> Option<&char> {
-        self.src.peek()
+    pub fn peek(&self) -> Option<&char> {
+        self.src.front()
     }
 
-    pub fn is_empty(&mut self) -> bool {
-        self.src.peek() == None
+    pub fn is_empty(&self) -> bool {
+        self.src.is_empty()
     }
 
-    pub fn pos(&mut self) -> &Position {
+    pub fn pos(&self) -> &Position {
         &self.pos
     }
 

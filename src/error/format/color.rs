@@ -1,5 +1,5 @@
 
-pub enum Color { 
+pub enum Colors { 
     Black,
     Red,
     Green,
@@ -9,29 +9,29 @@ pub enum Color {
     Cyan,
 }
 
-pub fn color<'a>(color: Color, msg: &str) -> String {
+pub fn color<'a>(color: Colors, msg: &str) -> String {
     let end: &str = "\x1B[0m";
 
     let color_ansi = match color {
-        Color::Black  => "\x1B[30m",
-        Color::Red    => "\x1B[31m",
-        Color::Green  => "\x1B[32m",
-        Color::Yellow => "\x1B[33m",
-        Color::Blue   => "\x1B[34m",
-        Color::Purple => "\x1B[35m",
-        Color::Cyan   => "\x1B[36m",
+        Colors::Black  => "\x1B[30m",
+        Colors::Red    => "\x1B[31m",
+        Colors::Green  => "\x1B[32m",
+        Colors::Yellow => "\x1B[33m",
+        Colors::Blue   => "\x1B[34m",
+        Colors::Purple => "\x1B[35m",
+        Colors::Cyan   => "\x1B[36m",
     };
     format!("{}{}{}", color_ansi, msg, end)
 }
 
 pub fn err(msg: &str) -> String {
-    format!("{}: {}", color(Color::Red, "error"), msg)
+    format!("{}: {}", color(Colors::Red, "error"), msg)
 }
 
 pub fn warn(msg: &str) -> String {
-    format!("{}: {}", color(Color::Yellow, "warning"), msg)
+    format!("{}: {}", color(Colors::Yellow, "warning"), msg)
 }
 
 pub fn internal(msg: &str) -> String {
-    format!("{}: {}", color(Color::Blue, "internal"), msg)
+    format!("{}: {}", color(Colors::Blue, "internal"), msg)
 }

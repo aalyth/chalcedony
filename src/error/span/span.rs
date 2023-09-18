@@ -1,5 +1,5 @@
 use crate::error::span::pos::Position; 
-use crate::error::format::color::Color;
+use crate::error::format::{color, Colors};
 
 pub struct Span {
     src: Vec<String>,
@@ -24,13 +24,14 @@ impl Span {
 
         let context: (String, usize) = self.context_span(start, end);
         result.push_str(&context.0);
+        result.push_str("\n");
 
         let ln_len = std::cmp::max(end.ln.to_string().len(), 4);
         for _ in 0 .. ln_len { result.push_str(" "); } 
-        result.push_str(Color::color(Color::Blue, "| "));
+        result.push_str(&color(Colors::Blue, "| "));
 
         for _ in 0 .. context.1 - (ln_len + 2) { result.push_str(" "); }
-        for _ in 0 .. end.col - start.col { result.push_str(Color::color(Color::Cyan, "^")); }
+        for _ in 0 .. end.col - start.col { result.push_str(&color(Colors::Cyan, "^")); }
         result.push_str("\n");
 
         result
@@ -69,8 +70,8 @@ impl Span {
             let ln_len = std::cmp::max(end_ln_str.len(), 4); 
             for _ in 0 .. ln_len - end_ln_str.len() { result.push_str(" "); }
             let curr_line = &self.src[start.ln];
-            result.push_str(&Color::color(Color::Blue, &start.ln.to_string()));
-            result.push_str(&Color::color(Color::Blue, "| "));
+            result.push_str(&color(Colors::Blue, &start.ln.to_string()));
+            result.push_str(&color(Colors::Blue, "| "));
 
             #[allow(unused_assignments)]
             let mut res_pos: usize = 0;
@@ -103,7 +104,7 @@ impl Span {
         if end.ln - start.ln > 1 {
             let ln_len = std::cmp::max(end_.ln.to_string().len(), 4); 
             for _ in 0 .. ln_len-3 { result.push_str(" "); }
-            result.push_str(&Color::color(Color::Blue, "...| "));
+            result.push_str(&color(Colors::Blue, "...| "));
             result.push_str("...\n");
         }
 
@@ -138,8 +139,8 @@ impl Span {
 
         let mut result = "".to_string();
         for _ in 0 .. (ln_len - pos_len) { result.push_str(" "); }
-        result.push_str(&Color::color(Color::Blue, &pos_.ln.to_string()));
-        result.push_str(&Color::color(Color::Blue, "| "));
+        result.push_str(&color(Colors::Blue, &pos_.ln.to_string()));
+        result.push_str(&color(Colors::Blue, "| "));
 
         #[allow(unused_assignments)]
         let mut res_pos: usize = 0;
