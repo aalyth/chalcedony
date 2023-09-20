@@ -1,233 +1,310 @@
 use crate::lexer::tokens::{Token, 
              TokenKind,
              Keyword,
+             Delimiter,
              is_special, 
-             is_operator};
+             is_operator,
+             };
 
-use crate::errors::{LexerErrors,
-                    span::Span,
-                    span::Position,
-                    };
+use crate::lexer::line::Line;
+
+use crate::error::{ChalError,
+                   LexerError,
+                   InternalError,
+                   span::Span,
+                   span::Position,
+                   };
 
 use crate::lexer::CharReader;
 use std::collections::VecDeque;
+use std::rc::Rc;
 
 pub struct Lexer {  
-    tokens: VecDeque<Token>,
+    /* opening delimiters */
+    #[allow(dead_code)]
+    delim_stack: VecDeque<Token>,
+
+    /* to easily iterate over the source code*/
+    reader:      CharReader,
+
+    /* so errors can be traced to the source code  */
+    span:        Rc<Span>,
+
+    /* clone of the previous token kind */
+    prev:        Option<TokenKind>,
 }
 
 impl Lexer {
-    pub fn new(code: &str) -> Result<(Lexer, Span), ()> {
-        let span = Span::new(code);
+    pub fn new(code: &str) -> Self {
+        /* convert tabs to 4 spaces */
+        let mut src = str::replace(code, "\t", "    ");
 
-        let mut res = Lexer {
-            tokens: VecDeque::new(),
+        /* this is so empty lines at the end do not cause errors */
+        src.push_str("\n");
+
+        Lexer {
+            delim_stack: VecDeque::<Token>::new(),
+            reader:      CharReader::new(src),
+            span:        Rc::new(Span::new(code)),
+            prev:        None,
+        }
+    }
+
+    /* advances the next program node (a fn def or variable def) */
+    pub fn advance_prog(&mut self) -> Result<VecDeque<Line>, ChalError> {
+        if self.reader.is_empty() {
+            return Err(
+                ChalError::from(
+                    InternalError::new("Lexer::advance_prog(): advancing an empty lexer")
+                )
+            );
+        }
+
+        let mut result = VecDeque::<Line>::new();
+        let mut errors = VecDeque::<ChalError>::new();
+        let (mut line, mut err) = self.advance_line(); 
+
+        while line.tokens().len() < 2 {
+            if !err.is_empty() {
+                return Err( ChalError::from(err) );
+            }
+            (line, err) = self.advance_line();
+        }
+
+        let front = line.tokens().front().unwrap().clone();
+
+        match front.kind() {
+            TokenKind::Keyword(Keyword::Let) => result.push_back(line),
+            
+            TokenKind::Keyword(Keyword::Fn) => {
+                loop {
+                    match self.reader.peek() {
+                        Some(' ')  => (),
+                        Some('\n') => (),
+                        Some(_)   => break,
+                        None      => break,
+                    }
+
+                    if !err.is_empty() {
+                        errors.append(&mut err);
+                    } else {
+                        if line.tokens().len() >= 2 {
+                            result.push_back(line);
+                        }
+                    }
+
+                    (line, err) = self.advance_line();
+
+                }
+            }, 
+
+            invalid @ _ 
+            => return Err(
+                ChalError::from(
+                        LexerError::invalid_global_statement(invalid.clone(), *front.start(), *front.end(), Rc::clone(&self.span))
+                    )
+                ),
+        }
+
+        /* check for unclosed delimiters */
+        if self.is_empty() && !self.delim_stack.is_empty() {
+            for delim in &self.delim_stack {
+                errors.push_back(
+                    ChalError::from(
+                        LexerError::unclosed_delimiter(delim.src(), *delim.start(), *delim.end(), Rc::clone(&self.span))
+                    )
+                );
+            }
+        }
+
+        if !errors.is_empty() { return Err( ChalError::from(errors) ); }
+        return Ok(result);
+    }
+
+    fn advance_line(&mut self) -> (Line, VecDeque<ChalError>) {
+        if self.reader.is_empty() {
+            return (
+                Line::new(0, VecDeque::<Token>::new()),
+                VecDeque::from([ChalError::from(
+                    InternalError::new("Lexer::advance_line(): advancing an empty lexer")
+                )])
+            );
+        }
+
+        let start = *self.reader.pos();
+        let indent_raw = self.reader.advance_while(|c: char| c == ' ');
+        let indent = indent_raw.len();
+
+        let mut errors = VecDeque::<ChalError>::new();
+
+        if indent % 4 != 0 {
+            errors.push_back(
+                ChalError::from(
+                    LexerError::invalid_indentation(start.clone(), *self.reader.pos(), Rc::clone(&self.span))
+                )
+            );
+        }
+
+        let mut result = VecDeque::<Token>::new();
+        let mut current = self.advance();
+
+        loop {
+            match current {
+                Ok(tok)  => result.push_back(tok),
+                Err(err) => errors.push_back(err),
+            }
+            /* this clunky check is so we don't have problems with the borrow checker*/
+            if result.back().is_some() && *result.back().unwrap().kind() == TokenKind::Newline { break; }
+            if self.is_empty() { break; }
+            current = self.advance();
+        }
+        
+        (
+            Line::new(indent/4, result),
+            errors,
+        )
+    }
+
+    fn advance_tok(&mut self, src: String, start: Position, end: Position) -> Result<Token, ChalError>{
+        /* 1. create the token
+         * 2. update the prev token
+         * 3. update the delimiter stack
+         * 4. check for delimiter errors
+         */
+        let tok = Token::new(src, start, end, &self.span)?;
+
+        self.prev = Some(tok.kind().clone());
+
+        match tok.kind() {
+            TokenKind::Delimiter(Delimiter::OpenPar) 
+                | TokenKind::Delimiter(Delimiter::OpenBrace)
+                | TokenKind::Delimiter(Delimiter::OpenBracket) 
+            => self.delim_stack.push_back(tok.clone()),
+
+            /* only closing delimiters match here */
+            TokenKind::Delimiter(close_delim) => {
+                if self.delim_stack.back() == None {
+                    return Err(
+                        ChalError::from(
+                            LexerError::unexpected_closing_delimiter(tok.src(), start, end, Rc::clone(&self.span))
+                        )
+                    );
+                }
+
+                let open_delim = self.delim_stack.pop_back().unwrap();
+
+                if *open_delim.kind() != TokenKind::Delimiter(close_delim.inverse()) {
+                    return Err(
+                        ChalError::from( 
+                            LexerError::mismatching_delimiters(open_delim.src(), tok.src(), *open_delim.start(), start, Rc::clone(&self.span)) 
+                        )
+                    );
+                }
+            },
+            
+            _ => (),
         };
 
-        res.generate(code);
-        res.check_errors(&span)?;
-        res.check_delimiters(&span)?;
-
-        Ok( (res, span) )
+        Ok(tok)
     }
+    
+    fn advance(&mut self) -> Result<Token, ChalError> {
+        let start = *self.reader.pos();
 
-    // generates the next sequence of token/s
-    fn generate(&mut self, code: &str) { 
-        let mut reader = CharReader::new(code);
-        if reader.is_empty() { 
-            panic!("Error: Lexer: generate(): empty string input.");
-        }
-
-        while !reader.is_empty() {
-            let start = reader.pos().clone();
-            let current = match reader.advance() {
-                Some(val) => val,
-                None      => return,
+        /* this way a do-while behaviour is achieved */
+        let mut current: char = ' ';
+        while current == ' ' {
+            let Some(current_) = self.reader.advance() else {
+                return Err(
+                    ChalError::from(
+                        InternalError::new("Lexer::advance(): advancing an empty lexer")
+                    )
+                );
             };
-            
-            if current == '#' {
-                reader.advance_while(|c| c != '\n');
-            }
+            current = current_;
+        };
 
-            // identifier
-            if current.is_alphanumeric() {
-                let src = String::from(current) + &reader.advance_while(|c| c.is_alphanumeric() || c == '_'); 
-
-                self.tokens.push_back(Token::new(src, &start, reader.pos()));
-                continue;
-            }
-
-            if current.is_numeric() || 
-               (current == '-' && 
-                reader.peek().is_some() && 
-                reader.peek().unwrap().is_numeric()
-                )
-            {
-                /* 
-                 * check weather the minus should be interpreted as
-                 * a negative int or an operator, example:
-                 * 'a-5' -> identifier(a), sub(-), uint(5)
-                 * 'a*-5' -> identifier(a), mul(*), int(-5)
-                 */
-                if current == '-' {
-                    match self.tokens.back() {
-                        Some(token) => {
-                            if token.is_terminal() { 
-                                self.tokens.push_back(Token::new(current.to_string(), &start, reader.pos()));
-                                continue;
-                            }
-                        },
-                        None => (),
-                    }
-                }
-
-                let src = String::from(current) + &reader.advance_while(|c| c.is_numeric() || c == '.');
-                self.tokens.push_back(Token::new(src, &start, reader.pos()));
-                continue;
-            }
-
-            if is_special(&current) {
-                /*
-                let src = String::from(current) + &reader.advance_while(|c| is_special(&c)); 
-                match TokenKind::from(src.as_str()) {
-                    TokenKind::None => self.split_special(&src, &start),
-                    _ => self.tokens.push_back(Token::new(src, &start, reader.pos())),
-                };
-                continue;
-                */
-
-                let mut end = start.clone();
-                end.advance_col();
-
-                if !is_operator(&current) || 
-                    reader.peek() == None 
-                {
-                    self.tokens.push_back(Token::new(current.to_string(), &start, &end));
-                    continue;
-                }
-
-                let mut buffer = String::from(current);
-                if let Some(c) = reader.peek() { buffer.push(c.clone()) }
-
-                match buffer.as_str() {
-                    "+=" | "-=" | "*=" | "/=" | 
-                    "%=" | "==" | "!=" | "<=" | 
-                    ">=" | "->" | ":=" => {
-                        reader.advance();
-                        end.advance_col();
-                    },
-
-                    _ => _ = buffer.pop(),
-                }
-                self.tokens.push_back(Token::new(buffer, &start, &end))
-
-            }
-            
-            if current == '\n' {
-                self.tokens.push_back(Token::new(String::from(current), &start, reader.pos()));
-            }
-
-            if current == '"' {
-                let mut src = String::from(current) + &reader.advance_while(|c| c != '"' ); 
-                if let Some(c) = reader.advance() { src.push(c); }  // adds the '"' at the end
-
-                self.tokens.push_back(Token::new(src, &start, reader.pos()));
-            }
+        if current == '#' {
+            let _ = self.reader.advance_while(|c: char| c != '\n');
+            self.reader.advance(); /* remove the \n if there's any */
+            return self.advance_tok(String::from("\n"), *self.reader.pos(), *self.reader.pos());
         }
 
-    }
+        if current.is_alphanumeric() {
+            let src = String::from(current) + &self.reader.advance_while(|c| c.is_alphanumeric() || c == '_'); 
+            return self.advance_tok(src, start, *self.reader.pos());
+        }
 
-    // this takes all special characters and conjoins any double operators such as '+=', '-=', etc.
-    fn split_special(&mut self, src: &str, start: &Position) {
-        let mut specials = CharReader::new(src);
+        if current.is_numeric() || 
+           (current == '-' && 
+            self.reader.peek().is_some() && 
+            self.reader.peek().unwrap().is_numeric()
+            )
+        {
+            /* 
+             * check wheather the minus should be interpreted as
+             * a negative int or an operator, example:
+             * 'a-5' -> identifier(a), sub(-), uint(5)
+             * 'a*-5' -> identifier(a), mul(*), int(-5)
+             */
+            if current == '-' {
+                match &self.prev {
+                    Some(kind) => {
+                        if kind.is_terminal() { 
+                            return self.advance_tok(current.to_string(), start, *self.reader.pos());
+                        }
+                    },
+                    None => (),
+                }
+            }
 
-        while !specials.is_empty() {
-            let current = specials.advance().unwrap();
-            let mut end = start.clone();
+            let src = String::from(current) + &self.reader.advance_while(|c| c.is_numeric() || c == '.');
+            return self.advance_tok(src, start, *self.reader.pos());
+        }
+
+        if is_special(&current) {
+            let mut end = start;
             end.advance_col();
 
-            if !is_operator(&current) || 
-                    specials.peek() == None {
-
-                self.tokens.push_back(Token::new(current.to_string(), start, &end));
-                continue;
+            if !is_operator(&current) ||  self.reader.peek() == None {
+                return self.advance_tok(current.to_string(), start, end);
             }
 
             let mut buffer = String::from(current);
-            if let Some(c) = specials.peek() { buffer.push(c.clone()) }
+            if let Some(c) = self.reader.peek() { buffer.push(c.clone()) }
 
             match buffer.as_str() {
-                "+=" | "-=" | "*=" | "/=" | 
-                "%=" | "==" | "!=" | "<=" | 
-                ">=" | "->" => {
-                    specials.advance();
+                "+=" | "-=" | "*=" | "/=" | "%=" | "==" | 
+                "!=" | "<=" | ">=" | "->" | ":=" => {
+                    self.reader.advance();
                     end.advance_col();
                 },
-
                 _ => _ = buffer.pop(),
             }
-            self.tokens.push_back(Token::new(buffer, start, &end))
+            return self.advance_tok(buffer, start, end);
         }
-    }
-
-    fn check_delim(&self, span: &Span, token: &Token, kind: TokenKind, stack: &mut Vec<Token>) -> Result<(), ()> {
-        if let Some(tk) = stack.last() {
-            if *tk.get_kind() != kind {
-                LexerErrors::MissmatchingDelimiter::msg(tk.start(), token.end(), span, tk.src(), token.src());
-                return Err(());
-            } else {
-                stack.pop();
-            }
-        } else {
-            LexerErrors::UnexpectedClosingDelimiter::msg(token.start(), token.end(), span, token.src());
-            return Err(());
-        }
-        Ok(())
-    }
-
-    fn check_delimiters(&mut self, span: &Span) -> Result<(), ()>{
-        let mut stack = Vec::<Token>::new(); 
-
-        for token in self.tokens.clone() {
-            match token.get_kind() {
-                TokenKind::OpenPar   => stack.push(token),
-                TokenKind::OpenBrace => stack.push(token),
-
-                TokenKind::ClosePar   => {
-                    self.check_delim(span, &token, TokenKind::OpenPar, &mut stack)?;
-                },
-
-                TokenKind::CloseBrace   => {
-                    self.check_delim(span, &token, TokenKind::OpenBrace, &mut stack)?;
-                },
-
-                _ => (),
-            }
+        
+        if current == '\n' {
+            return self.advance_tok(String::from(current), start, *self.reader.pos());
         }
 
-        if !stack.is_empty() {
-            let end = stack.pop().unwrap();
-            LexerErrors::UnclosedDelimiter::msg(end.start(), end.end(), span, end.src());
-            return Err(());
+        if current == '"' {
+            let mut src = String::from(current) + &self.reader.advance_while(|c| c != '"' ); 
+            if let Some(c) = self.reader.advance() { src.push(c); }  // adds the '"' at the end
+
+            return self.advance_tok(src, start, *self.reader.pos());
         }
 
-        Ok(())
-    }
 
-    fn check_errors(&mut self, span: &Span) -> Result<(), ()> {
-        let mut error = false;
-
-        for token in &self.tokens {
-            if let Err(_) = token.err_msg(span) {
-                error = true;
-            }
-        }
-
-        if error { return Err(()); }
-        Ok(())
+        return Err(
+            ChalError::from(
+                InternalError::new("Lexer::advance(): could not parse token")
+            )
+        );
     }
 
     // returns the next program element => var def/declr or function def
+    /*
     pub fn advance_program(&mut self, span: &Span) -> Option<VecDeque<Token>> {
         let mut result = VecDeque::new(); 
     
@@ -281,6 +358,7 @@ impl Lexer {
 
         Some(result)
     }
+    */
 
     // TODO! pass this function to the TokenReader
     /*
@@ -306,22 +384,6 @@ impl Lexer {
     */
 
     pub fn is_empty(&self) -> bool {
-        self.tokens.len() == 0
-    }
-
-    pub fn peek(&mut self) -> Option<&Token> {
-        self.tokens.front()
-    }
-
-    pub fn advance(&mut self) -> Option<Token> {
-        self.tokens.pop_front()
-    }
-    
-    pub fn advance_while(&mut self, condition: fn (&TokenKind) -> bool) -> VecDeque<Token> {
-        let mut result = VecDeque::<Token>::new();
-        while !self.is_empty() && condition(self.peek().unwrap().get_kind()) {
-            result.push_back(self.advance().unwrap());
-        }
-        result
+        self.reader.is_empty()
     }
 }

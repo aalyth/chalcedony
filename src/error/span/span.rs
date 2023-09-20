@@ -1,5 +1,5 @@
-use crate::errors::span::pos::Position; 
-use crate::errors::format::color::Color;
+use crate::error::span::pos::Position; 
+use crate::error::format::{color, Colors};
 
 pub struct Span {
     src: Vec<String>,
@@ -19,19 +19,25 @@ impl Span {
         Span { src: result }
     }
 
-    pub fn context_print(&self, start: &Position, end: &Position) {
+    pub fn context(&self, start: &Position, end: &Position) -> String {
+        let mut result = String::new();
+
         let context: (String, usize) = self.context_span(start, end);
-        eprintln!("{}", &context.0);
+        result.push_str(&context.0);
+        result.push_str("\n");
 
         let ln_len = std::cmp::max(end.ln.to_string().len(), 4);
-        for _ in 0 .. ln_len { eprint!(" "); } 
-        eprint!("{}", Color::color(Color::Blue, "| "));
-        for _ in 0 .. context.1 - (ln_len + 2) { eprint!(" "); }
-        for _ in 0 .. end.col - start.col { eprint!("{}", Color::color(Color::Cyan, "^")); }
-        eprintln!("\n");
+        for _ in 0 .. ln_len { result.push_str(" "); } 
+        result.push_str(&color(Colors::Blue, "| "));
+
+        for _ in 0 .. context.1 - (ln_len + 2) { result.push_str(" "); }
+        for _ in 0 .. end.col - start.col { result.push_str(&color(Colors::Cyan, "^")); }
+        result.push_str("\n");
+
+        result
     }
 
-    // returns the context string and the relative index in the result string of the start position
+    /* returns the context string and the relative index in the result string of the start position */
     fn context_span(&self, start_: &Position, end_: &Position) -> (String, usize) {
         if start_.ln == 0 || start_.col == 0 { panic!("Error: span: context_span: invalid start position.\n"); } 
         if end_.ln == 0 || end_.col == 0 { panic!("Error: span: context_span: invalid start position.\n"); } 
@@ -64,8 +70,8 @@ impl Span {
             let ln_len = std::cmp::max(end_ln_str.len(), 4); 
             for _ in 0 .. ln_len - end_ln_str.len() { result.push_str(" "); }
             let curr_line = &self.src[start.ln];
-            result.push_str(&Color::color(Color::Blue, &start.ln.to_string()));
-            result.push_str(&Color::color(Color::Blue, "| "));
+            result.push_str(&color(Colors::Blue, &start.ln.to_string()));
+            result.push_str(&color(Colors::Blue, "| "));
 
             #[allow(unused_assignments)]
             let mut res_pos: usize = 0;
@@ -98,7 +104,7 @@ impl Span {
         if end.ln - start.ln > 1 {
             let ln_len = std::cmp::max(end_.ln.to_string().len(), 4); 
             for _ in 0 .. ln_len-3 { result.push_str(" "); }
-            result.push_str(&Color::color(Color::Blue, "...| "));
+            result.push_str(&color(Colors::Blue, "...| "));
             result.push_str("...\n");
         }
 
@@ -107,19 +113,19 @@ impl Span {
         (result, res.1)
     }
 
-    // returns a formatted string, containing the content around the given position
-    //
-    // if successful returns the formated string and the given index of the position 
-    // relative to the formated string
-    //
-    // pos: (ln, col)
+    /* returns a formatted string, containing the content around the given position
+     *
+     * if successful returns the formated string and the given index of the position 
+     * relative to the formated string
+     */
     fn context_pos(&self, pos_: &Position) -> (String, usize) {
         self.context_substr(pos_, 0)
     }
 
-    // similar to context_pos(), but takes the length of the substring, to which the context wraps around
-    //
-    // returns the begining of the substring relative to the context output
+    /* similar to context_pos(), but takes the length of the substring, to which the context wraps around
+     *
+     * returns the begining of the substring relative to the context output
+     */
     fn context_substr(&self, pos_: &Position, len: usize) -> (String, usize) {
         if pos_.ln == 0 || pos_.col == 0 { panic!("Error: span: context_substr: invalid position."); } 
 
@@ -133,8 +139,8 @@ impl Span {
 
         let mut result = "".to_string();
         for _ in 0 .. (ln_len - pos_len) { result.push_str(" "); }
-        result.push_str(&Color::color(Color::Blue, &pos_.ln.to_string()));
-        result.push_str(&Color::color(Color::Blue, "| "));
+        result.push_str(&color(Colors::Blue, &pos_.ln.to_string()));
+        result.push_str(&color(Colors::Blue, "| "));
 
         #[allow(unused_assignments)]
         let mut res_pos: usize = 0;
@@ -150,8 +156,9 @@ impl Span {
         res_pos = pos_.col + (ln_len+1);
 
         if curr_line.chars().count() - (pos.col + len) > 25 {
-            // same as curr_line[pos.col + len .. pos.col + len + 24]
-            // but works with UTF-8
+            /* same as curr_line[pos.col + len .. pos.col + len + 24]
+             * but works with UTF-8
+             */
             let tmp: String = curr_line.chars().take(pos.col + len + 24).skip(pos.col+len).collect(); 
             result.push_str(&tmp);
             result.push_str("...");
