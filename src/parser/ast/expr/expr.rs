@@ -4,10 +4,26 @@ use crate::parser::ast::{NodeBinExpr, NodeUnaryExpr, NodeValue};
 
 use std::collections::VecDeque;
 
+// #[derive(Debug)]
+// pub enum NodeExpr {
+//     BinExpr(NodeBinExpr),
+//     UnaryExpr(NodeUnaryExpr),
+//     Value(NodeValue),
+// }
+
+use crate::parser::ast::operators::{BinOprType, UnaryOprType};
+#[derive(Debug)]
 pub enum NodeExpr {
-    BinExpr(NodeBinExpr),
-    UnaryExpr(NodeUnaryExpr),
-    Value(NodeValue),
+    BinExpr {
+        left: Box<NodeExpr>,
+        right: Box<NodeExpr>,
+        operator: BinOprType,
+    },
+    UnaryExpr {
+        operand: Box<NodeExpr>,
+        operator: UnaryOprType,
+    },
+    Value (NodeValue),
 }
 
 impl NodeExpr {
@@ -19,6 +35,7 @@ impl NodeExpr {
         //
         // NOTE: filter unnecessary expressions like:
         // a*--b -> can be simplified to a*b
+
 
         None
     }

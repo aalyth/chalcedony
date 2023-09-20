@@ -32,7 +32,7 @@ impl Parser {
 
         while !lexer.is_empty() {
             if let Some(tokens) = lexer.advance_program(&span) {
-                println!("tokens = {:#?}", tokens);
+                println!("tokens = {:#?}\n", tokens);
                 let next_node = NodeProg::new(tokens, &span);
                 match next_node {
                     Ok(node) => self.nodes.push_back(node),

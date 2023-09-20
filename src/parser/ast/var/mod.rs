@@ -23,7 +23,7 @@ impl NodeVarCall {
 pub struct NodeVarDef {
     r#type: VarType,
     name:   String,
-    // value:  Option<NodeExpr>
+    value:  Option<NodeExpr>,
 }
 
 impl NodeVarDef {
@@ -32,7 +32,7 @@ impl NodeVarDef {
         let mut result = NodeVarDef { 
             name: String::new(),
             r#type: VarType::I8,
-            //value: None,
+            value: None,
         };
 
         reader.expect(TokenKind::Keyword(Keyword::Let))?;
@@ -44,16 +44,18 @@ impl NodeVarDef {
         match reader.peek() {
             Some(token) => match token.get_kind() {
                 TokenKind::Colon => {
-                    reader.advance(); // skip the ':'
+                    reader.advance(); /* skip the ':' */
                     
                     let type_ = VarType::new(reader.expect(TokenKind::Type(Type::Any))?);
                     result.r#type = type_.unwrap();
+
+                    if reader.is_empty() {return Ok(result); } /* Variable Declaration */
 
                     reader.expect(TokenKind::Eq)?;
                 },
 
                 TokenKind::Walrus => {
-                    //automatically determine the node type
+                    /* automatically determine the node type */
                 },
 
                 _ => {

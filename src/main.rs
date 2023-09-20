@@ -24,7 +24,6 @@ let a := -5.2*--3
 fn test((args: i8):
     let b := 3} # test123
 
-
 ");
 
     while !lexer.is_empty() {
