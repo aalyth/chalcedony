@@ -20,19 +20,27 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 pub struct Lexer {  
-    /* contains the opening delimiters */
+    /* opening delimiters */
     #[allow(dead_code)]
     delim_stack: VecDeque<Token>,
+
+    /* to easily iterate over the source code*/
     reader:      CharReader,
+
+    /* so errors can be traced to the source code  */
     span:        Rc<Span>,
-    /* contains a clone of the previous token kind */
+
+    /* clone of the previous token kind */
     prev:        Option<TokenKind>,
 }
 
 impl Lexer {
     pub fn new(code: &str) -> Self {
         /* convert tabs to 4 spaces */
-        let src = str::replace(code, "\t", "    ");
+        let mut src = str::replace(code, "\t", "    ");
+
+        /* this is so empty lines at the end do not cause errors */
+        src.push_str("\n");
 
         Lexer {
             delim_stack: VecDeque::<Token>::new(),
@@ -45,47 +53,50 @@ impl Lexer {
     /* advances the next program node (a fn def or variable def) */
     pub fn advance_prog(&mut self) -> Result<VecDeque<Line>, ChalError> {
         if self.reader.is_empty() {
-            return Err(ChalError::from( InternalError::new("Lexer::advance_prog(): advancing an empty lexer") ));
+            return Err(
+                ChalError::from(
+                    InternalError::new("Lexer::advance_prog(): advancing an empty lexer")
+                )
+            );
         }
 
         let mut result = VecDeque::<Line>::new();
-        let mut current = self.advance_line()?; 
+        let mut errors = VecDeque::<ChalError>::new();
+        let (mut line, mut err) = self.advance_line(); 
 
-        while current.tokens().len() < 2 {
-            if current.tokens().is_empty() {
-                return Err(ChalError::from( InternalError::new("Lexer::advance_prog(): received empty line") ));
+        while line.tokens().len() < 2 {
+            if !err.is_empty() {
+                return Err( ChalError::from(err) );
             }
-
-            if current.tokens().len() == 1 {
-                current = self.advance_line()?;
-            }
+            (line, err) = self.advance_line();
         }
 
-        let front = current.tokens().front().unwrap().clone();
-
-        result.push_back(current);
+        let front = line.tokens().front().unwrap().clone();
 
         match front.kind() {
-            TokenKind::Keyword(Keyword::Let) => return Ok(result),
+            TokenKind::Keyword(Keyword::Let) => result.push_back(line),
             
             TokenKind::Keyword(Keyword::Fn) => {
-                let mut errors = VecDeque::<ChalError>::new();
-
-                while let Some(' ') = self.reader.peek() {
-                    let current = self.advance_line();
-                    match current {
-                        Ok(line) => {
-                            if line.tokens().len() > 1 { 
-                                result.push_back(line);
-                            }
-                        }
-                        Err(mut err_chunk) => errors.append(&mut err_chunk),
+                loop {
+                    match self.reader.peek() {
+                        Some(' ')  => (),
+                        Some('\n') => (),
+                        Some(_)   => break,
+                        None      => break,
                     }
+
+                    if !err.is_empty() {
+                        errors.append(&mut err);
+                    } else {
+                        if line.tokens().len() >= 2 {
+                            result.push_back(line);
+                        }
+                    }
+
+                    (line, err) = self.advance_line();
+
                 }
-                
-                if !errors.is_empty() { return Err( ChalError::from(errors) ); }
-                return Ok(result);
-            }
+            }, 
 
             invalid @ _ 
             => return Err(
@@ -94,11 +105,26 @@ impl Lexer {
                     )
                 ),
         }
+
+        /* check for unclosed delimiters */
+        if self.is_empty() && !self.delim_stack.is_empty() {
+            for delim in &self.delim_stack {
+                errors.push_back(
+                    ChalError::from(
+                        LexerError::unclosed_delimiter(delim.src(), *delim.start(), *delim.end(), Rc::clone(&self.span))
+                    )
+                );
+            }
+        }
+
+        if !errors.is_empty() { return Err( ChalError::from(errors) ); }
+        return Ok(result);
     }
 
-    fn advance_line(&mut self) -> Result<Line, VecDeque<ChalError>> {
+    fn advance_line(&mut self) -> (Line, VecDeque<ChalError>) {
         if self.reader.is_empty() {
-            return Err(
+            return (
+                Line::new(0, VecDeque::<Token>::new()),
                 VecDeque::from([ChalError::from(
                     InternalError::new("Lexer::advance_line(): advancing an empty lexer")
                 )])
@@ -128,12 +154,15 @@ impl Lexer {
                 Err(err) => errors.push_back(err),
             }
             /* this clunky check is so we don't have problems with the borrow checker*/
-            if result.back().is_some() || *result.back().unwrap().kind() == TokenKind::Newline { break; }
+            if result.back().is_some() && *result.back().unwrap().kind() == TokenKind::Newline { break; }
+            if self.is_empty() { break; }
             current = self.advance();
         }
         
-        if !errors.is_empty() { return Err( errors ); }
-        Ok(Line::new(indent/4, result))
+        (
+            Line::new(indent/4, result),
+            errors,
+        )
     }
 
     fn advance_tok(&mut self, src: String, start: Position, end: Position) -> Result<Token, ChalError>{
@@ -167,7 +196,7 @@ impl Lexer {
                 if *open_delim.kind() != TokenKind::Delimiter(close_delim.inverse()) {
                     return Err(
                         ChalError::from( 
-                            LexerError::missmatching_delimiters(open_delim.src(), tok.src(), start, end, Rc::clone(&self.span)) 
+                            LexerError::mismatching_delimiters(open_delim.src(), tok.src(), *open_delim.start(), start, Rc::clone(&self.span)) 
                         )
                     );
                 }
@@ -213,7 +242,7 @@ impl Lexer {
             )
         {
             /* 
-             * check weather the minus should be interpreted as
+             * check wheather the minus should be interpreted as
              * a negative int or an operator, example:
              * 'a-5' -> identifier(a), sub(-), uint(5)
              * 'a*-5' -> identifier(a), mul(*), int(-5)
@@ -234,7 +263,7 @@ impl Lexer {
         }
 
         if is_special(&current) {
-            let mut end = start.clone();
+            let mut end = start;
             end.advance_col();
 
             if !is_operator(&current) ||  self.reader.peek() == None {

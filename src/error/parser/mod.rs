@@ -61,7 +61,7 @@ impl ParserError {
     }
 
     fn display_err(&self, f: &mut std::fmt::Formatter, msg: &str) -> std::fmt::Result {
-        write!(f, "{}:\n{}", err(msg), self.span.context(&self.start, &self.end))
+        write!(f, "{}:\n{}\n", err(msg), self.span.context(&self.start, &self.end))
     }
 
 }

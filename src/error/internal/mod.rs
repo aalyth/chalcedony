@@ -13,6 +13,6 @@ impl InternalError {
 
 impl std::fmt::Display for InternalError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", internal(&self.msg))
+        write!(f, "{}\n", internal(&self.msg))
     }
 }

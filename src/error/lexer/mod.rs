@@ -13,7 +13,7 @@ enum LexerErrorKind {
     UnclosedComment,
     UnclosedDelimiter(String),
     UnexpectedClosingDelimiter(String),
-    MissmatchingDelimiters(String, String),
+    MismatchingDelimiters(String, String),
     InvalidGlobalStatement(TokenKind),
 }
 
@@ -75,16 +75,16 @@ impl LexerError {
         LexerError::new(LexerErrorKind::UnexpectedClosingDelimiter(del), start, end, span)
     }
 
-    pub fn missmatching_delimiters(
-        open_del:  &str,
-        close_del: &str,
-        start:     Position, 
-        end:       Position, 
-        span:      Rc<Span>,
+    pub fn mismatching_delimiters(
+        open_del:      &str,
+        close_del:     &str,
+        open_del_pos:  Position, 
+        close_del_pos: Position, 
+        span:          Rc<Span>,
     ) -> Self {
         let open_del  = open_del.to_string();
         let close_del = close_del.to_string();
-        LexerError::new(LexerErrorKind::MissmatchingDelimiters(open_del, close_del), start, end, span)
+        LexerError::new(LexerErrorKind::MismatchingDelimiters(open_del, close_del), open_del_pos, close_del_pos, span)
     }
 
     pub fn invalid_global_statement(
@@ -97,7 +97,7 @@ impl LexerError {
     }
 
     fn display_err(&self, f: &mut std::fmt::Formatter, msg: &str) -> std::fmt::Result {
-        write!(f, "{}:\n{}", err(msg), self.span.context(&self.start, &self.end))
+        write!(f, "{}:\n{}\n", err(msg), self.span.context(&self.start, &self.end))
     }
 }
 
@@ -119,9 +119,18 @@ impl std::fmt::Display for LexerError {
                 self.display_err(f, msg)
             },
 
-            LexerErrorKind::MissmatchingDelimiters(open_del, close_del) => {
+            LexerErrorKind::MismatchingDelimiters(open_del, close_del) => {
+                let mut open_del_end = self.start;
+                open_del_end.advance_col();
+
+                let mut close_del_end = self.end; 
+                close_del_end.advance_col();
+
                 let msg = &format!("missmatching delimiters ('{}' and '{}')", open_del, close_del);
-                self.display_err(f, msg)
+
+                let open_ctx = self.span.context(&self.start, &open_del_end);
+                let end_ctx  = self.span.context(&self.end, &close_del_end);
+                write!(f, "{}:\n{}{}\n", err(msg), open_ctx, end_ctx)
             },
 
             LexerErrorKind::InvalidGlobalStatement(token_kind) => {

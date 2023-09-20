@@ -21,16 +21,17 @@ fn main() {
 # this is a comment
 let a := -5.2*--3
 # let b := 5 * -3
-fn test(args: i8}):
-    let b := 3
-    # test123
-    ");
+fn test((args: i8):
+    let b := 3} # test123
+
+
+");
 
     while !lexer.is_empty() {
         let current = lexer.advance_prog();
         match current {
             Ok(line) => println!("{:#?}", line),
-            Err(err) => println!("{}", err),
+            Err(err) => print!("{}", err),
         }
     }
 }
