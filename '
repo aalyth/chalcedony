@@ -28,7 +28,11 @@ impl TokenReader {
     }
 
     pub fn advance(&mut self) -> Option<Token> {
-        let Some(res) = self.src.pop_front() else {
+        let Some(line) = self.src.front() else {
+            return None;
+        };
+
+        let Some(res) = line.tokens().pop_front() else {
             return None;
         };
 
@@ -36,12 +40,16 @@ impl TokenReader {
         Some(res)
     }
 
-    pub fn peek(&self) -> Option<&Token> {
-        self.src.front()
+    pub fn peek_tok(&self) -> Option<&Token> {
+        let Some(line) = self.src.front() else {
+            return None;
+        };
+
+        line.tokens().front()
     }
 
     fn expect_inner(&mut self, exp: TokenKind, cond: fn (&TokenKind, &TokenKind) -> bool) -> Result<Token, ChalError>{
-        let Some(token) = self.peek() else {
+        let Some(token) = self.peek_tok() else {
             return Err(
                 ChalError::from(
                     ParserError::expected_token(exp, self.pos, self.pos, Rc::clone(&self.span))
@@ -50,7 +58,7 @@ impl TokenReader {
         };
 
         if cond(token.kind(), &exp) {
-            return Ok(self.advance().unwrap());
+            return Ok(self.advance_tok().unwrap());
         } 
 
         Err(

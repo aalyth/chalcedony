@@ -16,12 +16,14 @@ use crate::error::{ChalError,
                    };
 
 use crate::lexer::CharReader;
+
+use crate::utils::Reader;
+
 use std::collections::VecDeque;
 use std::rc::Rc;
 
 pub struct Lexer {  
     /* opening delimiters */
-    #[allow(dead_code)]
     delim_stack: VecDeque<Token>,
 
     /* to easily iterate over the source code*/
@@ -132,7 +134,7 @@ impl Lexer {
         }
 
         let start = *self.reader.pos();
-        let indent_raw = self.reader.advance_while(|c: char| c == ' ');
+        let indent_raw = self.reader.advance_string(|c: &char| *c == ' ');
         let indent = indent_raw.len();
 
         let mut errors = VecDeque::<ChalError>::new();
@@ -225,13 +227,13 @@ impl Lexer {
         };
 
         if current == '#' {
-            let _ = self.reader.advance_while(|c: char| c != '\n');
+            let _ = self.reader.advance_string(|c: &char| *c != '\n');
             self.reader.advance(); /* remove the \n if there's any */
             return self.advance_tok(String::from("\n"), *self.reader.pos(), *self.reader.pos());
         }
 
         if current.is_alphanumeric() {
-            let src = String::from(current) + &self.reader.advance_while(|c| c.is_alphanumeric() || c == '_'); 
+            let src = String::from(current) + &self.reader.advance_string(|c: &char| c.is_alphanumeric() || *c == '_'); 
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
@@ -258,7 +260,7 @@ impl Lexer {
                 }
             }
 
-            let src = String::from(current) + &self.reader.advance_while(|c| c.is_numeric() || c == '.');
+            let src = String::from(current) + &self.reader.advance_string(|c: &char| c.is_numeric() || *c == '.');
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
@@ -289,7 +291,7 @@ impl Lexer {
         }
 
         if current == '"' {
-            let mut src = String::from(current) + &self.reader.advance_while(|c| c != '"' ); 
+            let mut src = String::from(current) + &self.reader.advance_string(|c: &char| *c != '"' ); 
             if let Some(c) = self.reader.advance() { src.push(c); }  // adds the '"' at the end
 
             return self.advance_tok(src, start, *self.reader.pos());
@@ -302,63 +304,6 @@ impl Lexer {
             )
         );
     }
-
-    // returns the next program element => var def/declr or function def
-    /*
-    pub fn advance_program(&mut self, span: &Span) -> Option<VecDeque<Token>> {
-        let mut result = VecDeque::new(); 
-    
-        if let Some(token) = self.tokens.front() {
-            match token.get_kind() {
-                TokenKind::Keyword(Keyword::Let) => {
-                    result.append(&mut self.advance_while(|tk| *tk != TokenKind::Newline));
-                },
-
-                TokenKind::Keyword(Keyword::Fn) => {
-                    let mut result = self.advance_while(|tk| *tk != TokenKind::OpenBrace); 
-                    if let Some(token) = self.advance() {
-                        result.push_back(token);
-                    } else {
-                        panic!("Error: Lexer: advance(): not enough tokens.");
-                    }
-
-                    let mut indents = 1;
-
-                    while indents > 0 {
-                        if let Some(token) = self.advance() {
-                            match token.get_kind() {
-                                TokenKind::OpenBrace => indents += 1,
-                                TokenKind::CloseBrace => indents -= 1,
-                                _ => ()
-                            }
-                            result.push_back(token);
-
-                        } else {
-                            panic!("Error: Lexer: advance(): not enough tokens.");
-                        }
-                        
-                    }
-                    return Some(result);
-                },
-
-                TokenKind::Newline => {
-                    self.advance();
-                    return None;
-                },
-
-                _ => {
-                    LexerErrors::InvalidGlobalStatement::msg(token.start(), token.end(), span, token.get_kind());
-                    return None;
-                }
-            }
-
-        } else {
-            panic!("Error: Lexer: advance(): advancing an empty lexer.");
-        }
-
-        Some(result)
-    }
-    */
 
     // TODO! pass this function to the TokenReader
     /*
@@ -385,5 +330,9 @@ impl Lexer {
 
     pub fn is_empty(&self) -> bool {
         self.reader.is_empty()
+    }
+
+    pub fn span(&self) -> &Rc<Span> {
+        &self.span
     }
 }

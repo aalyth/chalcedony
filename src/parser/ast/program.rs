@@ -1,26 +1,33 @@
+use crate::parser::ast::{NodeVarDef, NodeFuncDef};
+use crate::error::{ChalError, InternalError};
+use crate::lexer::{Line, TokenKind, Keyword};
 
 use std::collections::VecDeque;
 
-use crate::parser::ast::{NodeVarDef, NodeFuncDef};
-use crate::errors::span::Span;
-use crate::lexer::{Token, TokenKind, Keyword};
-
-// program node
 #[derive(Debug)]
 pub enum NodeProg {
-    VarDef(NodeVarDef),
-    FuncDef(NodeFuncDef),
+    VarDef  (NodeVarDef),
+    FuncDef (NodeFuncDef),
 }
 
 impl NodeProg {
-    pub fn new(tokens: VecDeque<Token>, span: &Span) -> Result<NodeProg, ()> {
-        match tokens.front() {
-            Some(tok) => match tok.get_kind() {
-                TokenKind::Keyword(Keyword::Let) => return Ok(NodeProg::VarDef(NodeVarDef::new(tokens, span)?)),
-                TokenKind::Keyword(Keyword::Fn)  => return Ok(NodeProg::FuncDef(NodeFuncDef::new(tokens, span)?)),
-                _ => return Err(()),
-            },
-            None => return Err(()),
+    pub fn new(chunk: VecDeque<Line>) -> Result<NodeProg, ChalError> {
+        if chunk.is_empty() {
+            return Err(ChalError::from( InternalError::new("NodeProg::new(): received an empty code chunk") ));
+        }
+        
+        let front_line = chunk.front().unwrap();
+        if front_line.tokens().is_empty() {
+            return Err(ChalError::from( InternalError::new("NodeProg::new(): empty first line of chunk") ));
+        }
+
+        let front_tok = front_line.tokens().front().unwrap();
+
+        match front_tok.kind() {
+            TokenKind::Keyword(Keyword::Let) => return NodeProg::VarDef(NodeVarDef::new(chunk)),
+            TokenKind::Keyword(Keyword::Fn)  => return NodeProg::FuncDef(NodeFuncDef::new(chunk)),
+            
+            _ => return Err(ChalError::from( InternalError::new("NodeProg::new(): invalid chunk front") )),
         }
     }
 }

@@ -1,47 +1,38 @@
-use crate::errors::span::Span;
-use crate::lexer::Lexer;
+use crate::lexer::{Lexer, Type};
+use crate::error::{Span, ChalError, InternalError};
+
+// TODO! fix the ast/mod.rs and import only NodeProg
 use crate::parser::ast::*;
-// use crate::parser::ast::func::NodeFuncDef;
 
-use std::collections::VecDeque;
-
+use std::collections::HashMap;
+use std::rc::Rc;
 
 pub struct Parser {
-    // fields to contain variable and function definitions
-    nodes: VecDeque<NodeProg> 
+    lexer: Lexer,
+    span:  Rc<Span>,
+    /* symbol table */
+    symtable: HashMap<String, Type>,
 }
 
 impl Parser {
-    pub fn new(code: &str) -> Result<(Parser, Span), ()>{
-        let mut result = Parser {
-            nodes: VecDeque::<NodeProg>::new(),
-        };
-
-        let span = result.generate(code)?;
-        
-        Ok( (result, span) )
-    }
-
-    pub fn advance(&mut self) -> Option<NodeProg> {
-        self.nodes.pop_front()
-    }
-
-    fn generate(&mut self, code: &str) -> Result<Span, ()> {
-        let (mut lexer, span) = Lexer::new(code)?;
-        let mut failed = false;
-
-        while !lexer.is_empty() {
-            if let Some(tokens) = lexer.advance_program(&span) {
-                println!("tokens = {:#?}\n", tokens);
-                let next_node = NodeProg::new(tokens, &span);
-                match next_node {
-                    Ok(node) => self.nodes.push_back(node),
-                    Err(_)   => failed = true,
-                }
-            } 
+    pub fn new(code: &str) -> Parser {
+        let lexer = Lexer::new(code);
+        Parser {
+            lexer,
+            span: Rc::clone(lexer.span()),
+            symtable: HashMap::<String, Type>::new(), 
         }
-
-        if failed { return Err(()); }
-        Ok(span)
     }
+
+    pub fn advance(&mut self) -> Result<NodeProg, ChalError> {
+        if self.lexer.is_empty() {
+            return Err(ChalError::from( InternalError::new("Parser::advance(): advancing an empty parser") ));
+        }
+        NodeProg::new(self.lexer.advance_prog()?)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.lexer.is_empty()
+    }
+
 }

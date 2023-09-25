@@ -4,7 +4,7 @@ use crate::lexer::tokens::TokenKind;
 
 use std::rc::Rc;
 
-// the enum is the possible errorous token kinds
+/* the possible errorous token kinds */
 #[derive (PartialEq, Debug, Clone)]
 enum LexerErrorKind {
     InvalidIdentifier,

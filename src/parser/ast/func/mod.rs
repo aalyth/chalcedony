@@ -1,23 +1,19 @@
+pub mod def;
+pub mod call;
+
+pub use def::NodeFuncDef;
+pub use call::NodeFuncCall;
+
+/*
 use std::collections::VecDeque;
 
 use crate::parser::{ast::*, TokenReader};
 use crate::lexer::{Lexer, tokens::*};
-use crate::errors::{span::*,
+use crate::error::{span::*,
                     span::pos::*,
                     parser::*};
 
-#[derive(Debug)]
-pub struct NodeFuncDef {
-    name:     String,
-    args:     Vec<(String, VarType)>,
-    ret_type: Option<VarType>,
-    // body:     Vec<NodeStmnt>
-}
 
-pub struct NodeFuncCall {
-    name: String,
-    args: Vec<NodeExpr>,
-}
 
 impl NodeFuncDef {
     // TODO! implement a proper TokenReader instead of using the lexer (the lexer 
@@ -81,3 +77,4 @@ impl NodeFuncDef {
     }
 
 }
+*/

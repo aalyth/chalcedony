@@ -4,31 +4,35 @@ use crate::lexer::{Line, Token, TokenKind};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-pub struct TokenReader {
-    src:  VecDeque<Token>,
+pub struct LineReader {
+    src:  VecDeque<Line>,
     pos:  Position,
     span: Rc<Span>,
 }
 
-impl TokenReader {
-    pub fn new(src: VecDeque<Token>, span: &Rc<Span>) -> Self {
+impl LineReader {
+    pub fn new(src: VecDeque<Line>, span: &Rc<Span>) -> Self {
         let mut pos = Position::new(1, 1);
 
         /* check if there is at least 1 token in the source
          * and take the first token's end position */
-        if !src.is_empty() {
-            pos = *src.front().unwrap().end(); 
+        if !src.is_empty() && !src.front().unwrap().tokens().is_empty() {
+            pos = *src.front().unwrap().tokens().front().unwrap().end(); 
         }
 
-        TokenReader {
+        LineReader {
             src,
             pos,
             span: Rc::clone(span),
         }
     }
 
-    pub fn advance(&mut self) -> Option<Token> {
-        let Some(res) = self.src.pop_front() else {
+    pub fn advance_tok(&mut self) -> Option<Token> {
+        let Some(line) = self.src.front() else {
+            return None;
+        };
+
+        let Some(res) = line.tokens().pop_front() else {
             return None;
         };
 
@@ -36,12 +40,16 @@ impl TokenReader {
         Some(res)
     }
 
-    pub fn peek(&self) -> Option<&Token> {
-        self.src.front()
+    pub fn peek_tok(&self) -> Option<&Token> {
+        let Some(line) = self.src.front() else {
+            return None;
+        };
+
+        line.tokens().front()
     }
 
     fn expect_inner(&mut self, exp: TokenKind, cond: fn (&TokenKind, &TokenKind) -> bool) -> Result<Token, ChalError>{
-        let Some(token) = self.peek() else {
+        let Some(token) = self.peek_tok() else {
             return Err(
                 ChalError::from(
                     ParserError::expected_token(exp, self.pos, self.pos, Rc::clone(&self.span))
@@ -50,7 +58,7 @@ impl TokenReader {
         };
 
         if cond(token.kind(), &exp) {
-            return Ok(self.advance().unwrap());
+            return Ok(self.advance_tok().unwrap());
         } 
 
         Err(
@@ -77,3 +85,4 @@ impl TokenReader {
         self.expect_inner(exp, |current, exp| current == exp)
     }
 }
+

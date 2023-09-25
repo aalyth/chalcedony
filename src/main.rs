@@ -1,6 +1,7 @@
 pub mod error;
 pub mod lexer;
-// pub mod parser;
+pub mod parser;
+pub mod utils;
 
 // use crate::parser::Parser; 
 use crate::lexer::Lexer;
@@ -21,8 +22,8 @@ fn main() {
 # this is a comment
 let a := -5.2*--3
 # let b := 5 * -3
-fn test((args: i8):
-    let b := 3} # test123
+fn test(args: i8):
+    let b := 3 # test123
 
 ");
 
