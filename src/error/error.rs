@@ -1,12 +1,12 @@
-use crate::error::{LexerError, ParserError, InternalError};
+use crate::error::{InternalError, LexerError, ParserError};
 
 use std::collections::VecDeque;
 
 pub enum ChalError {
-    LexerErr      (LexerError),
-    ParserErr     (ParserError),
-    InternalErr   (InternalError),
-    ErrorChunk    (VecDeque<ChalError>),
+    LexerErr(LexerError),
+    ParserErr(ParserError),
+    InternalErr(InternalError),
+    ErrorChunk(VecDeque<ChalError>),
 }
 
 impl From<LexerError> for ChalError {
@@ -42,10 +42,10 @@ impl std::fmt::Display for ChalError {
                     res.push_str(&format!("{}", err));
                 }
                 write!(f, "{}", res)
-            }, 
+            }
 
-            ChalError::LexerErr(err)    => write!(f, "{}", err),
-            ChalError::ParserErr(err)   => write!(f, "{}", err),
+            ChalError::LexerErr(err) => write!(f, "{}", err),
+            ChalError::ParserErr(err) => write!(f, "{}", err),
             ChalError::InternalErr(err) => write!(f, "{}", err),
         }
     }

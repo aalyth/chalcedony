@@ -1,7 +1,8 @@
-pub mod parser;
 mod ast;
-mod token_reader;
 mod line_reader;
+pub mod parser;
+mod token_reader;
 
+use line_reader::LineReader;
 pub use parser::Parser;
-pub use line_reader::LineReader;
+use token_reader::TokenReader;

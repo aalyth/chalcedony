@@ -1,50 +1,34 @@
-
 #[derive(Debug)]
 pub enum BinOprType {
-    Add,          // +
-    Sub,          // -
-    Mul,          // *
-    Div,          // /
-    Mod,          // %
-    Eq,           // =
+    Add, // +
+    Sub, // -
+    Mul, // *
+    Div, // /
+    Mod, // %
 
-    AddEq,        // +=
-    SubEq,        // -=
-    MulEq,        // *=
-    DivEq,        // /=
-    ModEq,        // %=
+    And, // &&
+    Or,  // ||
 
-    /* not needed for now
-    BinAnd,       // &
-    BinOr,        // |
-    Xor,          // ^
-    */
-}
-
-#[derive(Debug)]
-pub enum BinCondType {
-    Lt,           // <
-    Gt,           // >
-    EqEq,         // ==
-    LtEq,         // <=
-    GtEq,         // >=
-    BangEq,       // !=
-    And,          // &&
-    Or,           // ||
-}
-
-#[derive(Debug)]
-pub enum UnaryCondType {
-    Bang,         // !
+    Lt,     // <
+    Gt,     // >
+    LtEq,   // <=
+    GtEq,   // >=
+    EqEq,   // ==
+    BangEq, // !=
 }
 
 #[derive(Debug)]
 pub enum UnaryOprType {
-    Neg,          // - (negative)
-    Ref,          // &
+    Neg,  // - (negative)
+    Bang, // !
+}
 
-    /* not needed for now
-    DeRef,        // *
-    Tilde,        // ~
-    */
+#[derive(Debug)]
+pub enum AssignOprType {
+    Eq,    // =
+    AddEq, // +=
+    SubEq, // -=
+    MulEq, // *=
+    DivEq, // /=
+    ModEq, // %=
 }

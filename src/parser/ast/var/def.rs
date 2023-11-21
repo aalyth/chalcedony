@@ -1,66 +1,43 @@
-use crate::error::{Span, ChalError};
-use crate::lexer::{Token, TokenKind, Type};
-use crate::parser::{LineReader};
-
-use std::collections::VecDeque;
-use std::rc::Rc;
+use crate::error::ChalError;
+use crate::lexer::{Keyword, Operator, Special, TokenKind, Type};
+use crate::parser::{ast::NodeExpr, TokenReader};
 
 #[derive(Debug)]
 pub struct NodeVarDef {
     /* the variable type */
-    kind:  Type,
-    name:  String,
-    value: Option<NodeExpr>,
+    kind: Type,
+    name: String,
+    /* when default type values are implemented, this could be optional, so variable declarations
+     * are possible */
+    value: NodeExpr,
 }
 
 impl NodeVarDef {
-    pub fn new(tokens: Line, span: &Rc<Span>) -> Result<NodeVarDef, ChalError> {
-        let mut reader = LineReader::new
-        /*
-        let mut reader = TokenReader::new(tokens, span);
-        let mut result = NodeVarDef { 
-            name: String::new(),
-            r#type: VarType::I8,
-            value: None,
-        };
+    pub fn new(mut reader: TokenReader) -> Result<NodeVarDef, ChalError> {
+        /* let a := 5*/
+        /* let b: usize = 3 */
 
-        reader.expect(TokenKind::Keyword(Keyword::Let))?;
+        reader.expect_exact(TokenKind::Keyword(Keyword::Let))?;
 
-        if let TokenKind::Identifier(name) = reader.expect(TokenKind::Identifier(String::new()))?.get_kind() {
-            result.name = name.clone();
+        let name = reader.expect_ident()?;
+
+        let mut kind = Type::Any;
+        if let Ok(_) = reader.expect_exact(TokenKind::Special(Special::Colon)) {
+            kind = reader.expect_type()?;
+
+            /* NOTE: might remove later if needed to leave only function declaration */
+            reader.expect_exact(TokenKind::Operator(Operator::Eq))?;
+        } else {
+            reader.expect_exact(TokenKind::Operator(Operator::Walrus))?;
         }
 
-        match reader.peek() {
-            Some(token) => match token.get_kind() {
-                TokenKind::Colon => {
-                    reader.advance(); /* skip the ':' */
-                    
-                    let type_ = VarType::new(reader.expect(TokenKind::Type(Type::Any))?);
-                    result.r#type = type_.unwrap();
+        /* TODO! parse the rhs expression */
+        /* TODO! expect the end of the line
+         * reader.expect_exact(TokenKind::Newline); */
 
-                    if reader.is_empty() {return Ok(result); } /* Variable Declaration */
+        let rhs = reader.advance_until(|tk| tk == &TokenKind::Newline)?;
+        let value = NodeExpr::new(rhs, reader.span())?;
 
-                    reader.expect(TokenKind::Eq)?;
-                },
-
-                TokenKind::Walrus => {
-                    /* automatically determine the node type */
-                },
-
-                _ => {
-                    ParserErrors::UnexpectedToken::msg(&token, span);
-                    return Err(());
-                },
-            },
-
-            None => {
-                ParserErrors::ExpectedToken::msg(reader.pos(), span, TokenKind::Walrus);
-                return Err(());
-            },
-        }
-
-        // parse the right side expression
-        Ok(result)
-    */
+        Ok(NodeVarDef { name, kind, value })
     }
 }

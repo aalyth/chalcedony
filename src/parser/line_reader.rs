@@ -1,88 +1,78 @@
-use crate::error::{Span, Position, ChalError, ParserError};
-use crate::lexer::{Line, Token, TokenKind};
+use crate::error::{ChalError, InternalError, LexerError, Position, Span};
+use crate::lexer::{Line, Token};
 
 use std::collections::VecDeque;
 use std::rc::Rc;
 
 pub struct LineReader {
-    src:  VecDeque<Line>,
-    pos:  Position,
+    src: VecDeque<Line>,
+    pos: Position,
     span: Rc<Span>,
 }
 
 impl LineReader {
-    pub fn new(src: VecDeque<Line>, span: &Rc<Span>) -> Self {
+    pub fn new(src: VecDeque<Line>, span: Rc<Span>) -> Self {
         let mut pos = Position::new(1, 1);
 
         /* check if there is at least 1 token in the source
          * and take the first token's end position */
         if !src.is_empty() && !src.front().unwrap().tokens().is_empty() {
-            pos = *src.front().unwrap().tokens().front().unwrap().end(); 
+            pos = src.front().unwrap().tokens().front().unwrap().end();
         }
 
-        LineReader {
-            src,
-            pos,
-            span: Rc::clone(span),
-        }
-    }
-
-    pub fn advance_tok(&mut self) -> Option<Token> {
-        let Some(line) = self.src.front() else {
-            return None;
-        };
-
-        let Some(res) = line.tokens().pop_front() else {
-            return None;
-        };
-
-        self.pos = *res.end();
-        Some(res)
+        LineReader { src, pos, span }
     }
 
     pub fn peek_tok(&self) -> Option<&Token> {
-        let Some(line) = self.src.front() else {
-            return None;
-        };
-
-        line.tokens().front()
+        self.src.front()?.tokens().front()
     }
 
-    fn expect_inner(&mut self, exp: TokenKind, cond: fn (&TokenKind, &TokenKind) -> bool) -> Result<Token, ChalError>{
-        let Some(token) = self.peek_tok() else {
-            return Err(
-                ChalError::from(
-                    ParserError::expected_token(exp, self.pos, self.pos, Rc::clone(&self.span))
-                )
-            );
-        };
-
-        if cond(token.kind(), &exp) {
-            return Ok(self.advance_tok().unwrap());
-        } 
-
-        Err(
-            ChalError::from(
-                ParserError::expected_token(exp, self.pos, self.pos, Rc::clone(&self.span))
-            )
-        )
-
+    pub fn peek_indent(&self) -> Option<u64> {
+        Some(self.src.front()?.indent())
     }
 
-    pub fn expect(&mut self, exp: TokenKind) -> Result<Token, ChalError> {
-        /* std::mem:discriminant() makes it so we can check only the outer enum variant
-         * for example:
-         * TokenKind::Identifier('main') is equal to TokenKind::Identifier('')
-         */
-        fn condition(current: &TokenKind, exp: &TokenKind) -> bool {
-            std::mem::discriminant(current) == std::mem::discriminant(exp)
+    pub fn advance(&mut self) -> Option<Line> {
+        self.src.pop_front()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.src.is_empty()
+    }
+
+    fn advance_until(&mut self, cond: impl Fn(&Line) -> bool) -> Result<VecDeque<Line>, ChalError> {
+        let mut result = VecDeque::<Line>::new();
+        let mut prev_indent = 0;
+
+        if let Some(front) = self.src.front() {
+            prev_indent = front.indent();
         }
 
-        self.expect_inner(exp, condition)
+        while let Some(front) = self.src.front() {
+            if !cond(front) {
+                break;
+            }
+
+            if front.indent().abs_diff(prev_indent) > 4 {
+                return Err(ChalError::from(LexerError::invalid_indentation(
+                    front.tokens().front().unwrap().start(),
+                    front.tokens().front().unwrap().end(),
+                    self.span.clone(),
+                )));
+            }
+
+            result.push_back(self.src.pop_front().unwrap());
+        }
+        Ok(result)
     }
 
-    pub fn expect_exact(&mut self, exp: TokenKind) -> Result<Token, ChalError> {
-        self.expect_inner(exp, |current, exp| current == exp)
+    pub fn advance_chunk(&mut self) -> Result<VecDeque<Line>, ChalError> {
+        let Some(front) = self.src.front() else {
+            return Err(ChalError::from(InternalError::new(
+                "LexerReader::advance_chunk(): advancing an empty reader",
+            )));
+        };
+        let indent = front.indent();
+        let cond = |ln: &Line| -> bool { ln.indent() > indent };
+        self.advance_until(cond)
     }
 }
-

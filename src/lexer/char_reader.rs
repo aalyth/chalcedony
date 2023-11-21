@@ -9,7 +9,7 @@ pub struct CharReader {
 
 impl CharReader {
     pub fn new(source: String) -> CharReader {
-        CharReader { 
+        CharReader {
             pos: Position::new(1, 1),
             src: source.chars().collect::<VecDeque<char>>(),
         }
@@ -19,10 +19,10 @@ impl CharReader {
         &self.pos
     }
 
-    pub fn advance_string(&mut self, cond: fn (&char) -> bool) -> String {
+    pub fn advance_string(&mut self, cond: impl Fn(&char) -> bool) -> String {
         let mut result = Vec::<char>::new();
-        while !self.is_empty() && cond(self.peek().unwrap()) { 
-            result.push(self.advance().unwrap()); 
+        while !self.is_empty() && cond(self.peek().unwrap()) {
+            result.push(self.advance().unwrap());
         }
         return result.into_iter().collect();
     }
@@ -33,8 +33,11 @@ impl Reader<char> for CharReader {
         let result = self.src.pop_front();
 
         if let Some(val) = result {
-            if val == '\n' { self.pos.advance_ln(); }
-            else { self.pos.advance_col(); }
+            if val == '\n' {
+                self.pos.advance_ln();
+            } else {
+                self.pos.advance_col();
+            }
         }
 
         result
@@ -49,10 +52,10 @@ impl Reader<char> for CharReader {
     }
 
     #[allow(dead_code)]
-    fn advance_while(&mut self, condition: fn (&char) -> bool) -> VecDeque<char> {
+    fn advance_while(&mut self, condition: fn(&char) -> bool) -> VecDeque<char> {
         let mut result = VecDeque::<char>::new();
-        while !self.is_empty() && condition(self.peek().unwrap()) { 
-            result.push_back(self.advance().unwrap()); 
+        while !self.is_empty() && condition(self.peek().unwrap()) {
+            result.push_back(self.advance().unwrap());
         }
         return result;
     }

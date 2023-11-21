@@ -7,7 +7,9 @@ pub struct InternalError {
 
 impl InternalError {
     pub fn new(msg: &str) -> Self {
-        InternalError { msg: msg.to_string() }
+        InternalError {
+            msg: msg.to_string(),
+        }
     }
 }
 
