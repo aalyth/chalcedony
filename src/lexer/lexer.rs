@@ -154,7 +154,7 @@ impl Lexer {
             current = self.advance();
         }
 
-        (Line::new(indent / 4, result), errors)
+        (Line::new(indent, result), errors)
     }
 
     fn advance_tok(

@@ -8,7 +8,7 @@ pub mod var;
 pub use expr::NodeExpr;
 pub use func::{NodeFuncCall, NodeFuncDef};
 pub use program::NodeProg;
-pub use stmnt::NodeStmnt;
+pub use stmnt::{parse_body, NodeStmnt};
 pub use var::{NodeVarCall, NodeVarDef};
 
 use operators::*;

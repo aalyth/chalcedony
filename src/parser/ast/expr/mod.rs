@@ -172,7 +172,7 @@ impl NodeExpr {
          * or when there are 2 operators without an operand */
 
         /* this is using the Shunting Yard algorithm */
-        let mut reader = TokenReader::new(&tokens, span.clone());
+        let mut reader = TokenReader::new(tokens, span.clone());
 
         let mut output = Stack::<NodeExprInner>::new();
         let mut operators = Stack::<Operator>::new();

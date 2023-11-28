@@ -1,11 +1,14 @@
 use crate::error::{ChalError, InternalError, LexerError, Position, Span};
-use crate::lexer::{Line, Token};
+use crate::lexer::{Keyword, Line, Token, TokenKind};
 
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+use super::ast::NodeStmnt;
+use super::token_reader::TokenReader;
+
 pub struct LineReader {
-    src: VecDeque<Line>,
+    pub src: VecDeque<Line>,
     pos: Position,
     span: Rc<Span>,
 }
@@ -21,6 +24,10 @@ impl LineReader {
         }
 
         LineReader { src, pos, span }
+    }
+
+    pub fn span(&self) -> Rc<Span> {
+        self.span.clone()
     }
 
     pub fn peek_tok(&self) -> Option<&Token> {
@@ -39,16 +46,24 @@ impl LineReader {
         self.src.is_empty()
     }
 
-    fn advance_until(&mut self, cond: impl Fn(&Line) -> bool) -> Result<VecDeque<Line>, ChalError> {
+    pub fn advance_until(
+        &mut self,
+        cond: impl Fn(&Line) -> bool,
+    ) -> Result<VecDeque<Line>, ChalError> {
         let mut result = VecDeque::<Line>::new();
-        let mut prev_indent = 0;
+        let mut prev_indent;
 
-        if let Some(front) = self.src.front() {
-            prev_indent = front.indent();
-        }
+        /* we advance at least the first line */
+        let Some(front_ln) = self.advance() else {
+            return Err(ChalError::from(InternalError::new(
+                "LexerReader::advance_chunk(): advancing an empty reader",
+            )));
+        };
+        prev_indent = front_ln.indent();
+        result.push_back(front_ln);
 
         while let Some(front) = self.src.front() {
-            if !cond(front) {
+            if cond(front) {
                 break;
             }
 
@@ -59,20 +74,51 @@ impl LineReader {
                     self.span.clone(),
                 )));
             }
+            prev_indent = front.indent();
 
-            result.push_back(self.src.pop_front().unwrap());
+            result.push_back(self.advance().unwrap());
         }
         Ok(result)
     }
 
-    pub fn advance_chunk(&mut self) -> Result<VecDeque<Line>, ChalError> {
+    pub fn advance_chunk(&mut self) -> Result<Self, ChalError> {
         let Some(front) = self.src.front() else {
             return Err(ChalError::from(InternalError::new(
                 "LexerReader::advance_chunk(): advancing an empty reader",
             )));
         };
         let indent = front.indent();
-        let cond = |ln: &Line| -> bool { ln.indent() > indent };
-        self.advance_until(cond)
+        let cond = |ln: &Line| -> bool { ln.indent() <= indent };
+
+        let mut res = self.advance_until(cond)?;
+
+        /* if the chunk is of type if statement check for else bodies */
+        if let Some(front_ln) = res.front() {
+            if let Some(front_tok) = front_ln.tokens().front() {
+                if *front_tok.kind() != TokenKind::Keyword(Keyword::If) {
+                    return Ok(LineReader::new(res, self.span.clone()));
+                }
+            }
+        };
+        while let Some(peek) = self.peek_tok() {
+            match peek.kind() {
+                TokenKind::Keyword(Keyword::Else) | TokenKind::Keyword(Keyword::Elif) => {
+                    res.append(&mut self.advance_until(cond)?);
+                }
+                _ => break,
+            }
+        }
+
+        Ok(LineReader::new(res, self.span.clone()))
+    }
+
+    pub fn advance_reader(&mut self) -> Result<TokenReader, ChalError> {
+        let Some(next) = self.src.pop_front() else {
+            return Err(ChalError::from(InternalError::new(
+                "LineReader::advance_reader(): advancing an empty reader",
+            )));
+        };
+
+        Ok(TokenReader::new(next.into(), self.span.clone()))
     }
 }

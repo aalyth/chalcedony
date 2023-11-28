@@ -3,6 +3,7 @@ use crate::lexer::{Keyword, TokenKind};
 use crate::parser::ast::NodeExpr;
 use crate::parser::TokenReader;
 
+#[derive(Debug)]
 pub struct NodeRetStmnt {
     value: NodeExpr,
 }

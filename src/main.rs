@@ -38,21 +38,31 @@ let c := fib(-min(2 + 3 * 4, - 5 + 7 * 6 / 3), - 2 * 3 / 2) + fib( min(5, 6) - 2
 let d := 2 || 3 + !(12 / 4 * 2)
 fn main(args: i8, argv: str):
     let b := 3
-    let c := fib(-min(2 + 3 * 4, - 5 + 7 * 6 / 3), - 2 * 3 / 2) + fib( min(5, 6) - 2 ) * 2
+    let c := fib(-min(2 + 3 ** 4, - 5 + 7 * 6 / 3), - 2 * 3 / 2) + fib( min(5, 6) - 2 ) * 2
+
+    if a < 16:
+        b += 12
+        while c == 42:
+            d -= 15
+        e *= 10
+    elif a == 5:
+        f *= 12
+    else:
+        g = g + 5
+        
+
 ",
     );
 
     while !parser.is_empty() {
         let current = parser.advance();
-        /*
         match current {
-            Ok(node) => println!("{:#?}", node),
+            Ok(node) => println!("{:#?}\n", node),
             Err(err) => {
-                print!("{}", err);
+                print!("{}\n", err);
                 continue;
             }
         }
-        */
     }
     println!("bueno");
 }

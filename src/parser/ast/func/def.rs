@@ -1,5 +1,6 @@
 use crate::error::{ChalError, InternalError, LexerError, Span};
 use crate::lexer::{Delimiter, Keyword, Line, Special, TokenKind, Type};
+use crate::parser::ast::{parse_body, NodeStmnt};
 use crate::parser::{LineReader, TokenReader};
 
 use std::collections::VecDeque;
@@ -10,7 +11,7 @@ pub struct NodeFuncDef {
     name: String,
     args: Vec<(String, Type)>,
     ret_type: Type,
-    // body:     Vec<NodeStmnt>
+    body: VecDeque<NodeStmnt>,
 }
 
 impl NodeFuncDef {
@@ -44,7 +45,7 @@ impl NodeFuncDef {
             )));
         }
 
-        let mut header = TokenReader::new(header_src.tokens(), span.clone());
+        let mut header = TokenReader::new(header_src.into(), span.clone());
 
         header.expect_exact(TokenKind::Keyword(Keyword::Fn))?;
 
@@ -70,11 +71,11 @@ impl NodeFuncDef {
 
         header.expect_exact(TokenKind::Delimiter(Delimiter::ClosePar))?;
 
-        // TODO! parse the body into statement nodes
         Ok(NodeFuncDef {
             name,
             args,
             ret_type: Type::Any,
+            body: parse_body(reader)?,
         })
     }
 }

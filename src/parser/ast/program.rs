@@ -14,7 +14,7 @@ pub enum NodeProg {
 }
 
 impl NodeProg {
-    pub fn new(chunk: VecDeque<Line>, span: Rc<Span>) -> Result<Self, ChalError> {
+    pub fn new(mut chunk: VecDeque<Line>, span: Rc<Span>) -> Result<Self, ChalError> {
         if chunk.is_empty() {
             return Err(ChalError::from(InternalError::new(
                 "NodeProg::new(): received an empty code chunk",
@@ -31,7 +31,11 @@ impl NodeProg {
         let front_tok = front_line.tokens().front().unwrap();
 
         match front_tok.kind() {
-            TokenKind::Keyword(Keyword::Let) => NodeProg::var_def(front_line.tokens(), span),
+            TokenKind::Keyword(Keyword::Let) => {
+                // SAFETY: the front line is already checked
+                let front_line = chunk.pop_front().unwrap().into();
+                NodeProg::var_def(front_line, span)
+            }
             TokenKind::Keyword(Keyword::Fn) => NodeProg::func_def(chunk, span),
 
             _ => {
@@ -43,7 +47,7 @@ impl NodeProg {
     }
 
     #[inline]
-    fn var_def(chunk: &VecDeque<Token>, span: Rc<Span>) -> Result<Self, ChalError> {
+    fn var_def(chunk: VecDeque<Token>, span: Rc<Span>) -> Result<Self, ChalError> {
         Ok(Self::VarDef(NodeVarDef::new(TokenReader::new(
             chunk, span,
         ))?))

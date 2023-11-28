@@ -12,7 +12,7 @@ pub struct TokenReader {
 }
 
 impl TokenReader {
-    pub fn new(src: &VecDeque<Token>, span: Rc<Span>) -> Self {
+    pub fn new(src: VecDeque<Token>, span: Rc<Span>) -> Self {
         let mut start = Position::new(1, 1);
         let mut end = Position::new(1, 1);
 
@@ -27,7 +27,7 @@ impl TokenReader {
         TokenReader {
             start,
             end,
-            src: src.clone(),
+            src,
             span,
         }
     }

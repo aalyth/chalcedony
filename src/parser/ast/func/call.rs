@@ -15,7 +15,7 @@ pub struct NodeFuncCall {
 
 impl NodeFuncCall {
     pub fn new(tokens: VecDeque<Token>, span: Rc<Span>) -> Result<Self, ChalError> {
-        let mut reader = TokenReader::new(&tokens, span.clone());
+        let mut reader = TokenReader::new(tokens, span.clone());
 
         let name = reader.expect_ident()?;
         reader.expect_exact(TokenKind::Delimiter(Delimiter::OpenPar))?;
