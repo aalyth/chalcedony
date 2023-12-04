@@ -9,6 +9,8 @@ enum ParserErrorKind {
     ExpectedToken(TokenKind),
     UnexpectedToken(TokenKind),
     InvalidAssignmentOperator,
+    RepeatedExprTerminal,
+    RepeatedExprOperator,
 }
 
 pub struct ParserError {
@@ -65,6 +67,14 @@ impl ParserError {
         ParserError::new(ParserErrorKind::InvalidAssignmentOperator, start, end, span)
     }
 
+    pub fn repeated_expr_terminal(start: Position, end: Position, span: Rc<Span>) -> Self {
+        ParserError::new(ParserErrorKind::RepeatedExprTerminal, start, end, span)
+    }
+
+    pub fn repeated_expr_operator(start: Position, end: Position, span: Rc<Span>) -> Self {
+        ParserError::new(ParserErrorKind::RepeatedExprOperator, start, end, span)
+    }
+
     fn display_err(&self, f: &mut std::fmt::Formatter, msg: &str) -> std::fmt::Result {
         write!(
             f,
@@ -98,6 +108,14 @@ impl std::fmt::Display for ParserError {
 
             ParserErrorKind::InvalidAssignmentOperator => {
                 self.display_err(f, "invalid assignment operator")
+            }
+
+            ParserErrorKind::RepeatedExprTerminal => {
+                self.display_err(f, "repeated expression terminal")
+            }
+
+            ParserErrorKind::RepeatedExprOperator => {
+                self.display_err(f, "repeated expression operator")
             }
         }
     }

@@ -71,10 +71,22 @@ impl NodeFuncDef {
 
         header.expect_exact(TokenKind::Delimiter(Delimiter::ClosePar))?;
 
+        let mut ret_type = Type::Any;
+        if header.peek_is_exact(TokenKind::Special(Special::RightArrow)) {
+            /* this should never fail */
+            header.expect_exact(TokenKind::Special(Special::RightArrow))?;
+            ret_type = header.expect_type()?;
+        }
+
+        /* TODO: uncomment
+        header.expect_exact(TokenKind::Special(Special::Colon))?;
+        header.expect_exact(TokenKind::Newline)?;
+        */
+
         Ok(NodeFuncDef {
             name,
             args,
-            ret_type: Type::Any,
+            ret_type,
             body: parse_body(reader)?,
         })
     }

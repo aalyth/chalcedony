@@ -1,4 +1,4 @@
-use crate::error::{ChalError, ParserError, Span};
+use crate::error::{ChalError, ParserError, Position, Span};
 use crate::lexer;
 use crate::lexer::{Delimiter, Token, TokenKind};
 use crate::parser::ast::operators::{BinOprType, UnaryOprType};
@@ -6,6 +6,7 @@ use crate::parser::ast::{NodeFuncCall, NodeValue, NodeVarCall};
 
 use crate::parser::TokenReader;
 
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -171,29 +172,78 @@ impl NodeExpr {
         /* TODO: catch errors when there are 2 operands next to each other without an operator,
          * or when there are 2 operators without an operand */
 
+        println!("RECEIVED EXPRESSION: {:#?}", tokens);
         /* this is using the Shunting Yard algorithm */
-        let mut reader = TokenReader::new(tokens, span.clone());
+        let reader = RefCell::new(TokenReader::new(tokens, span.clone()));
 
-        let mut output = Stack::<NodeExprInner>::new();
-        let mut operators = Stack::<Operator>::new();
+        let output = RefCell::new(Stack::<NodeExprInner>::new());
+        let operators = RefCell::new(Stack::<Operator>::new());
 
-        while !reader.is_empty() {
-            let current = reader.advance().unwrap();
+        let prev_is_terminal: RefCell<bool> = RefCell::from(false);
+
+        let push_terminal =
+            |start: Position, end: Position, terminal: NodeExprInner| -> Result<(), ChalError> {
+                if *prev_is_terminal.borrow() {
+                    return Err(ChalError::from(ParserError::repeated_expr_terminal(
+                        start,
+                        end,
+                        reader.borrow().span(),
+                    )));
+                }
+                output.borrow_mut().push(terminal);
+                *prev_is_terminal.borrow_mut() = true;
+                Ok(())
+            };
+
+        let push_operator =
+            |start: Position, end: Position, operator: Operator| -> Result<(), ChalError> {
+                let is_unary = operator == Operator::Neg || operator == Operator::Bang;
+                /* we don't care about the previous operator if the current is an unary operator */
+                if !*prev_is_terminal.borrow() && !is_unary {
+                    return Err(ChalError::from(ParserError::repeated_expr_terminal(
+                        start,
+                        end,
+                        reader.borrow().span(),
+                    )));
+                }
+                operators.borrow_mut().push(operator);
+                *prev_is_terminal.borrow_mut() = false;
+                Ok(())
+            };
+
+        while !reader.borrow().is_empty() {
+            let current = reader.borrow_mut().advance().unwrap();
 
             match current.kind() {
-                TokenKind::Int(val) => output.push(NodeExprInner::Value(NodeValue::Int(*val))),
-                TokenKind::Uint(val) => output.push(NodeExprInner::Value(NodeValue::Uint(*val))),
-                TokenKind::Float(val) => output.push(NodeExprInner::Value(NodeValue::Float(*val))),
-                TokenKind::Str(val) => {
-                    output.push(NodeExprInner::Value(NodeValue::Str(val.clone())))
-                }
+                TokenKind::Int(val) => push_terminal(
+                    current.start(),
+                    current.end(),
+                    NodeExprInner::Value(NodeValue::Int(*val)),
+                )?,
+                TokenKind::Uint(val) => push_terminal(
+                    current.start(),
+                    current.end(),
+                    NodeExprInner::Value(NodeValue::Uint(*val)),
+                )?,
+                TokenKind::Float(val) => push_terminal(
+                    current.start(),
+                    current.end(),
+                    NodeExprInner::Value(NodeValue::Float(*val)),
+                )?,
+                TokenKind::Str(val) => push_terminal(
+                    current.start(),
+                    current.end(),
+                    NodeExprInner::Value(NodeValue::Str(val.clone())),
+                )?,
 
                 TokenKind::Identifier(_) => {
-                    let Some(peek) = reader.peek() else {
-                        output.push(NodeExprInner::VarCall(NodeVarCall::new(
-                            current,
-                            span.clone(),
-                        )?));
+                    let reader_borrow = reader.borrow();
+                    let Some(peek) = reader_borrow.peek() else {
+                        push_terminal(
+                            current.start(),
+                            current.end(),
+                            NodeExprInner::VarCall(NodeVarCall::new(current, span.clone())?),
+                        )?;
                         continue;
                     };
 
@@ -201,11 +251,11 @@ impl NodeExpr {
                         let mut buffer = VecDeque::<Token>::new();
                         buffer.push_back(current);
                         /* push the open parenthesis */
-                        buffer.push_back(reader.advance().unwrap());
+                        buffer.push_back(reader.borrow_mut().advance().unwrap());
                         let mut open_delims: u64 = 1;
 
-                        while !reader.is_empty() && open_delims > 0 {
-                            let current = reader.advance().unwrap();
+                        while !reader.borrow().is_empty() && open_delims > 0 {
+                            let current = reader.borrow_mut().advance().unwrap();
 
                             match current.kind() {
                                 TokenKind::Delimiter(Delimiter::OpenPar) => open_delims += 1,
@@ -214,17 +264,26 @@ impl NodeExpr {
                             }
                             buffer.push_back(current);
                         }
-                        output.push(NodeExprInner::FuncCall(NodeFuncCall::new(
-                            buffer,
-                            span.clone(),
-                        )?));
+                        /* SAFETY: the buffer should always have at least 1 element in it */
+                        push_terminal(
+                            buffer
+                                .front()
+                                .expect("NodeExpr::new(): expecting from an empty buffer")
+                                .start(),
+                            buffer
+                                .back()
+                                .expect("NodeExpr::new(): expecting from an empty buffer")
+                                .end(),
+                            NodeExprInner::FuncCall(NodeFuncCall::new(buffer, span.clone())?),
+                        )?;
                         continue;
                     }
 
-                    output.push(NodeExprInner::VarCall(NodeVarCall::new(
-                        current,
-                        span.clone(),
-                    )?));
+                    push_terminal(
+                        current.start(),
+                        current.end(),
+                        NodeExprInner::VarCall(NodeVarCall::new(current, span.clone())?),
+                    )?;
                 }
 
                 TokenKind::Operator(current_opr) => {
@@ -241,40 +300,43 @@ impl NodeExpr {
                     /* NOTE: inside the while we use a greater or equal (>=) check, instead of the usual
                      * greater than (>), due to the fact that in this implementation, right-associative
                      * operators (such as +=, -=, *=, etc.) are handled as statements */
-                    while operators.peek().is_some()
-                        && operators.peek().unwrap().precedence() >= current_precedence
+                    while operators.borrow().peek().is_some()
+                        && operators.borrow().peek().unwrap().precedence() >= current_precedence
                     {
-                        let top = operators.pop().unwrap();
-                        output.push(top.try_into().unwrap());
+                        let top = operators.borrow_mut().pop().unwrap();
+                        output.borrow_mut().push(top.try_into().unwrap());
                     }
 
-                    operators.push(opr);
+                    push_operator(current.start(), current.end(), opr)?;
                 }
 
                 TokenKind::Delimiter(Delimiter::OpenPar) => {
-                    operators.push(Operator::OpenPar);
+                    operators.borrow_mut().push(Operator::OpenPar);
                 }
 
                 TokenKind::Delimiter(Delimiter::ClosePar) => {
-                    while operators.peek() != Some(&Operator::OpenPar) {
-                        let opr = operators.pop().unwrap();
-                        output.push(opr.try_into().unwrap());
+                    while operators.borrow().peek() != Some(&Operator::OpenPar) {
+                        let opr = operators.borrow_mut().pop().unwrap();
+                        // push_terminal(current.start(), current.end(), opr.try_into().unwrap())?;
+                        output.borrow_mut().push(opr.try_into().unwrap());
                     }
 
-                    /* remove the ClosePar at the end */
-                    operators.pop();
+                    /* remove the OpenPar at the end */
+                    operators.borrow_mut().pop();
                 }
 
                 _ => (),
             }
         }
 
-        while !operators.is_empty() {
-            output.push(operators.pop().unwrap().try_into().unwrap());
+        while !operators.borrow().is_empty() {
+            output
+                .borrow_mut()
+                .push(operators.borrow_mut().pop().unwrap().try_into().unwrap());
         }
 
         Ok(NodeExpr {
-            expr: output.into(),
+            expr: output.into_inner().into(),
         })
     }
 }

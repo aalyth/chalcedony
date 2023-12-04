@@ -211,7 +211,8 @@ impl Lexer {
             TokenKind::Operator(Operator::Sub) => match self.prev {
                 Some(TokenKind::Operator(_))
                 | Some(TokenKind::Delimiter(Delimiter::OpenPar))
-                | Some(TokenKind::Special(Special::Comma)) => tok = tok.into_neg()?,
+                | Some(TokenKind::Special(Special::Comma))
+                | Some(TokenKind::Keyword(_)) => tok = tok.into_neg()?,
                 _ => (),
             },
 
@@ -310,7 +311,7 @@ impl Lexer {
         }
 
         if current == '\n' {
-            return self.advance_tok(String::from(current), start, *self.reader.pos());
+            return self.advance_tok(String::from(current), start, start);
         }
 
         if current == '"' {

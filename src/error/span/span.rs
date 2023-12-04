@@ -35,7 +35,8 @@ impl Span {
         for _ in 0..context.1 - (ln_len + 2) {
             result.push_str(" ");
         }
-        for _ in 0..end.col - start.col {
+
+        for _ in 0..(1 + end.col - start.col) {
             result.push_str(&color(Colors::Cyan, "^"));
         }
         result.push_str("\n");
@@ -146,10 +147,10 @@ impl Span {
 
         let pos: Position = Position::new(pos_.ln - 1, pos_.col - 1);
         if pos.ln > self.src.len() {
-            panic!("Error: span: context_substr: position out of bounds.");
+            panic!("Error: Span::context_substr(): position out of bounds.");
         }
         if pos.col > self.src[pos.ln].len() {
-            panic!("Error: span: context_substr: position out of bounds.");
+            panic!("Error: Span::context_substr(): position out of bounds.");
         }
 
         let curr_line = &self.src[pos.ln];

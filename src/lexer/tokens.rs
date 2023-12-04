@@ -271,7 +271,6 @@ impl TokenKind {
             | TokenKind::Uint(_)
             | TokenKind::Float(_)
             | TokenKind::Str(_)
-            | TokenKind::Keyword(_)
             | TokenKind::Identifier(_) => true,
 
             _ => false,
