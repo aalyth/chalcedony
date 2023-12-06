@@ -3,32 +3,12 @@ pub mod lexer;
 pub mod parser;
 pub mod utils;
 
-// use crate::lexer::Lexer;
 use crate::parser::Parser;
 
 #[macro_use]
 extern crate lazy_static;
 
 fn main() {
-    /*
-        let mut lexer = Lexer::new("
-    # this is a comment
-    let a := -5.2*--3
-    # let b := 5 * -3
-    fn main(args: i8):
-        let b := 3 # test123
-
-    ");
-
-        while !lexer.is_empty() {
-            let current = lexer.advance_prog();
-            match current {
-                Ok(line) => println!("{:#?}", line),
-                Err(err) => print!("{}", err),
-            }
-        }
-    */
-    /* TODO proper unary negation (-) handling inside the lexer */
     let mut parser = Parser::new(
         "
 # let a = -5.2*--3
@@ -41,7 +21,7 @@ fn main(args: i8, argv: str) -> str:
         b += 5
     elif b == 5:
         let c := -2
-
+        return print(\"bueno\")
 ",
     );
 

@@ -4,11 +4,10 @@ use crate::lexer::{Keyword, Line, Token, TokenKind};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use super::ast::NodeStmnt;
 use super::token_reader::TokenReader;
 
 pub struct LineReader {
-    pub src: VecDeque<Line>,
+    src: VecDeque<Line>,
     pos: Position,
     span: Rc<Span>,
 }
@@ -32,10 +31,6 @@ impl LineReader {
 
     pub fn peek_tok(&self) -> Option<&Token> {
         self.src.front()?.tokens().front()
-    }
-
-    pub fn peek_indent(&self) -> Option<u64> {
-        Some(self.src.front()?.indent())
     }
 
     pub fn advance(&mut self) -> Option<Line> {

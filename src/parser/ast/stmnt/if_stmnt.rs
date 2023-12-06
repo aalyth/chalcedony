@@ -1,5 +1,5 @@
 use crate::error::{ChalError, InternalError};
-use crate::lexer::{Keyword, Line, Special, TokenKind};
+use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{NodeExpr, NodeStmnt};
 
 use crate::parser::LineReader;
@@ -77,7 +77,7 @@ impl NodeIfStmnt {
 }
 
 impl NodeIfBranch {
-    pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
+    pub fn new(reader: LineReader) -> Result<Self, ChalError> {
         let Some(front_tok) = reader.peek_tok() else {
             return Err(ChalError::from(InternalError::new(
                 "NodeIFBranch::new(): generating ",

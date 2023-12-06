@@ -8,16 +8,17 @@ use if_stmnt::NodeIfStmnt;
 use return_stmnt::NodeRetStmnt;
 use while_loop::NodeWhileLoop;
 
-use super::NodeVarDef;
+use super::{NodeFuncCall, NodeVarDef};
 
-use crate::error::{ChalError, InternalError};
-use crate::lexer::{Keyword, TokenKind};
-use crate::parser::line_reader::LineReader;
+use crate::error::ChalError;
+use crate::lexer::{Delimiter, Keyword, TokenKind};
+use crate::parser::{LineReader, TokenReader};
 use std::collections::VecDeque;
 
 #[derive(Debug)]
 pub enum NodeStmnt {
     VarDef(NodeVarDef),
+    FuncCall(NodeFuncCall),
     Assign(NodeAssign),
     IfStmnt(NodeIfStmnt),
     WhileLoop(NodeWhileLoop),
@@ -63,13 +64,25 @@ pub fn parse_body(mut reader: LineReader) -> Result<VecDeque<NodeStmnt>, ChalErr
             }
 
             TokenKind::Identifier(_) => {
-                let tok_reader_raw = reader.advance_reader();
-                let Ok(tok_reader) = tok_reader_raw else {
-                    err_vec.push_back(tok_reader_raw.err().unwrap());
+                // TODO: throw error?
+                let Some(line) = reader.advance() else {
                     continue;
                 };
 
-                let node_raw = NodeAssign::new(tok_reader);
+                if let Some(peek) = line.tokens().get(1) {
+                    if *peek.kind() == TokenKind::Delimiter(Delimiter::OpenPar) {
+                        let node_raw = NodeFuncCall::new(line.into(), reader.span().clone());
+                        let Ok(node) = node_raw else {
+                            err_vec.push_back(node_raw.err().unwrap());
+                            continue;
+                        };
+                        res.push_back(NodeStmnt::FuncCall(node));
+                        continue;
+                    }
+                }
+
+                let token_reader = TokenReader::new(line.into(), reader.span().clone());
+                let node_raw = NodeAssign::new(token_reader);
                 let Ok(node) = node_raw else {
                     err_vec.push_back(node_raw.err().unwrap());
                     continue;

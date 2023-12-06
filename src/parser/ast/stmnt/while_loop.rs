@@ -1,7 +1,7 @@
-use crate::error::{ChalError, InternalError};
+use crate::error::{ChalError};
 use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{parse_body, NodeExpr, NodeStmnt};
-use crate::parser::{LineReader, TokenReader};
+use crate::parser::{LineReader};
 
 use std::collections::VecDeque;
 
