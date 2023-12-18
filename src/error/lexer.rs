@@ -130,19 +130,13 @@ impl std::fmt::Display for LexerError {
             }
 
             LexerErrorKind::MismatchingDelimiters(open_del, close_del) => {
-                let mut open_del_end = self.start;
-                open_del_end.advance_col();
-
-                let mut close_del_end = self.end;
-                close_del_end.advance_col();
-
                 let msg = &format!(
                     "missmatching delimiters ('{}' and '{}')",
                     open_del, close_del
                 );
 
-                let open_ctx = self.span.context(&self.start, &open_del_end);
-                let end_ctx = self.span.context(&self.end, &close_del_end);
+                let open_ctx = self.span.context(&self.start, &self.start);
+                let end_ctx = self.span.context(&self.end, &self.end);
                 write!(f, "{}:\n{}{}\n", err(msg), open_ctx, end_ctx)
             }
 

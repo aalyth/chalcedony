@@ -1,5 +1,5 @@
 use crate::error::span::Position;
-use crate::utils::Reader;
+
 use std::collections::VecDeque;
 
 pub struct CharReader {
@@ -19,17 +19,15 @@ impl CharReader {
         &self.pos
     }
 
-    pub fn advance_string(&mut self, cond: impl Fn(&char) -> bool) -> String {
+    pub fn advance_while(&mut self, cond: impl Fn(&char) -> bool) -> String {
         let mut result = Vec::<char>::new();
         while !self.is_empty() && cond(self.peek().unwrap()) {
             result.push(self.advance().unwrap());
         }
         return result.into_iter().collect();
     }
-}
 
-impl Reader<char> for CharReader {
-    fn advance(&mut self) -> Option<char> {
+    pub fn advance(&mut self) -> Option<char> {
         let result = self.src.pop_front();
 
         if let Some(val) = result {
@@ -43,20 +41,12 @@ impl Reader<char> for CharReader {
         result
     }
 
-    fn peek(&self) -> Option<&char> {
+    pub fn peek(&self) -> Option<&char> {
         self.src.front()
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.src.is_empty()
     }
 
-    #[allow(dead_code)]
-    fn advance_while(&mut self, condition: fn(&char) -> bool) -> VecDeque<char> {
-        let mut result = VecDeque::<char>::new();
-        while !self.is_empty() && condition(self.peek().unwrap()) {
-            result.push_back(self.advance().unwrap());
-        }
-        return result;
-    }
 }

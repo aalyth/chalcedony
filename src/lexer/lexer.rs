@@ -6,8 +6,6 @@ use crate::lexer::CharReader;
 
 use crate::error::{span::Position, span::Span, ChalError, InternalError, LexerError};
 
-use crate::utils::Reader;
-
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -53,6 +51,7 @@ impl Lexer {
         let mut errors = VecDeque::<ChalError>::new();
         let (mut line, mut err) = self.advance_line();
 
+        /* a line with a length of 1 is just an empty line */
         while line.tokens().len() < 2 {
             if !err.is_empty() {
                 return Err(ChalError::from(err));
@@ -76,6 +75,7 @@ impl Lexer {
                 if !err.is_empty() {
                     errors.append(&mut err);
                 } else {
+                    /* a line with a length of 1 is just an empty line */
                     if line.tokens().len() >= 2 {
                         result.push_back(line);
                     }
@@ -123,7 +123,7 @@ impl Lexer {
         }
 
         let start = *self.reader.pos();
-        let indent_raw = self.reader.advance_string(|c: &char| *c == ' ');
+        let indent_raw = self.reader.advance_while(|c: &char| *c == ' ');
         let indent = indent_raw.len() as u64;
 
         let mut errors = VecDeque::<ChalError>::new();
@@ -207,7 +207,7 @@ impl Lexer {
                 }
             }
 
-            /* NOTE: here '-' operators are checked if they are binary or unary */
+            /* here '-' operators are checked whether they are binary or unary */
             TokenKind::Operator(Operator::Sub) => match self.prev {
                 Some(TokenKind::Operator(_))
                 | Some(TokenKind::Delimiter(Delimiter::OpenPar))
@@ -225,10 +225,12 @@ impl Lexer {
     }
 
     fn advance(&mut self) -> Result<Token, ChalError> {
-        let start = *self.reader.pos();
+        let Some(mut current) = self.reader.advance() else {
+                return Err(ChalError::from(InternalError::new(
+                    "Lexer::advance(): advancing an empty lexer",
+                )));
+        };
 
-        /* this way a do-while behaviour is achieved */
-        let mut current: char = ' ';
         while current == ' ' {
             let Some(curr) = self.reader.advance() else {
                 return Err(ChalError::from(InternalError::new(
@@ -237,9 +239,10 @@ impl Lexer {
             };
             current = curr;
         }
+        let start = *self.reader.pos();
 
         if current == '#' {
-            let _ = self.reader.advance_string(|c: &char| *c != '\n');
+            let _ = self.reader.advance_while(|c: &char| *c != '\n');
             self.reader.advance(); /* remove the \n if there's any */
             return self.advance_tok(String::from("\n"), *self.reader.pos(), *self.reader.pos());
         }
@@ -248,7 +251,7 @@ impl Lexer {
             let src = String::from(current)
                 + &self
                     .reader
-                    .advance_string(|c: &char| c.is_alphanumeric() || *c == '_');
+                    .advance_while(|c: &char| c.is_alphanumeric() || *c == '_');
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
@@ -282,13 +285,12 @@ impl Lexer {
             let src = String::from(current)
                 + &self
                     .reader
-                    .advance_string(|c: &char| c.is_numeric() || *c == '.');
+                    .advance_while(|c: &char| c.is_numeric() || *c == '.');
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
         if is_special(&current) {
             let mut end = start;
-            end.advance_col();
 
             if !is_operator(&current) || self.reader.peek() == None {
                 return self.advance_tok(current.to_string(), start, end);
@@ -315,7 +317,7 @@ impl Lexer {
         }
 
         if current == '"' {
-            let mut src = String::from(current) + &self.reader.advance_string(|c: &char| *c != '"');
+            let mut src = String::from(current) + &self.reader.advance_while(|c: &char| *c != '"');
             if let Some(c) = self.reader.advance() {
                 src.push(c);
             } // adds the '"' at the end

@@ -53,12 +53,12 @@ impl Span {
             panic!("Error: span: context_span: invalid start position.\n");
         }
 
+        if start_.ln == end_.ln && start_.col == end_.col {
+            return self.context_substr(&start_, 0);
+        }
+        
         let start = Position::new(start_.ln - 1, start_.col - 1);
         let end = Position::new(end_.ln - 1, end_.col - 1);
-
-        if start.ln == end.ln && start.col == end.col {
-            return self.context_substr(&start, 1);
-        }
 
         if start.ln > end.ln || (start.ln == end.ln && start.col > end.col) {
             panic!("Error: span: context_span: end position  preceeds start position.\n");
@@ -140,9 +140,9 @@ impl Span {
      *
      * returns the begining of the substring relative to the context output
      */
-    fn context_substr(&self, pos_: &Position, len: usize) -> (String, usize) {
+    fn context_substr(&self, pos_: &Position, ctx_len: usize) -> (String, usize) {
         if pos_.ln == 0 || pos_.col == 0 {
-            panic!("Error: span: context_substr: invalid position.");
+            panic!("Error: Span::context_substr(): invalid position.");
         }
 
         let pos: Position = Position::new(pos_.ln - 1, pos_.col - 1);
@@ -165,33 +165,44 @@ impl Span {
         result.push_str(&color(Colors::Blue, "| "));
 
         #[allow(unused_assignments)]
-        let mut res_pos: usize = 0;
+        let mut res_pos: usize = 1;
+
+        let ellipsis = color(Colors::Gray, "...");
+        const ELLIPSIS_LEN: usize = 3;
 
         if pos.col > 25 {
-            result.push_str("...");
-            result.push_str(&curr_line[pos.col - 25..pos.col + len].to_string());
-        } else {
-            let tmp: String = curr_line.chars().take(pos.col + len).collect();
-            result.push_str(&tmp);
-        }
-        res_pos = pos_.col + (ln_len + 1);
+            let left_bound = pos.col - 25;
+            let right_bound = pos.col + ctx_len;
 
-        if curr_line.chars().count() - (pos.col + len) > 25 {
+            result.push_str(&ellipsis);
+            let tmp: String = curr_line.chars().take(right_bound).skip(left_bound).collect();
+            result.push_str(&tmp);
+
+            /* the added 2 are the buffered whitespaces around the line indicator */
+            res_pos = ln_len + ELLIPSIS_LEN + 25+ 2; 
+
+        } else {
+            let tmp: String = curr_line.chars().take(pos.col + ctx_len).collect();
+            result.push_str(&tmp);
+            res_pos = pos_.col + ln_len + 1; 
+        }
+
+        if curr_line.chars().count() - (pos.col + ctx_len) > 25 {
             /* same as curr_line[pos.col + len .. pos.col + len + 24]
              * but works with UTF-8
              */
             let tmp: String = curr_line
                 .chars()
-                .take(pos.col + len + 24)
-                .skip(pos.col + len)
+                .take(pos.col + ctx_len + 24)
+                .skip(pos.col + ctx_len)
                 .collect();
             result.push_str(&tmp);
-            result.push_str("...");
+            result.push_str(&ellipsis);
         } else {
-            let tmp: String = curr_line.chars().skip(pos.col + len).collect();
+            let tmp: String = curr_line.chars().skip(pos.col + ctx_len).collect();
             result.push_str(&tmp);
         }
 
-        (result, res_pos)
+        (result, res_pos-1)
     }
 }

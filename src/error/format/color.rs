@@ -1,5 +1,5 @@
 pub enum Colors {
-    Black,
+    Gray,
     Red,
     Green,
     Yellow,
@@ -12,7 +12,7 @@ pub fn color<'a>(color: Colors, msg: &str) -> String {
     let end: &str = "\x1B[0m";
 
     let color_ansi = match color {
-        Colors::Black => "\x1B[30m",
+        Colors::Gray => "\x1B[90m",
         Colors::Red => "\x1B[31m",
         Colors::Green => "\x1B[32m",
         Colors::Yellow => "\x1B[33m",
