@@ -48,5 +48,4 @@ impl CharReader {
     pub fn is_empty(&self) -> bool {
         self.src.is_empty()
     }
-
 }

@@ -1,4 +1,4 @@
-use crate::error::{ChalError, ParserError, Span, InternalError};
+use crate::error::{ChalError, InternalError, ParserError, Span};
 use crate::lexer;
 use crate::lexer::{Delimiter, Token, TokenKind};
 use crate::parser::ast::operators::{BinOprType, UnaryOprType};
@@ -188,7 +188,9 @@ macro_rules! push_operator {
                 $reader.span(),
             )));
         }
-        if !is_unary {$is_prev_terminal = false;}
+        if !is_unary {
+            $is_prev_terminal = false;
+        }
         $opr_stack.push($operator);
     };
 }

@@ -56,7 +56,7 @@ impl Span {
         if start_.ln == end_.ln && start_.col == end_.col {
             return self.context_substr(&start_, 0);
         }
-        
+
         let start = Position::new(start_.ln - 1, start_.col - 1);
         let end = Position::new(end_.ln - 1, end_.col - 1);
 
@@ -175,16 +175,19 @@ impl Span {
             let right_bound = pos.col + ctx_len;
 
             result.push_str(&ellipsis);
-            let tmp: String = curr_line.chars().take(right_bound).skip(left_bound).collect();
+            let tmp: String = curr_line
+                .chars()
+                .take(right_bound)
+                .skip(left_bound)
+                .collect();
             result.push_str(&tmp);
 
             /* the added 2 are the buffered whitespaces around the line indicator */
-            res_pos = ln_len + ELLIPSIS_LEN + 25+ 2; 
-
+            res_pos = ln_len + ELLIPSIS_LEN + 25 + 2;
         } else {
             let tmp: String = curr_line.chars().take(pos.col + ctx_len).collect();
             result.push_str(&tmp);
-            res_pos = pos_.col + ln_len + 1; 
+            res_pos = pos_.col + ln_len + 1;
         }
 
         if curr_line.chars().count() - (pos.col + ctx_len) > 25 {
@@ -203,6 +206,6 @@ impl Span {
             result.push_str(&tmp);
         }
 
-        (result, res_pos-1)
+        (result, res_pos - 1)
     }
 }

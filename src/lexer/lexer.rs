@@ -226,9 +226,9 @@ impl Lexer {
 
     fn advance(&mut self) -> Result<Token, ChalError> {
         let Some(mut current) = self.reader.advance() else {
-                return Err(ChalError::from(InternalError::new(
-                    "Lexer::advance(): advancing an empty lexer",
-                )));
+            return Err(ChalError::from(InternalError::new(
+                "Lexer::advance(): advancing an empty lexer",
+            )));
         };
 
         while current == ' ' {
