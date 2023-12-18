@@ -1,16 +1,12 @@
-
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Position {
-    pub ln:  usize,
+    pub ln: usize,
     pub col: usize,
 }
 
 impl Position {
     pub fn new(ln: usize, col: usize) -> Self {
-        Position {
-            ln,
-            col,
-        }
+        Position { ln, col }
     }
 
     pub fn advance_col(&mut self) {

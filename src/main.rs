@@ -1,23 +1,42 @@
-pub mod errors;
+pub mod error;
 pub mod lexer;
 pub mod parser;
 
-use crate::lexer::Lexer;
-use crate::errors::span::Span;
+use crate::parser::Parser;
 
 #[macro_use]
 extern crate lazy_static;
 
 fn main() {
-    let (mut lexer, _) = Lexer::new("
-    # this is a comment
-    fn main(argc i8, args []str) i8 {
-        let a = 5 * -3
-    }
-    ").ok().unwrap();
+    let mut parser = Parser::new(
+        "
+# let a = -5.2*--3
+let c := fib(-min(2 + 3 * 4, - 5 + 7 * 6 / 3), - 2 * 3 / 2) + fib( min(5, 6) - 2 ) * 2
+let c := fib(min(2 + 3 * 4, 5 + 7 * 6 / 3), 2 * 3 / 2) + fib( min(5, 6) - 2 ) * 2
+# let d := 2 || 3 + !(12 / 4 * 2)
 
-    while !lexer.is_empty() {
-        let token = lexer.advance().unwrap();
-        println!("{:#?}", token);
+fn main(args: i8, argv: str) -> str:
+    let b := ajaj 
+    if -5 + 2 > 3 :
+        b += 5
+    elif  b == 5:
+        let c := -2
+        return print(\"bueno\")
+
+    while 5 == 6:
+        print(\"hello\")
+",
+    );
+
+    while !parser.is_empty() {
+        let current = parser.advance();
+        match current {
+            Ok(node) => println!("{:#?}\n", node),
+            Err(err) => {
+                print!("{}\n", err);
+                continue;
+            }
+        }
     }
+    println!("bueno");
 }
