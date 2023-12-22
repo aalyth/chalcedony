@@ -4,6 +4,8 @@ use crate::lexer::{Delimiter, Token, TokenKind};
 use crate::parser::ast::operators::{BinOprType, UnaryOprType};
 use crate::parser::ast::{NodeFuncCall, NodeValue, NodeVarCall};
 
+use crate::utils::Stack;
+
 use crate::parser::TokenReader;
 
 use std::collections::VecDeque;
@@ -21,40 +23,6 @@ enum NodeExprInner {
 #[derive(Debug)]
 pub struct NodeExpr {
     expr: VecDeque<NodeExprInner>,
-}
-
-struct Stack<T> {
-    values: VecDeque<T>,
-}
-
-impl<T> Stack<T> {
-    fn new() -> Self {
-        Stack {
-            values: VecDeque::<T>::new(),
-        }
-    }
-
-    fn push(&mut self, val: T) {
-        self.values.push_back(val);
-    }
-
-    fn pop(&mut self) -> Option<T> {
-        self.values.pop_back()
-    }
-
-    fn peek(&self) -> Option<&T> {
-        self.values.back()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.values.is_empty()
-    }
-}
-
-impl<T> Into<VecDeque<T>> for Stack<T> {
-    fn into(self) -> VecDeque<T> {
-        self.values
-    }
 }
 
 #[derive(PartialEq)]

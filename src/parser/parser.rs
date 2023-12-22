@@ -1,28 +1,20 @@
 use crate::error::{ChalError, InternalError, Span};
-use crate::lexer::{Lexer, Type};
+use crate::lexer::Lexer;
 
-// TODO! fix the ast/mod.rs and import only NodeProg
-use crate::parser::ast::*;
+use crate::parser::ast::NodeProg;
 
-use std::collections::HashMap;
 use std::rc::Rc;
 
 pub struct Parser {
     lexer: Lexer,
     span: Rc<Span>,
-    /* symbol table */
-    symtable: HashMap<String, Type>,
 }
 
 impl Parser {
     pub fn new(code: &str) -> Parser {
         let lexer = Lexer::new(code);
         let span = Rc::clone(lexer.span());
-        Parser {
-            lexer,
-            span,
-            symtable: HashMap::<String, Type>::new(),
-        }
+        Parser { lexer, span }
     }
 
     pub fn advance(&mut self) -> Result<NodeProg, ChalError> {
