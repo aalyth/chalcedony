@@ -11,7 +11,7 @@ pub struct NodeFuncDef {
     name: String,
     args: Vec<(String, Type)>,
     ret_type: Type,
-    body: VecDeque<NodeStmnt>,
+    body: Vec<NodeStmnt>,
 }
 
 impl NodeFuncDef {
@@ -71,7 +71,7 @@ impl NodeFuncDef {
 
         header.expect_exact(TokenKind::Delimiter(Delimiter::ClosePar))?;
 
-        let mut ret_type = Type::Any;
+        let mut ret_type = Type::Void;
         if header.peek_is_exact(TokenKind::Special(Special::RightArrow)) {
             /* this should never fail */
             header.expect_exact(TokenKind::Special(Special::RightArrow))?;
@@ -89,5 +89,9 @@ impl NodeFuncDef {
             ret_type,
             body: parse_body(reader)?,
         })
+    }
+
+    pub fn disassemble(self) -> (String, Vec<(String, Type)>, Type, Vec<NodeStmnt>) {
+        (self.name, self.args, self.ret_type, self.body)
     }
 }

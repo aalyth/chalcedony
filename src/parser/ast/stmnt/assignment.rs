@@ -1,6 +1,6 @@
 use crate::error::{ChalError, ParserError, Span};
 use crate::lexer::{Operator, Token, TokenKind};
-use crate::parser::ast::{AssignOprType, NodeExpr, NodeVarCall};
+use crate::parser::ast::{operators::AssignOprType, NodeExpr, NodeVarCall};
 use crate::parser::TokenReader;
 
 use std::rc::Rc;

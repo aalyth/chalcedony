@@ -15,23 +15,17 @@ pub enum Keyword {
     Else,
     While,
     For,
-    Void,
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Type {
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    F32,
-    F64,
+    Int,
+    Uint,
+    Float,
     Str,
+    Bool,
     Any,
+    Void,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -154,24 +148,15 @@ impl TokenKind {
 
         match src {
             /* TYPES */
-            "i8" => return Ok(TokenKind::Type(Type::I8)),
-            "i16" => return Ok(TokenKind::Type(Type::I16)),
-            "i32" => return Ok(TokenKind::Type(Type::I32)),
-            "i64" => return Ok(TokenKind::Type(Type::I64)),
-
-            "u8" => return Ok(TokenKind::Type(Type::U8)),
-            "u16" => return Ok(TokenKind::Type(Type::U16)),
-            "u32" => return Ok(TokenKind::Type(Type::U32)),
-            "u64" => return Ok(TokenKind::Type(Type::U64)),
-
-            "f32" => return Ok(TokenKind::Type(Type::F32)),
-            "f64" => return Ok(TokenKind::Type(Type::F64)),
+            "int" => return Ok(TokenKind::Type(Type::Int)),
+            "uint" => return Ok(TokenKind::Type(Type::Uint)),
+            "float" => return Ok(TokenKind::Type(Type::Float)),
             "str" => return Ok(TokenKind::Type(Type::Str)),
+            "bool" => return Ok(TokenKind::Type(Type::Bool)),
+            "void" => return Ok(TokenKind::Type(Type::Void)),
 
             /* KEYWORDS */
             "let" => return Ok(TokenKind::Keyword(Keyword::Let)),
-            "void" => return Ok(TokenKind::Keyword(Keyword::Void)),
-
             "fn" => return Ok(TokenKind::Keyword(Keyword::Fn)),
             "return" => return Ok(TokenKind::Keyword(Keyword::Return)),
             "if" => return Ok(TokenKind::Keyword(Keyword::If)),

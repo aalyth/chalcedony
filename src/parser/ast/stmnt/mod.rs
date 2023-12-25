@@ -1,11 +1,11 @@
 mod assignment;
 mod if_stmnt;
-mod return_stmnt;
+pub mod return_stmnt;
 mod while_loop;
 
 use assignment::NodeAssign;
 use if_stmnt::NodeIfStmnt;
-use return_stmnt::NodeRetStmnt;
+pub use return_stmnt::NodeRetStmnt;
 use while_loop::NodeWhileLoop;
 
 use super::{NodeFuncCall, NodeVarDef};
@@ -13,7 +13,6 @@ use super::{NodeFuncCall, NodeVarDef};
 use crate::error::ChalError;
 use crate::lexer::{Delimiter, Keyword, TokenKind};
 use crate::parser::{LineReader, TokenReader};
-use std::collections::VecDeque;
 
 #[derive(Debug)]
 pub enum NodeStmnt {
@@ -25,42 +24,42 @@ pub enum NodeStmnt {
     RetStmnt(NodeRetStmnt),
 }
 
-pub fn parse_body(mut reader: LineReader) -> Result<VecDeque<NodeStmnt>, ChalError> {
-    let mut res = VecDeque::<NodeStmnt>::new();
-    let mut err_vec = VecDeque::<ChalError>::new();
+pub fn parse_body(mut reader: LineReader) -> Result<Vec<NodeStmnt>, ChalError> {
+    let mut res = Vec::<NodeStmnt>::new();
+    let mut err_vec = Vec::<ChalError>::new();
 
     while let Some(front) = reader.peek_tok() {
         match *front.kind() {
             TokenKind::Keyword(Keyword::Let) => {
                 let tok_reader_raw = reader.advance_reader();
                 let Ok(tok_reader) = tok_reader_raw else {
-                    err_vec.push_back(tok_reader_raw.err().unwrap());
+                    err_vec.push(tok_reader_raw.err().unwrap());
                     continue;
                 };
 
                 let node_raw = NodeVarDef::new(tok_reader);
                 let Ok(node) = node_raw else {
-                    err_vec.push_back(node_raw.err().unwrap());
+                    err_vec.push(node_raw.err().unwrap());
                     continue;
                 };
 
-                res.push_back(NodeStmnt::VarDef(node));
+                res.push(NodeStmnt::VarDef(node));
             }
 
             TokenKind::Keyword(Keyword::Return) => {
                 let tok_reader_raw = reader.advance_reader();
                 let Ok(tok_reader) = tok_reader_raw else {
-                    err_vec.push_back(tok_reader_raw.err().unwrap());
+                    err_vec.push(tok_reader_raw.err().unwrap());
                     continue;
                 };
 
                 let node_raw = NodeRetStmnt::new(tok_reader);
                 let Ok(node) = node_raw else {
-                    err_vec.push_back(node_raw.err().unwrap());
+                    err_vec.push(node_raw.err().unwrap());
                     continue;
                 };
 
-                res.push_back(NodeStmnt::RetStmnt(node));
+                res.push(NodeStmnt::RetStmnt(node));
             }
 
             TokenKind::Identifier(_) => {
@@ -73,10 +72,10 @@ pub fn parse_body(mut reader: LineReader) -> Result<VecDeque<NodeStmnt>, ChalErr
                     if *peek.kind() == TokenKind::Delimiter(Delimiter::OpenPar) {
                         let node_raw = NodeFuncCall::new(line.into(), reader.span().clone());
                         let Ok(node) = node_raw else {
-                            err_vec.push_back(node_raw.err().unwrap());
+                            err_vec.push(node_raw.err().unwrap());
                             continue;
                         };
-                        res.push_back(NodeStmnt::FuncCall(node));
+                        res.push(NodeStmnt::FuncCall(node));
                         continue;
                     }
                 }
@@ -84,43 +83,43 @@ pub fn parse_body(mut reader: LineReader) -> Result<VecDeque<NodeStmnt>, ChalErr
                 let token_reader = TokenReader::new(line.into(), reader.span().clone());
                 let node_raw = NodeAssign::new(token_reader);
                 let Ok(node) = node_raw else {
-                    err_vec.push_back(node_raw.err().unwrap());
+                    err_vec.push(node_raw.err().unwrap());
                     continue;
                 };
 
-                res.push_back(NodeStmnt::Assign(node));
+                res.push(NodeStmnt::Assign(node));
             }
 
             TokenKind::Keyword(Keyword::If) => {
                 let line_reader_raw = reader.advance_chunk();
                 let Ok(line_reader) = line_reader_raw else {
-                    err_vec.push_back(line_reader_raw.err().unwrap());
+                    err_vec.push(line_reader_raw.err().unwrap());
                     continue;
                 };
 
                 let node_raw = NodeIfStmnt::new(line_reader);
                 let Ok(node) = node_raw else {
-                    err_vec.push_back(node_raw.err().unwrap());
+                    err_vec.push(node_raw.err().unwrap());
                     continue;
                 };
 
-                res.push_back(NodeStmnt::IfStmnt(node));
+                res.push(NodeStmnt::IfStmnt(node));
             }
 
             TokenKind::Keyword(Keyword::While) => {
                 let line_reader_raw = reader.advance_chunk();
                 let Ok(line_reader) = line_reader_raw else {
-                    err_vec.push_back(line_reader_raw.err().unwrap());
+                    err_vec.push(line_reader_raw.err().unwrap());
                     continue;
                 };
 
                 let node_raw = NodeWhileLoop::new(line_reader);
                 let Ok(node) = node_raw else {
-                    err_vec.push_back(node_raw.err().unwrap());
+                    err_vec.push(node_raw.err().unwrap());
                     continue;
                 };
 
-                res.push_back(NodeStmnt::WhileLoop(node));
+                res.push(NodeStmnt::WhileLoop(node));
             }
 
             // TODO: proper errors

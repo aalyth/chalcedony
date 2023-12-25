@@ -1,33 +1,31 @@
+mod builtins;
 mod object;
 
+use builtins::{add, and, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
 use object::CVMObject;
 
-use crate::utils::Stack;
+use crate::lexer::Type;
 
-const OP_CONSTI: u8 = 1;
-const OP_CONSTU: u8 = 2;
-const OP_CONSTF: u8 = 3;
-const OP_CONSTS: u8 = 4;
-
-const OP_ADD: u8 = 10;
-const OP_SUB: u8 = 11;
-const OP_MUL: u8 = 12;
-const OP_DIV: u8 = 13;
-const OP_MOD: u8 = 14;
-
-const OP_CREATE_VAR: u8 = 20;
-const OP_DELETE_VAR: u8 = 21;
-const OP_CREATE_FUNC: u8 = 22;
-
-const OP_DEBUG: u8 = 200;
+use crate::utils::{Bytecode, Stack};
 
 use std::collections::HashMap;
+
+#[derive(Debug)]
+pub enum CVMError {
+    ExpectedObject,
+    InvalidInstruction,
+    InvalidOperation,
+    UnknownVariable,
+    UnknownFunction,
+    TypeAssertionFail(Type, Type), /* exp, recv */
+}
 
 pub struct CVM {
     stack: Stack<CVMObject>,
     var_heap: HashMap<String, Vec<CVMObject>>,
-    func_heap: HashMap<String, Box<[u8]>>,
+    func_heap: HashMap<String, Vec<u8>>,
     registers: [CVMObject; 16],
+    call_stack: Stack<(Vec<u8>, usize)>,
 }
 
 macro_rules! push_constant {
@@ -35,7 +33,7 @@ macro_rules! push_constant {
         let chunk = &$code[$current_idx..$current_idx + 8];
         let val = $type::from_ne_bytes(chunk.try_into().expect("TODO: add proper error handling"));
         $cvm.stack.push(CVMObject::$obj_type(val));
-        $current_idx + 8
+        Ok($current_idx + 8)
     }};
 }
 
@@ -43,15 +41,11 @@ macro_rules! push_var {
     ( $cvm:expr, $var_name:ident, $type:ident, $obj_type:ident, $val_idx:expr, $code:ident) => {{
         let chunk = &$code[$val_idx..$val_idx + 8];
         let val = $type::from_ne_bytes(chunk.try_into().expect("TODO: add proper error handling"));
-        $cvm.var_heap
-            .entry($var_name)
-            .and_modify(|el| el.push(CVMObject::$obj_type(val)))
-            .or_insert(Vec::<CVMObject>::new());
-        $val_idx + 8
+        Ok($val_idx + 8)
     }};
 }
 
-fn get_arg_name(current_idx: usize, code: &Vec<u8>) -> (String, usize) {
+fn parse_bytecode_str(current_idx: usize, code: &Vec<u8>) -> (String, usize) {
     let mut tmp_idx = current_idx;
     while code[tmp_idx] != 0 {
         tmp_idx += 1;
@@ -67,55 +61,163 @@ impl CVM {
         CVM {
             stack: Stack::<CVMObject>::new(),
             var_heap: HashMap::<String, Vec<CVMObject>>::new(),
-            func_heap: HashMap::<String, Box<[u8]>>::new(),
+            func_heap: HashMap::<String, Vec<u8>>::new(),
             registers: std::array::from_fn(|_| CVMObject::Int(0)),
+            call_stack: Stack::<(Vec<u8>, usize)>::new(),
         }
     }
 
-    pub fn interpret(&mut self, mut code: Vec<u8>) {
+    /* the type at the top of the stack */
+    pub fn query_type(&self) -> Option<Type> {
+        Some(self.stack.peek()?.to_type())
+    }
+
+    pub fn execute(&mut self, code: &Vec<u8>) -> Result<(), CVMError> {
         let mut current_idx = 0 as usize;
         let code_len = code.len();
         while current_idx < code_len {
-            current_idx = self.interpret_next(current_idx, &mut code);
+            current_idx = self.execute_next(current_idx, code)?;
         }
+        Ok(())
     }
 
-    fn interpret_next(&mut self, mut current_idx: usize, code: &mut Vec<u8>) -> usize {
-        let Some(front) = code.get(current_idx) else {
+    fn execute_next(&mut self, mut current_idx: usize, code: &Vec<u8>) -> Result<usize, CVMError> {
+        let Some(front_raw) = code.get(current_idx) else {
             panic!("TODO: make this throw a proper error");
         };
         current_idx += 1;
-        match *front {
-            OP_CONSTI => push_constant!(self, i64, Int, current_idx, code),
-            OP_CONSTU => push_constant!(self, u64, Uint, current_idx, code),
-            OP_CONSTF => push_constant!(self, f64, Float, current_idx, code),
+        // SAFETY: Bytecode enum uses `repr(u8)` which itself makes it have the same layout as a u8
+        let front: Bytecode = unsafe { std::mem::transmute(*front_raw) };
+        match front {
+            Bytecode::OpConstI => push_constant!(self, i64, Int, current_idx, code),
+            Bytecode::OpConstU => push_constant!(self, u64, Uint, current_idx, code),
+            Bytecode::OpConstF => push_constant!(self, f64, Float, current_idx, code),
+            Bytecode::OpConstS => {
+                let (val, next_idx) = parse_bytecode_str(current_idx, code);
+                self.stack.push(CVMObject::Str(val));
+                Ok(next_idx)
+            }
 
-            OP_DEBUG => {
+            Bytecode::OpDebug => {
                 println!("CVM_STACK: {:#?}\n", self.stack);
+                println!("CVM_FUNC_HEAP: {:#?}\n", self.func_heap);
                 println!("CVM_VAR_HEAP: {:#?}\n", self.var_heap);
-                current_idx + 1
+                Ok(current_idx)
             }
 
-            OP_CREATE_VAR => {
-                let (var_name, type_idx) = get_arg_name(current_idx, code);
-                let var_type = code[type_idx];
+            Bytecode::OpCreateVar => {
+                let (var_name, next_idx) = parse_bytecode_str(current_idx, code);
+                let var_value = self
+                    .stack
+                    .pop()
+                    .expect("TODO: add proper error handling for missing stack value");
 
-                match var_type {
-                    OP_CONSTI => push_var!(self, var_name, i64, Int, type_idx + 1, code),
-                    OP_CONSTU => push_var!(self, var_name, u64, Uint, type_idx + 1, code),
-                    OP_CONSTF => push_var!(self, var_name, f64, Float, type_idx + 1, code),
-
-                    _ => panic!("TODO: add more verbose message for improper variable type"),
-                }
+                // TODO: add proper occurance checking without cloning
+                println!("CREATING VAR: '{}' with value {:?}", var_name, var_value);
+                self.var_heap
+                    .entry(var_name)
+                    .and_modify(|el| el.push(var_value.clone()))
+                    .or_insert(vec![var_value]);
+                Ok(next_idx)
             }
 
-            OP_DELETE_VAR => {
-                let (var_name, next_opr) = get_arg_name(current_idx, code);
+            Bytecode::OpDeleteVar => {
+                let (var_name, next_opr) = parse_bytecode_str(current_idx, code);
                 // TODO: add checking whether the variable exists (the code currently handles it silently)
                 self.var_heap.entry(var_name).and_modify(|el| {
                     el.pop();
                 });
-                next_opr
+                Ok(next_opr)
+            }
+
+            Bytecode::OpAdd => add(self, current_idx),
+            Bytecode::OpSub => sub(self, current_idx),
+            Bytecode::OpMul => mul(self, current_idx),
+            Bytecode::OpDiv => div(self, current_idx),
+            Bytecode::OpMod => modulo(self, current_idx),
+
+            Bytecode::OpAnd => and(self, current_idx),
+            Bytecode::OpOr => or(self, current_idx),
+
+            Bytecode::OpLt => lt(self, current_idx),
+            Bytecode::OpGt => gt(self, current_idx),
+            Bytecode::OpLtEq => lt_eq(self, current_idx),
+            Bytecode::OpGtEq => gt_eq(self, current_idx),
+
+            Bytecode::OpEq => eq(self, current_idx),
+            Bytecode::OpNeg => neg(self, current_idx),
+            Bytecode::OpNot => not(self, current_idx),
+
+            Bytecode::OpGetVar => {
+                let (var_name, next_idx) = parse_bytecode_str(current_idx, code);
+                let Some(var_bucket) = self.var_heap.get(&var_name) else {
+                    return Err(CVMError::UnknownVariable);
+                };
+                self.stack.push(
+                    var_bucket
+                        .last()
+                        .expect("TODO: add proper error handling for empty variable bucket")
+                        .clone(),
+                );
+                Ok(next_idx)
+            }
+
+            Bytecode::OpCreateFunc => {
+                let (fn_name, next_arg_idx) = parse_bytecode_str(current_idx, code);
+                /*
+                let body_len = *code
+                    .get(next_arg_idx)
+                    .expect("TODO: add proper error handling for invalid bytecode syntax")
+                    as usize;
+                */
+                let body_len = u64::from_ne_bytes(
+                    code[next_arg_idx..next_arg_idx + 8]
+                        .try_into()
+                        .expect("TODO: add proper error handling for invalid instruction"),
+                );
+
+                let mut body_raw = Vec::with_capacity(body_len as usize);
+                let body_start = next_arg_idx + 8;
+                let body_end = body_start + body_len as usize;
+                body_raw.extend_from_slice(&code[body_start..body_end]);
+
+                // TODO: add checks for conflicting function implementations
+                self.func_heap.entry(fn_name).or_insert(body_raw);
+                Ok(body_end)
+            }
+
+            Bytecode::OpCallFunc => {
+                let (fn_name, next_idx) = parse_bytecode_str(current_idx, code);
+                if !self.func_heap.contains_key(&fn_name) {
+                    return Err(CVMError::UnknownFunction);
+                }
+                // TODO: check if this could be done without a clone
+                let function = self.func_heap.get(&fn_name).unwrap().clone();
+                println!("CALLING: {}", fn_name);
+                self.execute(&function)?;
+                Ok(next_idx)
+            }
+
+            /* terminates the current function's execution */
+            Bytecode::OpReturn => Ok(code.len()),
+            Bytecode::OpAssertType => {
+                let Some(assert_raw) = code.get(current_idx) else {
+                    return Err(CVMError::InvalidInstruction);
+                };
+                let assert_raw: Bytecode = unsafe { std::mem::transmute(*assert_raw) };
+                let Ok(assert) = assert_raw.try_into() else {
+                    return Err(CVMError::InvalidInstruction);
+                };
+
+                let Some(peek_raw) = self.stack.peek() else {
+                    return Err(CVMError::ExpectedObject);
+                };
+                let peek_type = peek_raw.to_type();
+
+                if assert != peek_type {
+                    return Err(CVMError::TypeAssertionFail(peek_type, assert));
+                }
+                Ok(current_idx + 1)
             }
 
             _ => panic!("unknown instruction"),

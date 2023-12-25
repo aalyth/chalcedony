@@ -7,14 +7,14 @@ pub struct NodeVarDef {
     /* the variable type */
     kind: Type,
     name: String,
-    /* when default type values are implemented, this could be optional, so variable declarations
+    /* if default type values are implemented, this could be optional, so variable declarations
      * are possible */
     value: NodeExpr,
 }
 
 impl NodeVarDef {
     pub fn new(mut reader: TokenReader) -> Result<NodeVarDef, ChalError> {
-        /* let a := 5*/
+        /* let a := 5 */
         /* let b: usize = 3 */
 
         reader.expect_exact(TokenKind::Keyword(Keyword::Let))?;
@@ -39,5 +39,13 @@ impl NodeVarDef {
         let value = NodeExpr::new(rhs, reader.span())?;
 
         Ok(NodeVarDef { name, kind, value })
+    }
+
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn disassemble(self) -> (String, Type, NodeExpr) {
+        (self.name, self.kind, self.value)
     }
 }

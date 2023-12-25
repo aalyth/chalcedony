@@ -3,12 +3,10 @@ use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{parse_body, NodeExpr, NodeStmnt};
 use crate::parser::LineReader;
 
-use std::collections::VecDeque;
-
 #[derive(Debug)]
 pub struct NodeWhileLoop {
     condition: NodeExpr,
-    body: VecDeque<NodeStmnt>,
+    body: Vec<NodeStmnt>,
 }
 
 impl NodeWhileLoop {

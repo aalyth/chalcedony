@@ -1,12 +1,10 @@
 use crate::error::{InternalError, LexerError, ParserError};
 
-use std::collections::VecDeque;
-
 pub enum ChalError {
     LexerErr(LexerError),
     ParserErr(ParserError),
     InternalErr(InternalError),
-    ErrorChunk(VecDeque<ChalError>),
+    ErrorChunk(Vec<ChalError>),
 }
 
 impl From<LexerError> for ChalError {
@@ -15,8 +13,8 @@ impl From<LexerError> for ChalError {
     }
 }
 
-impl From<VecDeque<ChalError>> for ChalError {
-    fn from(chunk: VecDeque<ChalError>) -> Self {
+impl From<Vec<ChalError>> for ChalError {
+    fn from(chunk: Vec<ChalError>) -> Self {
         ChalError::ErrorChunk(chunk)
     }
 }

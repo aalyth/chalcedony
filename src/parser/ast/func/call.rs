@@ -10,7 +10,7 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct NodeFuncCall {
     name: String,
-    args: VecDeque<NodeExpr>,
+    args: Vec<NodeExpr>,
 }
 
 impl NodeFuncCall {
@@ -20,7 +20,7 @@ impl NodeFuncCall {
         let name = reader.expect_ident()?;
         reader.expect_exact(TokenKind::Delimiter(Delimiter::OpenPar))?;
 
-        let mut args = VecDeque::<NodeExpr>::new();
+        let mut args = Vec::<NodeExpr>::new();
         let mut first_iter = true;
         while !reader.peek_is_exact(TokenKind::Delimiter(Delimiter::ClosePar)) {
             if !first_iter {
@@ -28,7 +28,7 @@ impl NodeFuncCall {
             }
 
             let arg_expr = NodeFuncCall::advance_arg(&mut reader, span.clone())?;
-            args.push_back(arg_expr);
+            args.push(arg_expr);
             first_iter = false;
         }
 
@@ -59,5 +59,13 @@ impl NodeFuncCall {
         }
 
         NodeExpr::new(buffer, span)
+    }
+
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn disassemble(self) -> (String, Vec<NodeExpr>) {
+        (self.name, self.args)
     }
 }

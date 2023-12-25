@@ -4,16 +4,14 @@ use crate::parser::ast::{NodeExpr, NodeStmnt};
 
 use crate::parser::LineReader;
 
-use std::collections::VecDeque;
-
 use super::parse_body;
 
 #[derive(Debug)]
 pub struct NodeIfStmnt {
     /* TODO: change to using a proper condition */
     condition: NodeExpr,
-    body: VecDeque<NodeStmnt>,
-    branches: VecDeque<NodeIfBranch>,
+    body: Vec<NodeStmnt>,
+    branches: Vec<NodeIfBranch>,
 }
 
 #[derive(Debug)]
@@ -25,12 +23,12 @@ enum NodeIfBranch {
 #[derive(Debug)]
 struct NodeElifStmnt {
     condition: NodeExpr,
-    body: VecDeque<NodeStmnt>,
+    body: Vec<NodeStmnt>,
 }
 
 #[derive(Debug)]
 struct NodeElseStmnt {
-    body: VecDeque<NodeStmnt>,
+    body: Vec<NodeStmnt>,
 }
 
 impl NodeIfStmnt {
@@ -52,7 +50,7 @@ impl NodeIfStmnt {
                 || *front.kind() == TokenKind::Keyword(Keyword::Elif)
         })?;
 
-        let mut branches = VecDeque::<NodeIfBranch>::new();
+        let mut branches = Vec::<NodeIfBranch>::new();
         // TODO: trhow error when there is a branch after an else
         while !reader.is_empty() {
             let next_branch = reader.advance_until(|ln| {
@@ -62,7 +60,7 @@ impl NodeIfStmnt {
                 *front.kind() == TokenKind::Keyword(Keyword::Elif)
                     || *front.kind() == TokenKind::Keyword(Keyword::Else)
             })?;
-            branches.push_back(NodeIfBranch::new(LineReader::new(
+            branches.push(NodeIfBranch::new(LineReader::new(
                 next_branch,
                 reader.span(),
             ))?);

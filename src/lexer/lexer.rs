@@ -48,7 +48,7 @@ impl Lexer {
         }
 
         let mut result = VecDeque::<Line>::new();
-        let mut errors = VecDeque::<ChalError>::new();
+        let mut errors = Vec::<ChalError>::new();
         let (mut line, mut err) = self.advance_line();
 
         /* a line with a length of 1 is just an empty line */
@@ -97,7 +97,7 @@ impl Lexer {
         /* check for unclosed delimiters */
         if self.is_empty() && !self.delim_stack.is_empty() {
             for delim in &self.delim_stack {
-                errors.push_back(ChalError::from(LexerError::unclosed_delimiter(
+                errors.push(ChalError::from(LexerError::unclosed_delimiter(
                     delim.src(),
                     delim.start(),
                     delim.end(),
@@ -109,16 +109,18 @@ impl Lexer {
         if !errors.is_empty() {
             return Err(ChalError::from(errors));
         }
+
+        self.remove_trailing_space();
         return Ok(result);
     }
 
-    fn advance_line(&mut self) -> (Line, VecDeque<ChalError>) {
+    fn advance_line(&mut self) -> (Line, Vec<ChalError>) {
         if self.reader.is_empty() {
             return (
                 Line::new(0, VecDeque::<Token>::new()),
-                VecDeque::from([ChalError::from(InternalError::new(
+                vec![ChalError::from(InternalError::new(
                     "Lexer::advance_line(): advancing an empty lexer",
-                ))]),
+                ))],
             );
         }
 
@@ -126,10 +128,10 @@ impl Lexer {
         let indent_raw = self.reader.advance_while(|c: &char| *c == ' ');
         let indent = indent_raw.len() as u64;
 
-        let mut errors = VecDeque::<ChalError>::new();
+        let mut errors = Vec::<ChalError>::new();
 
         if indent % 4 != 0 {
-            errors.push_back(ChalError::from(LexerError::invalid_indentation(
+            errors.push(ChalError::from(LexerError::invalid_indentation(
                 start.clone(),
                 *self.reader.pos(),
                 self.span.clone(),
@@ -142,9 +144,9 @@ impl Lexer {
         loop {
             match current {
                 Ok(tok) => result.push_back(tok),
-                Err(err) => errors.push_back(err),
+                Err(err) => errors.push(err),
             }
-            /* this clunky check is so we don't have problems with the borrow checker*/
+            /* check the current token type */
             if result.back().is_some() && *result.back().unwrap().kind() == TokenKind::Newline {
                 break;
             }
@@ -247,14 +249,6 @@ impl Lexer {
             return self.advance_tok(String::from("\n"), *self.reader.pos(), *self.reader.pos());
         }
 
-        if current.is_alphanumeric() {
-            let src = String::from(current)
-                + &self
-                    .reader
-                    .advance_while(|c: &char| c.is_alphanumeric() || *c == '_');
-            return self.advance_tok(src, start, *self.reader.pos());
-        }
-
         if current.is_numeric()
             || (current == '-'
                 && self.reader.peek().is_some()
@@ -286,6 +280,14 @@ impl Lexer {
                 + &self
                     .reader
                     .advance_while(|c: &char| c.is_numeric() || *c == '.');
+            return self.advance_tok(src, start, *self.reader.pos());
+        }
+
+        if current.is_alphanumeric() {
+            let src = String::from(current)
+                + &self
+                    .reader
+                    .advance_while(|c: &char| c.is_alphanumeric() || *c == '_');
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
@@ -328,6 +330,21 @@ impl Lexer {
         return Err(ChalError::from(InternalError::new(
             "Lexer::advance(): could not parse token",
         )));
+    }
+
+    fn remove_trailing_space(&mut self) {
+        if self.reader.is_empty() {
+            return;
+        }
+        let mut current = *self.reader.peek().unwrap();
+        while !self.reader.is_empty() && (current == '\n' || current == ' ' || current == '#') {
+            current = self.reader.advance().unwrap();
+            if current == '#' {
+                self.reader.advance_while(|ch: &char| *ch != '\n');
+                self.reader.advance(); /* remove the trailing newline */
+            }
+            current = *self.reader.peek().unwrap();
+        }
     }
 
     pub fn is_empty(&self) -> bool {

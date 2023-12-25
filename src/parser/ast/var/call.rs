@@ -4,10 +4,7 @@ use crate::lexer::{Token, TokenKind};
 use std::rc::Rc;
 
 #[derive(Debug)]
-pub struct NodeVarCall {
-    name: String,
-    /* NOTE: might need to store the type for type inference */
-}
+pub struct NodeVarCall(pub String);
 
 impl NodeVarCall {
     pub fn new(token: Token, span: Rc<Span>) -> Result<Self, ChalError> {
@@ -21,6 +18,6 @@ impl NodeVarCall {
                 span.clone(),
             )));
         };
-        Ok(NodeVarCall { name: name.clone() })
+        Ok(NodeVarCall(name.clone()))
     }
 }
