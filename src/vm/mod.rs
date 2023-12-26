@@ -8,7 +8,7 @@ use crate::lexer::Type;
 
 use crate::utils::{Bytecode, Stack};
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 // use fxhash::BTreeMap;
 
 #[derive(Debug)]
@@ -24,7 +24,7 @@ pub enum CVMError {
 
 pub struct CVM {
     stack: Stack<CVMObject>,
-    var_heap: BTreeMap<String, Vec<CVMObject>>,
+    var_heap: BTreeMap<String, VecDeque<CVMObject>>,
     func_heap: BTreeMap<String, Vec<u8>>,
 }
 
@@ -83,7 +83,7 @@ impl CVM {
         );
         CVM {
             stack: Stack::<CVMObject>::new(),
-            var_heap: BTreeMap::<String, Vec<CVMObject>>::default(),
+            var_heap: BTreeMap::<String, VecDeque<CVMObject>>::default(),
             func_heap,
         }
     }
@@ -93,11 +93,11 @@ impl CVM {
         Some(self.stack.peek()?.as_type())
     }
 
-    pub fn execute(&mut self, code: &Vec<u8>) -> Result<(), CVMError> {
+    pub fn execute(&mut self, code: Vec<u8>) -> Result<(), CVMError> {
         let mut current_idx = 0 as usize;
         let code_len = code.len();
         while current_idx < code_len {
-            current_idx = self.execute_next(current_idx, code)?;
+            current_idx = self.execute_next(current_idx, &code)?;
         }
         Ok(())
     }
@@ -134,11 +134,13 @@ impl CVM {
                     .pop()
                     .expect("TODO: add proper error handling for missing stack value");
 
-                // TODO: add proper occurance checking without cloning
-                self.var_heap
-                    .entry(var_name.to_string())
-                    .and_modify(|el| el.push(var_value.clone()))
-                    .or_insert(vec![var_value]);
+                if let Some(var_bucket) = self.var_heap.get_mut(var_name) {
+                    var_bucket.push_back(var_value);
+                } else {
+                    let mut new_bucket = VecDeque::new();
+                    new_bucket.push_back(var_value);
+                    self.var_heap.insert(var_name.to_string(), new_bucket);
+                }
                 Ok(next_idx)
             }
 
@@ -146,7 +148,7 @@ impl CVM {
                 let (var_name, next_opr) = parse_bytecode_str!(current_idx, code);
                 // TODO: add checking whether the variable exists (the code currently handles it silently)
                 self.var_heap.entry(var_name.to_string()).and_modify(|el| {
-                    el.pop();
+                    el.pop_back();
                 });
                 Ok(next_opr)
             }
@@ -176,7 +178,7 @@ impl CVM {
                 };
                 self.stack.push(
                     var_bucket
-                        .last()
+                        .back()
                         .expect("TODO: add proper error handling for empty variable bucket")
                         .clone(),
                 );
@@ -216,7 +218,7 @@ impl CVM {
                 }
                 // TODO: check if this could be done without a clone
                 let function = self.func_heap.get(fn_name).unwrap().clone();
-                self.execute(&function)?;
+                self.execute(function)?;
                 Ok(next_idx)
             }
 

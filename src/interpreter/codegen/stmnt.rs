@@ -3,7 +3,8 @@ use super::ToBytecode;
 use crate::error::{ChalError, InternalError};
 use crate::interpreter::FuncAnnotation;
 use crate::lexer::Type;
-use crate::parser::ast::{NodeRetStmnt, NodeStmnt};
+use crate::parser::ast::operators::AssignOprType;
+use crate::parser::ast::{NodeRetStmnt, NodeStmnt, NodeVarCall};
 use crate::utils::Bytecode;
 
 use std::collections::{HashMap, HashSet};
@@ -140,7 +141,7 @@ pub fn stmnt_to_bytecode(
             }
 
             /* skipping over the body if the condition is false */
-            let body_len = body.len() as u64;
+            let body_len = body.len() as u64 + 9;
             result.extend_from_slice(&body_len.to_ne_bytes());
             result.append(&mut body);
 
@@ -152,6 +153,34 @@ pub fn stmnt_to_bytecode(
             Ok(result)
         }
 
-        _ => Ok(vec![]),
+        NodeStmnt::Assign(node) => {
+            let (NodeVarCall(varname), opr, rhs) = node.disassemble();
+            let mut result = Vec::<u8>::new();
+            if opr != AssignOprType::Eq {
+                result.push(Bytecode::OpGetVar as u8);
+                result.extend_from_slice(&varname.as_bytes());
+                result.push(0);
+            }
+
+            result.append(&mut rhs.to_bytecode(func_symtable)?);
+
+            match opr {
+                AssignOprType::AddEq => result.push(Bytecode::OpAdd as u8),
+                AssignOprType::SubEq => result.push(Bytecode::OpSub as u8),
+                AssignOprType::MulEq => result.push(Bytecode::OpMul as u8),
+                AssignOprType::DivEq => result.push(Bytecode::OpDiv as u8),
+                AssignOprType::ModEq => result.push(Bytecode::OpMod as u8),
+                _ => {}
+            }
+
+            result.push(Bytecode::OpDeleteVar as u8);
+            result.extend_from_slice(&varname.as_bytes());
+            result.push(0);
+            result.push(Bytecode::OpCreateVar as u8);
+            result.extend_from_slice(&varname.as_bytes());
+            result.push(0);
+
+            Ok(result)
+        }
     }
 }

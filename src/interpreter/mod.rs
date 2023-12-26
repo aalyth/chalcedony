@@ -55,7 +55,7 @@ impl Chalcedony {
                         continue;
                     };
 
-                    if let Err(err) = self.vm.execute(&bytecode) {
+                    if let Err(err) = self.vm.execute(bytecode) {
                         // TODO: make it throw proper error
                         println!("RUNTIME ERROR: {:?}\n", err);
                     }
@@ -68,7 +68,7 @@ impl Chalcedony {
         main_call.push(Bytecode::OpCallFunc as u8);
         main_call.extend_from_slice("main".as_bytes());
         main_call.push(0);
-        if let Err(err) = self.vm.execute(&main_call) {
+        if let Err(err) = self.vm.execute(main_call) {
             println!("RUNTIME ERROR: {:?}\n", err);
         }
 

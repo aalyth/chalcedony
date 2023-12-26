@@ -23,7 +23,7 @@ pub enum UnaryOprType {
     Bang, // !
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AssignOprType {
     Eq,    // =
     AddEq, // +=

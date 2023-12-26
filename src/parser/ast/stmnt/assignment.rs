@@ -48,4 +48,8 @@ impl NodeAssign {
 
         Ok(NodeAssign { lhs, opr, rhs })
     }
+
+    pub fn disassemble(self) -> (NodeVarCall, AssignOprType, NodeExpr) {
+        (self.lhs, self.opr, self.rhs)
+    }
 }

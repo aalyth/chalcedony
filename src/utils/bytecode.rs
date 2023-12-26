@@ -29,8 +29,8 @@ pub enum Bytecode {
     OpDeleteVar = 26, // <name>
     OpGetVar = 27,    // <name> -> pushes the given variable's value on the top of the stack
 
-    OpCreateFunc = 30, // <name> <len: u64> <body> -> len marks the number of bytes as body
-    OpCallFunc = 31,   // <name> -> calls the function with given name
+    OpCreateFunc = 30, // <name: u64> <len: u64> <body> -> len marks the number of bytes as body
+    OpCallFunc = 31,   // <name: u64> -> calls the function with given name
     OpReturn = 32,     // terminate the current function's execution
 
     OpIf = 35, // <len: u64> <body> -> if the top of the stack is true continue, else jump over the body

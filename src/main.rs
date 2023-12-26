@@ -38,16 +38,26 @@ fn main() {
     #         print(\"more than nice\")
 
 fn fib(n: uint) -> uint:
+    let a := 1
+    let b := 1
+    while n > 0:
+        let c := a + b
+        a = b
+        b = c
+        n -= 1
+    return b
+
+fn fib2(n: uint) -> uint:
     if n > 2:
-        return fib(n-1) + fib(n-2)
+        return fib2(n-1) + fib2(n-2)
     return 1
 
 fn main():
-    let i := 35 
-    print('Fib ' + i + ': ' + fib(i))
+    let n := 35 
+    print('Fib ' + n + ': ' + fib2(n))
 ",
     );
-    interpreter.vm.execute(&vec![200]);
+    interpreter.vm.execute(vec![200]);
     /*
     while !parser.is_empty() {
         let current = parser.advance();
