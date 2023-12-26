@@ -44,9 +44,8 @@ fn fib(n: uint) -> uint:
     return 1
 
 fn main():
-    let i := 0
-    while i < 15:
-        print(\"\" + fib(i) + \"\n\")
+    let n := 35
+    print(\"Fib \" + n + \": \" + fib(n))
 ",
     );
     interpreter.vm.execute(&vec![200]);

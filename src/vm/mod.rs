@@ -8,7 +8,7 @@ use crate::lexer::Type;
 
 use crate::utils::{Bytecode, Stack};
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub enum CVMError {
@@ -23,8 +23,8 @@ pub enum CVMError {
 
 pub struct CVM {
     stack: Stack<CVMObject>,
-    var_heap: HashMap<String, Vec<CVMObject>>,
-    func_heap: HashMap<String, Vec<u8>>,
+    var_heap: BTreeMap<String, Vec<CVMObject>>,
+    func_heap: BTreeMap<String, Vec<u8>>,
 }
 
 macro_rules! push_constant {
@@ -57,7 +57,7 @@ fn parse_bytecode_str(current_idx: usize, code: &Vec<u8>) -> (String, usize) {
 
 impl CVM {
     pub fn new() -> Self {
-        let mut func_heap = HashMap::<String, Vec<u8>>::new();
+        let mut func_heap = BTreeMap::<String, Vec<u8>>::new();
         func_heap.insert(
             String::from("print"),
             vec![
@@ -82,7 +82,7 @@ impl CVM {
         );
         CVM {
             stack: Stack::<CVMObject>::new(),
-            var_heap: HashMap::<String, Vec<CVMObject>>::new(),
+            var_heap: BTreeMap::<String, Vec<CVMObject>>::new(),
             func_heap,
         }
     }
@@ -119,9 +119,11 @@ impl CVM {
             }
 
             Bytecode::OpDebug => {
+                /*
                 println!("CVM_STACK: {:#?}\n", self.stack);
                 println!("CVM_FUNC_HEAP: {:#?}\n", self.func_heap);
                 println!("CVM_VAR_HEAP: {:#?}\n", self.var_heap);
+                */
                 Ok(current_idx)
             }
             Bytecode::OpCreateVar => {
