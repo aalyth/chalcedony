@@ -7,3 +7,8 @@ edition = "2021"
 
 [dependencies]
 lazy_static = "1.4.0"
+fxhash = "0.2.1"
+
+# for more detailed flamegraphs
+[profile.release]
+debug = true

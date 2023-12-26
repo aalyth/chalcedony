@@ -318,8 +318,8 @@ impl Lexer {
             return self.advance_tok(String::from(current), start, start);
         }
 
-        if current == '"' {
-            let mut src = String::from(current) + &self.reader.advance_while(|c: &char| *c != '"');
+        if current == '"' || current == '\''{
+            let mut src = String::from(current) + &self.reader.advance_while(|c: &char| *c != current);
             if let Some(c) = self.reader.advance() {
                 src.push(c);
             } // adds the '"' at the end
