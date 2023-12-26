@@ -225,7 +225,8 @@ impl TokenKind {
             return Ok(TokenKind::Float(kind));
         }
 
-        if src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"') {
+        if (src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"')) || 
+        (src.chars().nth(0) == Some('\'') && src.chars().nth(src.len() - 1) == Some('\'')) {
             return Ok(TokenKind::Str(src.to_string()));
         } else if src.chars().nth(0) == Some('"') {
             return Err(ChalError::from(LexerError::unclosed_string(

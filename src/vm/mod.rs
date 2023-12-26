@@ -8,7 +8,8 @@ use crate::lexer::Type;
 
 use crate::utils::{Bytecode, Stack};
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+// use fxhash::BTreeMap;
 
 #[derive(Debug)]
 pub enum CVMError {
@@ -23,8 +24,8 @@ pub enum CVMError {
 
 pub struct CVM {
     stack: Stack<CVMObject>,
-    var_heap: HashMap<String, Vec<CVMObject>>,
-    func_heap: HashMap<String, Vec<u8>>,
+    var_heap: BTreeMap<String, Vec<CVMObject>>,
+    func_heap: BTreeMap<String, Vec<u8>>,
 }
 
 macro_rules! push_constant {
@@ -44,20 +45,20 @@ macro_rules! push_var {
     }};
 }
 
-fn parse_bytecode_str(current_idx: usize, code: &Vec<u8>) -> (String, usize) {
-    let mut tmp_idx = current_idx;
-    while code[tmp_idx] != 0 {
-        tmp_idx += 1;
-    }
-    let var_name = std::str::from_utf8(&code[current_idx..tmp_idx])
-        .expect("TODO: addd proper error checking")
-        .to_string();
-    (var_name, tmp_idx + 1)
+macro_rules! parse_bytecode_str {
+    ( $current_idx:ident, $code:ident) => {{
+        let mut tmp_idx = $current_idx;
+        while $code[tmp_idx] != 0 {
+            tmp_idx += 1;
+        }
+        let var_name = unsafe { std::str::from_utf8_unchecked(&$code[$current_idx..tmp_idx]) };
+        (var_name, tmp_idx + 1)
+    }};
 }
 
 impl CVM {
     pub fn new() -> Self {
-        let mut func_heap = HashMap::<String, Vec<u8>>::new();
+        let mut func_heap = BTreeMap::<String, Vec<u8>>::default();
         func_heap.insert(
             String::from("print"),
             vec![
@@ -82,7 +83,7 @@ impl CVM {
         );
         CVM {
             stack: Stack::<CVMObject>::new(),
-            var_heap: HashMap::<String, Vec<CVMObject>>::new(),
+            var_heap: BTreeMap::<String, Vec<CVMObject>>::default(),
             func_heap,
         }
     }
@@ -113,19 +114,21 @@ impl CVM {
             Bytecode::OpConstU => push_constant!(self, u64, Uint, current_idx, code),
             Bytecode::OpConstF => push_constant!(self, f64, Float, current_idx, code),
             Bytecode::OpConstS => {
-                let (val, next_idx) = parse_bytecode_str(current_idx, code);
-                self.stack.push(CVMObject::Str(val));
+                let (val, next_idx) = parse_bytecode_str!(current_idx, code);
+                self.stack.push(CVMObject::Str(val.to_string()));
                 Ok(next_idx)
             }
 
             Bytecode::OpDebug => {
+                /*
                 println!("CVM_STACK: {:#?}\n", self.stack);
                 println!("CVM_FUNC_HEAP: {:#?}\n", self.func_heap);
                 println!("CVM_VAR_HEAP: {:#?}\n", self.var_heap);
+                */
                 Ok(current_idx)
             }
             Bytecode::OpCreateVar => {
-                let (var_name, next_idx) = parse_bytecode_str(current_idx, code);
+                let (var_name, next_idx) = parse_bytecode_str!(current_idx, code);
                 let var_value = self
                     .stack
                     .pop()
@@ -133,16 +136,16 @@ impl CVM {
 
                 // TODO: add proper occurance checking without cloning
                 self.var_heap
-                    .entry(var_name)
+                    .entry(var_name.to_string())
                     .and_modify(|el| el.push(var_value.clone()))
                     .or_insert(vec![var_value]);
                 Ok(next_idx)
             }
 
             Bytecode::OpDeleteVar => {
-                let (var_name, next_opr) = parse_bytecode_str(current_idx, code);
+                let (var_name, next_opr) = parse_bytecode_str!(current_idx, code);
                 // TODO: add checking whether the variable exists (the code currently handles it silently)
-                self.var_heap.entry(var_name).and_modify(|el| {
+                self.var_heap.entry(var_name.to_string()).and_modify(|el| {
                     el.pop();
                 });
                 Ok(next_opr)
@@ -167,8 +170,8 @@ impl CVM {
             Bytecode::OpNot => not(self, current_idx),
 
             Bytecode::OpGetVar => {
-                let (var_name, next_idx) = parse_bytecode_str(current_idx, code);
-                let Some(var_bucket) = self.var_heap.get(&var_name) else {
+                let (var_name, next_idx) = parse_bytecode_str!(current_idx, code);
+                let Some(var_bucket) = self.var_heap.get(var_name) else {
                     return Err(CVMError::UnknownVariable);
                 };
                 self.stack.push(
@@ -181,7 +184,7 @@ impl CVM {
             }
 
             Bytecode::OpCreateFunc => {
-                let (fn_name, next_arg_idx) = parse_bytecode_str(current_idx, code);
+                let (fn_name, next_arg_idx) = parse_bytecode_str!(current_idx, code);
                 /*
                 let body_len = *code
                     .get(next_arg_idx)
@@ -200,17 +203,17 @@ impl CVM {
                 body_raw.extend_from_slice(&code[body_start..body_end]);
 
                 // TODO: add checks for conflicting function implementations
-                self.func_heap.entry(fn_name).or_insert(body_raw);
+                self.func_heap.entry(fn_name.to_string()).or_insert(body_raw);
                 Ok(body_end)
             }
 
             Bytecode::OpCallFunc => {
-                let (fn_name, next_idx) = parse_bytecode_str(current_idx, code);
-                if !self.func_heap.contains_key(&fn_name) {
+                let (fn_name, next_idx) = parse_bytecode_str!(current_idx, code);
+                if !self.func_heap.contains_key(fn_name) {
                     return Err(CVMError::UnknownFunction);
                 }
                 // TODO: check if this could be done without a clone
-                let function = self.func_heap.get(&fn_name).unwrap().clone();
+                let function = self.func_heap.get(fn_name).unwrap().clone();
                 self.execute(&function)?;
                 Ok(next_idx)
             }

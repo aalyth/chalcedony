@@ -5,12 +5,12 @@ pub mod parser;
 pub mod utils;
 pub mod vm;
 
+
 use crate::interpreter::Chalcedony;
-use crate::parser::Parser;
-use vm::CVM;
 
 #[macro_use]
 extern crate lazy_static;
+extern crate fxhash;
 
 fn main() {
     let mut interpreter = Chalcedony::new();
@@ -44,9 +44,8 @@ fn fib(n: uint) -> uint:
     return 1
 
 fn main():
-    let i := 0
-    while i < 15:
-        print(\"\" + fib(i) + \"\n\")
+    let i := 35 
+    print('Fib ' + i + ': ' + fib(i))
 ",
     );
     interpreter.vm.execute(&vec![200]);
