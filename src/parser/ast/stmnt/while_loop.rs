@@ -32,4 +32,8 @@ impl NodeWhileLoop {
             body: parse_body(reader)?,
         })
     }
+
+    pub fn disassemble(self) -> (NodeExpr, Vec<NodeStmnt>) {
+        (self.condition, self.body)
+    }
 }

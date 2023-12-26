@@ -16,8 +16,8 @@ fn main() {
     let mut interpreter = Chalcedony::new();
     interpreter.interpret(
         "
-let a := 1 + 2 * 3 - 4 / -5
-let c := !(5 - a)
+# let a := 1 + 2 * 3 - 4 / -5
+# let c := !(5 - a)
 # let b := 34.5*(23+1.5)/2
 
 # let a = -5.2*--3
@@ -27,24 +27,26 @@ let c := !(5 - a)
 # let c := fib(-min(2 + 3 * 4, - 5 + 7 * 6 / 3), - 2 * 3 / 2) + fib( min(5, 6) - 2 ) * 2
 # let d := 2 || 3 + !(12 / 4 * 2)
 
+    # while i < 50:
+    #     print(fib(i))
+    #     i += 1
+
+    #     if i == 42:
+    #         print(\"nice\")
+    #     elif i < 42:
+    #         print(\"below nice\")
+    #     else:
+    #         print(\"more than nice\")
+
 fn fib(n: uint) -> uint:
     if n > 2:
         return fib(n-1) + fib(n-2)
-    return n
+    return 1
 
 fn main():
-    # let i := 0
-    let b := fib(5)
-    while i < 50:
-        print(fib(i))
-        i += 1
-
-        if i == 42:
-            print(\"nice\")
-        elif i < 42:
-            print(\"below nice\")
-        else:
-            print(\"more than nice\")
+    let i := 0
+    while i < 15:
+        print(\"\" + fib(i) + \"\n\")
 ",
     );
     interpreter.vm.execute(&vec![200]);

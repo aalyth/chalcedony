@@ -29,14 +29,15 @@ pub enum Bytecode {
     OpDeleteVar = 26, // <name>
     OpGetVar = 27,    // <name> -> pushes the given variable's value on the top of the stack
 
-    OpCreateFunc = 30, // <name: str> <len: u64> <body> -> len marks the number of bytes as body
+    OpCreateFunc = 30, // <name> <len: u64> <body> -> len marks the number of bytes as body
     OpCallFunc = 31,   // <name> -> calls the function with given name
     OpReturn = 32,     // terminate the current function's execution
 
-    OpSetReg = 35, // <N> -> sets the register N's value to the top of the stack
-    OpGetReg = 36, // <N> -> pushes register N's value to the top of the stack
+    OpIf = 35, // <len: u64> <body> -> if the top of the stack is true continue, else jump over the body
+    OpJmp = 36, // <distance: i64> -> jumps forward the given distance (goes back if negative)
 
-    OpAssertType = 50, // <type> -> asserts the top of the stack is of given type
+    OpAssertType = 50, // <type: u8> -> asserts the top of the stack is of given type
+    OpPrint = 51,      // prints the value at the top of the stack
 
     OpDebug = 200, // prints debug info for the CVM
 }

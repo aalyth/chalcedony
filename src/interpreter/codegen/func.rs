@@ -2,9 +2,10 @@ use super::ToBytecode;
 
 use crate::error::{ChalError, InternalError};
 use crate::interpreter::FuncAnnotation;
-use crate::lexer::Type;
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef};
 use crate::utils::Bytecode;
+
+use super::stmnt_to_bytecode;
 
 use std::collections::{HashMap, HashSet};
 
@@ -12,7 +13,6 @@ impl ToBytecode for NodeFuncDef {
     fn to_bytecode(
         self,
         func_symtable: &mut HashMap<String, FuncAnnotation>,
-        _: Option<&mut HashSet<String>>,
     ) -> Result<Vec<u8>, ChalError> {
         let (name, args, ret, body_raw) = self.disassemble();
 
@@ -26,8 +26,14 @@ impl ToBytecode for NodeFuncDef {
         let annotation = FuncAnnotation::new(args, ret);
         func_symtable.insert(name.clone(), annotation);
 
+        let mut mock_lookup = HashSet::<String>::new();
         for stmnt in body_raw {
-            body.append(&mut stmnt.to_bytecode(func_symtable, Some(&mut var_lookup))?)
+            body.append(&mut stmnt_to_bytecode(
+                stmnt,
+                func_symtable,
+                &mut mock_lookup,
+                &mut var_lookup,
+            )?)
         }
 
         /* remove the arguments as local variables */
@@ -53,7 +59,6 @@ impl ToBytecode for NodeFuncCall {
     fn to_bytecode(
         self,
         func_symtable: &mut HashMap<String, FuncAnnotation>,
-        _: Option<&mut HashSet<String>>,
     ) -> Result<Vec<u8>, ChalError> {
         let (fn_name, args) = self.disassemble();
         if !func_symtable.contains_key(&fn_name) {
@@ -76,7 +81,7 @@ impl ToBytecode for NodeFuncCall {
 
         for arg in arg_iter {
             /* push the argument value */
-            result.append(&mut arg.to_bytecode(func_symtable, None)?);
+            result.append(&mut arg.to_bytecode(func_symtable)?);
 
             let ann = annotation_iter.next().unwrap();
 

@@ -15,19 +15,19 @@ pub struct NodeIfStmnt {
 }
 
 #[derive(Debug)]
-enum NodeIfBranch {
+pub enum NodeIfBranch {
     Elif(NodeElifStmnt),
     Else(NodeElseStmnt),
 }
 
 #[derive(Debug)]
-struct NodeElifStmnt {
+pub struct NodeElifStmnt {
     condition: NodeExpr,
     body: Vec<NodeStmnt>,
 }
 
 #[derive(Debug)]
-struct NodeElseStmnt {
+pub struct NodeElseStmnt {
     body: Vec<NodeStmnt>,
 }
 
@@ -71,6 +71,10 @@ impl NodeIfStmnt {
             branches,
             body: parse_body(LineReader::new(body, reader.span()))?,
         })
+    }
+
+    pub fn disassemble(self) -> (NodeExpr, Vec<NodeStmnt>, Vec<NodeIfBranch>) {
+        (self.condition, self.body, self.branches)
     }
 }
 

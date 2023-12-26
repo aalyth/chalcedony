@@ -30,10 +30,14 @@ pub struct Chalcedony {
 
 impl Chalcedony {
     pub fn new() -> Self {
+        let mut func_symtable = HashMap::<String, FuncAnnotation>::new();
+        func_symtable.insert(
+            String::from("print"),
+            FuncAnnotation::new(vec![(String::from("output"), Type::Str)], Type::Void),
+        );
         Chalcedony {
             vm: CVM::new(),
-            // var_symtable: HashMap::<String, Type>::new(),
-            func_symtable: HashMap::<String, FuncAnnotation>::new(),
+            func_symtable,
         }
     }
 
@@ -45,13 +49,11 @@ impl Chalcedony {
         while !parser.is_empty() {
             match parser.advance() {
                 Ok(node) => {
-                    let bytecode_res = node.to_bytecode(&mut self.func_symtable, None);
+                    let bytecode_res = node.to_bytecode(&mut self.func_symtable);
                     let Ok(bytecode) = bytecode_res else {
                         errors.push(bytecode_res.err().unwrap());
                         continue;
                     };
-
-                    println!("BYTECODE: {:#?}\n", bytecode);
 
                     if let Err(err) = self.vm.execute(&bytecode) {
                         // TODO: make it throw proper error
@@ -70,7 +72,6 @@ impl Chalcedony {
             println!("RUNTIME ERROR: {:?}\n", err);
         }
 
-        println!("FUNCTION SYMTABLE: {:#?}\n", self.func_symtable);
         if !errors.is_empty() {
             for err in errors {
                 println!("{}", err);

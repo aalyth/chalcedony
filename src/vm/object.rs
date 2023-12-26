@@ -10,7 +10,7 @@ pub enum CVMObject {
 }
 
 impl CVMObject {
-    pub fn to_type(&self) -> Type {
+    pub fn as_type(&self) -> Type {
         match self {
             CVMObject::Int(_) => Type::Int,
             CVMObject::Uint(_) => Type::Uint,

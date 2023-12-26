@@ -2,23 +2,21 @@ use super::ToBytecode;
 
 use crate::error::ChalError;
 use crate::interpreter::FuncAnnotation;
-use crate::lexer::Type;
 use crate::parser::ast::operators::{BinOprType, UnaryOprType};
 use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue, NodeVarCall};
 use crate::utils::Bytecode;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 impl ToBytecode for NodeExpr {
     fn to_bytecode(
         self,
         func_symtable: &mut HashMap<String, FuncAnnotation>,
-        local_vars: Option<&mut HashSet<String>>,
     ) -> Result<Vec<u8>, ChalError> {
         let NodeExpr(expr) = self;
         let mut result = Vec::<u8>::new();
         for e in expr {
-            result.append(&mut e.to_bytecode(func_symtable, None)?)
+            result.append(&mut e.to_bytecode(func_symtable)?)
         }
         Ok(result)
     }
@@ -37,7 +35,6 @@ impl ToBytecode for NodeExprInner {
     fn to_bytecode(
         self,
         func_symtable: &mut HashMap<String, FuncAnnotation>,
-        _: Option<&mut HashSet<String>>,
     ) -> Result<Vec<u8>, ChalError> {
         match self {
             NodeExprInner::BinOpr(opr_type) => match opr_type {
@@ -67,7 +64,11 @@ impl ToBytecode for NodeExprInner {
                 NodeValue::Int(val) => val_to_bytecode!(5, &val.to_ne_bytes(), OpConstI),
                 NodeValue::Uint(val) => val_to_bytecode!(5, &val.to_ne_bytes(), OpConstU),
                 NodeValue::Float(val) => val_to_bytecode!(5, &val.to_ne_bytes(), OpConstF),
-                NodeValue::Str(val) => val_to_bytecode!(val.len() + 1, val.as_bytes(), OpConstS),
+                NodeValue::Str(val) => {
+                    let mut str_vec = val[1..val.len() - 1].as_bytes().to_vec();
+                    str_vec.push(0);
+                    val_to_bytecode!(val.len() + 1, str_vec.as_slice(), OpConstS)
+                }
             },
             NodeExprInner::VarCall(NodeVarCall(varname)) => {
                 let mut result = Vec::<u8>::with_capacity(varname.len() + 1);
@@ -78,7 +79,7 @@ impl ToBytecode for NodeExprInner {
             }
             NodeExprInner::FuncCall(node) => {
                 let mut res = Vec::<u8>::new();
-                res.append(&mut node.to_bytecode(func_symtable, None)?);
+                res.append(&mut node.to_bytecode(func_symtable)?);
                 Ok(res)
             }
         }
