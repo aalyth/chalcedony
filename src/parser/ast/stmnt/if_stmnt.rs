@@ -6,27 +6,22 @@ use crate::parser::LineReader;
 
 use super::parse_body;
 
-#[derive(Debug)]
 pub struct NodeIfStmnt {
-    /* TODO: change to using a proper condition */
     condition: NodeExpr,
     body: Vec<NodeStmnt>,
     branches: Vec<NodeIfBranch>,
 }
 
-#[derive(Debug)]
 pub enum NodeIfBranch {
     Elif(NodeElifStmnt),
     Else(NodeElseStmnt),
 }
 
-#[derive(Debug)]
 pub struct NodeElifStmnt {
     condition: NodeExpr,
     body: Vec<NodeStmnt>,
 }
 
-#[derive(Debug)]
 pub struct NodeElseStmnt {
     body: Vec<NodeStmnt>,
 }
@@ -81,9 +76,7 @@ impl NodeIfStmnt {
 impl NodeIfBranch {
     pub fn new(reader: LineReader) -> Result<Self, ChalError> {
         let Some(front_tok) = reader.peek_tok() else {
-            return Err(ChalError::from(InternalError::new(
-                "NodeIFBranch::new(): generating ",
-            )));
+            return Err(InternalError::new("NodeIFBranch::new(): generating ").into());
         };
 
         match front_tok.kind() {
@@ -93,10 +86,8 @@ impl NodeIfBranch {
             TokenKind::Keyword(Keyword::Else) => {
                 Ok(NodeIfBranch::Else(NodeElseStmnt::new(reader)?))
             }
-            // TODO: check weather this should be an internal or parser errror
-            _ => Err(ChalError::from(InternalError::new(
-                "NodeIfBranch::new(): advancing a non-if branch",
-            ))),
+            // TODO: check weather this should be an internal or parser error
+            _ => Err(InternalError::new("NodeIfBranch::new(): advancing a non-if branch").into()),
         }
     }
 }

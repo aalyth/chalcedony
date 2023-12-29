@@ -1,8 +1,9 @@
-use crate::error::{InternalError, LexerError, ParserError};
+use crate::error::{InternalError, LexerError, ParserError, RuntimeError};
 
 pub enum ChalError {
     LexerErr(LexerError),
     ParserErr(ParserError),
+    RuntimeErr(RuntimeError),
     InternalErr(InternalError),
     ErrorChunk(Vec<ChalError>),
 }
@@ -25,6 +26,12 @@ impl From<ParserError> for ChalError {
     }
 }
 
+impl From<RuntimeError> for ChalError {
+    fn from(err: RuntimeError) -> Self {
+        ChalError::RuntimeErr(err)
+    }
+}
+
 impl From<InternalError> for ChalError {
     fn from(err: InternalError) -> Self {
         ChalError::InternalErr(err)
@@ -44,6 +51,7 @@ impl std::fmt::Display for ChalError {
 
             ChalError::LexerErr(err) => write!(f, "{}", err),
             ChalError::ParserErr(err) => write!(f, "{}", err),
+            ChalError::RuntimeErr(err) => write!(f, "{}", err),
             ChalError::InternalErr(err) => write!(f, "{}", err),
         }
     }

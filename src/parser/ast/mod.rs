@@ -11,11 +11,10 @@ pub use program::NodeProg;
 pub use stmnt::{parse_body, NodeRetStmnt, NodeStmnt};
 pub use var::{NodeVarCall, NodeVarDef};
 
-#[derive(Debug)]
 pub enum NodeValue {
     Int(i64),
     Uint(u64),
     Float(f64),
     Str(String),
-    // TODO: add custom values - structs
+    Bool(bool),
 }

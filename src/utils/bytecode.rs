@@ -29,17 +29,22 @@ pub enum Bytecode {
     OpDeleteVar = 26, // <name>
     OpGetVar = 27,    // <name> -> pushes the given variable's value on the top of the stack
 
-    OpCreateFunc = 30, // <name: u64> <len: u64> <body> -> len marks the number of bytes as body
-    OpCallFunc = 31,   // <name: u64> -> calls the function with given name
-    OpReturn = 32,     // terminate the current function's execution
+    OpCallFunc = 31, // <pos: u64> -> calls the function at the given position
+    OpReturn = 32,   // terminate the current function's execution
 
     OpIf = 35, // <len: u64> <body> -> if the top of the stack is true continue, else jump over the body
     OpJmp = 36, // <distance: i64> -> jumps forward the given distance (goes back if negative)
 
     OpAssertType = 50, // <type: u8> -> asserts the top of the stack is of given type
     OpPrint = 51,      // prints the value at the top of the stack
+    OpCast = 52,       // <type: u8> -> attempts to cast the top of the stack to the given value
 
-    OpDebug = 200, // prints debug info for the CVM
+    OpDebug = 200,    // prints debug info for the CVM
+    OpStartLn = 201,  // <ln: u64> -> sets the start line
+    OpStartCol = 202, // <col: u64> -> sets the start column
+    OpEndLn = 203,    // <ln: u64> -> sets the end line
+    OpEndCol = 204,   // <col: u64> -> sets the end column
+    OpSetSpan = 205,  // <id: u16> -> sets the current span's id
 }
 
 impl TryInto<Bytecode> for Type {

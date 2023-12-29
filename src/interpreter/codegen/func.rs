@@ -1,20 +1,23 @@
 use super::ToBytecode;
 
-use crate::error::{ChalError, InternalError};
+use crate::error::{ChalError, RuntimeError};
 use crate::interpreter::FuncAnnotation;
-use crate::parser::ast::{NodeFuncCall, NodeFuncDef};
+use crate::lexer::Type;
+use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 use crate::utils::Bytecode;
 
 use super::stmnt_to_bytecode;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(
         self,
-        func_symtable: &mut HashMap<String, FuncAnnotation>,
+        bytecode_len: usize,
+        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
-        let (name, args, ret, body_raw) = self.disassemble();
+        let (name, args, ret_type, body_raw, start, end, span) = self.disassemble();
 
         /* compile the bytecode for all body statements */
         let mut body = Vec::<u8>::new();
@@ -23,17 +26,34 @@ impl ToBytecode for NodeFuncDef {
             var_lookup.insert(arg.0.clone());
         }
 
-        let annotation = FuncAnnotation::new(args, ret);
+        let annotation = FuncAnnotation::new(args, ret_type.clone());
         func_symtable.insert(name.clone(), annotation);
+        func_lookup.insert(name.clone(), bytecode_len as u64);
 
         let mut mock_lookup = HashSet::<String>::new();
+        let mut returned = false;
         for stmnt in body_raw {
+            if let NodeStmnt::RetStmnt(_) = stmnt {
+                returned = true;
+            }
             body.append(&mut stmnt_to_bytecode(
                 stmnt,
+                bytecode_len,
                 func_symtable,
+                func_lookup,
                 &mut mock_lookup,
                 &mut var_lookup,
             )?)
+        }
+
+        match ret_type {
+            Type::Void if !returned => {
+                body.push(Bytecode::OpReturn as u8);
+            }
+            _ if !returned => {
+                return Err(RuntimeError::no_default_return_stmnt(start, end, span).into())
+            }
+            _ => {}
         }
 
         /* remove the arguments as local variables */
@@ -43,35 +63,44 @@ impl ToBytecode for NodeFuncDef {
             body.push(0);
         }
 
-        /* complete the function creation instruction */
-        let mut result = Vec::<u8>::with_capacity(1 + name.len() + 1 + 8 + body.len());
-        result.push(Bytecode::OpCreateFunc as u8);
-        result.extend_from_slice(name.as_bytes());
-        result.push(0);
-        result.extend_from_slice(&(body.len() as u64).to_ne_bytes());
-        result.append(&mut body);
-
-        Ok(result)
+        Ok(body)
     }
 }
 
 impl ToBytecode for NodeFuncCall {
     fn to_bytecode(
         self,
-        func_symtable: &mut HashMap<String, FuncAnnotation>,
+        bytecode_len: usize,
+        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
-        let (fn_name, args) = self.disassemble();
+        let (fn_name, args, start, end, span) = self.disassemble();
+        /* this check is already performed in expression and statement node parsing, but it's safer */
         if !func_symtable.contains_key(&fn_name) {
-            return Err(ChalError::from(InternalError::new(
-                "TODO: make this a proper error for missing function definition",
-            )));
+            return Err(RuntimeError::unknown_function(fn_name, start, end, span).into());
         }
         let annotation = (*func_symtable.get(&fn_name).unwrap()).clone();
 
         if annotation.args.len() != args.len() {
-            return Err(ChalError::from(InternalError::new(
-                "TODO: make this a proper error for mismatching number of arguments",
-            )));
+            if annotation.args.len() < args.len() {
+                return Err(RuntimeError::too_many_arguments(
+                    annotation.args.len(),
+                    args.len(),
+                    start,
+                    end,
+                    span,
+                )
+                .into());
+            } else {
+                return Err(RuntimeError::too_few_arguments(
+                    annotation.args.len(),
+                    args.len(),
+                    start,
+                    end,
+                    span,
+                )
+                .into());
+            }
         }
 
         /* set up the function arguments as local variables inside the function scope */
@@ -81,7 +110,7 @@ impl ToBytecode for NodeFuncCall {
 
         for arg in arg_iter {
             /* push the argument value */
-            result.append(&mut arg.to_bytecode(func_symtable)?);
+            result.append(&mut arg.to_bytecode(bytecode_len, func_symtable, func_lookup)?);
 
             let ann = annotation_iter.next().unwrap();
 
@@ -96,9 +125,9 @@ impl ToBytecode for NodeFuncCall {
         }
 
         /* complete the function call instruction */
+        let fn_pos = func_lookup[&fn_name];
         result.push(Bytecode::OpCallFunc as u8);
-        result.extend_from_slice(fn_name.as_bytes());
-        result.push(0);
+        result.extend_from_slice(&fn_pos.to_ne_bytes());
 
         Ok(result)
     }

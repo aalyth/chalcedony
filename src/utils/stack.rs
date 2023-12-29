@@ -10,6 +10,12 @@ impl<T> Stack<T> {
         }
     }
 
+    pub fn with_capacity(cap: usize) -> Self {
+        Stack {
+            values: Vec::<T>::with_capacity(cap),
+        }
+    }
+
     pub fn push(&mut self, val: T) {
         self.values.push(val);
     }

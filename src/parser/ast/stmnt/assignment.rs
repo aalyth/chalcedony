@@ -5,7 +5,6 @@ use crate::parser::TokenReader;
 
 use std::rc::Rc;
 
-#[derive(Debug)]
 pub struct NodeAssign {
     lhs: NodeVarCall,
     opr: AssignOprType,
@@ -25,11 +24,12 @@ impl IntoAssignmentOpr for Token {
             TokenKind::Operator(Operator::MulEq) => Ok(AssignOprType::MulEq),
             TokenKind::Operator(Operator::DivEq) => Ok(AssignOprType::DivEq),
             TokenKind::Operator(Operator::ModEq) => Ok(AssignOprType::ModEq),
-            _ => Err(ChalError::from(ParserError::invalid_assignment_operator(
+            _ => Err(ParserError::invalid_assignment_operator(
                 self.start(),
                 self.end(),
                 span.clone(),
-            ))),
+            )
+            .into()),
         }
     }
 }
@@ -40,7 +40,7 @@ impl NodeAssign {
         let lhs = NodeVarCall::new(lhs_raw, reader.span())?;
 
         let opr = reader
-            .expect(TokenKind::Operator(crate::lexer::Operator::Eq))?
+            .expect(TokenKind::Operator(Operator::Eq))?
             .try_into_assignment_opr(reader.span())?;
 
         let rhs_raw = reader.advance_until(|tk| *tk == TokenKind::Newline)?;

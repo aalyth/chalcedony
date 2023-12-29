@@ -1,24 +1,26 @@
 use super::ToBytecode;
 
-use crate::error::{ChalError, InternalError};
+use crate::error::{ChalError, InternalError, RuntimeError};
 use crate::interpreter::FuncAnnotation;
 use crate::lexer::Type;
 use crate::parser::ast::operators::AssignOprType;
 use crate::parser::ast::{NodeRetStmnt, NodeStmnt, NodeVarCall};
 use crate::utils::Bytecode;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 pub fn stmnt_to_bytecode(
     node: NodeStmnt,
-    func_symtable: &mut HashMap<String, FuncAnnotation>,
+    bytecode_len: usize,
+    func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+    func_lookup: &mut BTreeMap<String, u64>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
 ) -> Result<Vec<u8>, ChalError> {
     match node {
         NodeStmnt::VarDef(node) => {
             let var_name = node.name();
-            let mut var_bytecode = node.to_bytecode(func_symtable)?;
+            let mut var_bytecode = node.to_bytecode(bytecode_len, func_symtable, func_lookup)?;
 
             /* this capacity is for the best case scenario, if we need to delete the already
              * existing variable, there will be another allocation*/
@@ -34,29 +36,29 @@ pub fn stmnt_to_bytecode(
             }
 
             result.append(&mut var_bytecode);
-            result.push(200);
             return Ok(result);
         }
 
         NodeStmnt::FuncCall(node) => {
             let Some(annotation) = func_symtable.get(&node.name()) else {
-                return Err(ChalError::from(InternalError::new(
-                    "TODO: make this a proper error for missing function definition",
-                )));
+                let (fn_name, _, start, end, span) = node.disassemble();
+                return Err(RuntimeError::unknown_function(fn_name, start, end, span).into());
             };
 
-            if annotation.ret_type != Type::Void {
-                return Err(ChalError::from(InternalError::new(
-                    "TODO: make this a proper error for calling a non-void function as a statement",
-                )));
+            let fn_ty = &annotation.ret_type;
+            if *fn_ty != Type::Void {
+                let (_, _, start, end, span) = node.disassemble();
+                return Err(
+                    RuntimeError::non_void_func_stmnt(fn_ty.clone(), start, end, span).into(),
+                );
             }
 
-            node.to_bytecode(func_symtable)
+            node.to_bytecode(bytecode_len, func_symtable, func_lookup)
         }
 
         NodeStmnt::RetStmnt(NodeRetStmnt(expr)) => {
             let mut result = Vec::<u8>::new();
-            result.append(&mut expr.to_bytecode(func_symtable)?);
+            result.append(&mut expr.to_bytecode(bytecode_len, func_symtable, func_lookup)?);
 
             /* remove all variables in the current scope */
             for var in parent_scope.iter() {
@@ -79,7 +81,7 @@ pub fn stmnt_to_bytecode(
             let (cond, body_raw, branches) = node.disassemble();
 
             let mut result = Vec::<u8>::new();
-            result.append(&mut cond.to_bytecode(func_symtable)?);
+            result.append(&mut cond.to_bytecode(bytecode_len, func_symtable, func_lookup)?);
             /* there is no need to use a type assertion for bool value since the OpIf
              * instruction already checks it */
             result.push(Bytecode::OpIf as u8);
@@ -92,7 +94,9 @@ pub fn stmnt_to_bytecode(
             for stmnt in body_raw {
                 body.append(&mut stmnt_to_bytecode(
                     stmnt,
+                    bytecode_len,
                     func_symtable,
+                    func_lookup,
                     &mut current_parent_scope,
                     &mut current_local_scope,
                 )?);
@@ -115,7 +119,7 @@ pub fn stmnt_to_bytecode(
             let (cond, body_raw) = node.disassemble();
 
             let mut result = Vec::<u8>::new();
-            result.append(&mut cond.to_bytecode(func_symtable)?);
+            result.append(&mut cond.to_bytecode(bytecode_len, func_symtable, func_lookup)?);
             /* there is no need to use a type assertion for bool value since the OpIf
              * instruction already checks it */
             result.push(Bytecode::OpIf as u8);
@@ -128,7 +132,9 @@ pub fn stmnt_to_bytecode(
             for stmnt in body_raw {
                 body.append(&mut stmnt_to_bytecode(
                     stmnt,
+                    bytecode_len,
                     func_symtable,
+                    func_lookup,
                     &mut current_parent_scope,
                     &mut current_local_scope,
                 )?);
@@ -162,7 +168,7 @@ pub fn stmnt_to_bytecode(
                 result.push(0);
             }
 
-            result.append(&mut rhs.to_bytecode(func_symtable)?);
+            result.append(&mut rhs.to_bytecode(bytecode_len, func_symtable, func_lookup)?);
 
             match opr {
                 AssignOprType::AddEq => result.push(Bytecode::OpAdd as u8),

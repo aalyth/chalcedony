@@ -10,11 +10,10 @@ use while_loop::NodeWhileLoop;
 
 use super::{NodeFuncCall, NodeVarDef};
 
-use crate::error::ChalError;
+use crate::error::{ChalError, InternalError, ParserError};
 use crate::lexer::{Delimiter, Keyword, TokenKind};
 use crate::parser::{LineReader, TokenReader};
 
-#[derive(Debug)]
 pub enum NodeStmnt {
     VarDef(NodeVarDef),
     FuncCall(NodeFuncCall),
@@ -63,11 +62,14 @@ pub fn parse_body(mut reader: LineReader) -> Result<Vec<NodeStmnt>, ChalError> {
             }
 
             TokenKind::Identifier(_) => {
-                // TODO: throw error?
                 let Some(line) = reader.advance() else {
-                    continue;
+                    return Err(InternalError::new(
+                        "NodeStmnt::parse_body(): could not advance a peeked reader",
+                    )
+                    .into());
                 };
 
+                // SAFETY: there is always at least 2 elements in the line (the identifer + newline)
                 if let Some(peek) = line.tokens().get(1) {
                     if *peek.kind() == TokenKind::Delimiter(Delimiter::OpenPar) {
                         let node_raw = NodeFuncCall::new(line.into(), reader.span().clone());
@@ -122,13 +124,14 @@ pub fn parse_body(mut reader: LineReader) -> Result<Vec<NodeStmnt>, ChalError> {
                 res.push(NodeStmnt::WhileLoop(node));
             }
 
-            // TODO: proper errors
-            _ => return Err(ChalError::from(err_vec)),
+            _ => err_vec.push(
+                ParserError::invalid_statement(front.start(), front.end(), reader.span()).into(),
+            ),
         }
     }
 
     if !err_vec.is_empty() {
-        return Err(ChalError::from(err_vec));
+        return Err(err_vec.into());
     }
     Ok(res)
 }

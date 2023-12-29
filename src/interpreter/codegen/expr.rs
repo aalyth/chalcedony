@@ -1,22 +1,45 @@
 use super::ToBytecode;
 
-use crate::error::ChalError;
+use crate::error::{ChalError, Position, RuntimeError};
 use crate::interpreter::FuncAnnotation;
+use crate::lexer::Type;
 use crate::parser::ast::operators::{BinOprType, UnaryOprType};
 use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue, NodeVarCall};
 use crate::utils::Bytecode;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+
+const U32_BYTES: usize = 4;
+const POS_BYTES: usize = 1 + U32_BYTES;
+
+macro_rules! push_pos_bytecode {
+    ($result:ident, $code:ident, $val:expr) => {{
+        $result.push(Bytecode::$code as u8);
+        $result.extend_from_slice(&($val as u64).to_ne_bytes());
+    }};
+}
+
+fn set_positions(start: Position, end: Position) -> Vec<u8> {
+    let mut result = Vec::<u8>::with_capacity(4 * POS_BYTES);
+    push_pos_bytecode!(result, OpStartLn, start.ln);
+    push_pos_bytecode!(result, OpStartCol, start.col);
+    push_pos_bytecode!(result, OpEndLn, end.ln);
+    push_pos_bytecode!(result, OpEndCol, end.col);
+    return result;
+}
 
 impl ToBytecode for NodeExpr {
     fn to_bytecode(
         self,
-        func_symtable: &mut HashMap<String, FuncAnnotation>,
+        bytecode_len: usize,
+        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
-        let NodeExpr(expr) = self;
+        let (expr, start, end, _span) = self.disassemble();
         let mut result = Vec::<u8>::new();
+        result.append(&mut set_positions(start, end));
         for e in expr {
-            result.append(&mut e.to_bytecode(func_symtable)?)
+            result.append(&mut e.to_bytecode(bytecode_len, func_symtable, func_lookup)?)
         }
         Ok(result)
     }
@@ -34,7 +57,9 @@ macro_rules! val_to_bytecode {
 impl ToBytecode for NodeExprInner {
     fn to_bytecode(
         self,
-        func_symtable: &mut HashMap<String, FuncAnnotation>,
+        bytecode_len: usize,
+        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
         match self {
             NodeExprInner::BinOpr(opr_type) => match opr_type {
@@ -56,10 +81,12 @@ impl ToBytecode for NodeExprInner {
                 BinOprType::EqEq => Ok(vec![Bytecode::OpEq as u8]),
                 BinOprType::BangEq => Ok(vec![Bytecode::OpEq as u8, Bytecode::OpNot as u8]),
             },
+
             NodeExprInner::UnaryOpr(opr_type) => match opr_type {
                 UnaryOprType::Neg => Ok(vec![Bytecode::OpNeg as u8]),
                 UnaryOprType::Bang => Ok(vec![Bytecode::OpNot as u8]),
             },
+
             NodeExprInner::Value(val_node) => match val_node {
                 NodeValue::Int(val) => val_to_bytecode!(5, &val.to_ne_bytes(), OpConstI),
                 NodeValue::Uint(val) => val_to_bytecode!(5, &val.to_ne_bytes(), OpConstU),
@@ -69,7 +96,11 @@ impl ToBytecode for NodeExprInner {
                     str_vec.push(0);
                     val_to_bytecode!(val.len() + 1, str_vec.as_slice(), OpConstS)
                 }
+                NodeValue::Bool(val) => {
+                    val_to_bytecode!(2, std::slice::from_ref(&u8::from(val)), OpConstB)
+                }
             },
+
             NodeExprInner::VarCall(NodeVarCall(varname)) => {
                 let mut result = Vec::<u8>::with_capacity(varname.len() + 1);
                 result.push(Bytecode::OpGetVar as u8);
@@ -77,9 +108,21 @@ impl ToBytecode for NodeExprInner {
                 result.push(0);
                 Ok(result)
             }
+
             NodeExprInner::FuncCall(node) => {
+                let Some(annotation) = func_symtable.get(&node.name()) else {
+                    let (fn_name, _, start, end, span) = node.disassemble();
+                    return Err(RuntimeError::unknown_function(fn_name, start, end, span).into());
+                };
+
+                let fn_ty = &annotation.ret_type;
+                if *fn_ty == Type::Void {
+                    let (_, _, start, end, span) = node.disassemble();
+                    return Err(RuntimeError::void_func_expr(start, end, span).into());
+                }
+
                 let mut res = Vec::<u8>::new();
-                res.append(&mut node.to_bytecode(func_symtable)?);
+                res.append(&mut node.to_bytecode(bytecode_len, func_symtable, func_lookup)?);
                 Ok(res)
             }
         }

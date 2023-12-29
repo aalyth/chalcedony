@@ -6,15 +6,17 @@ use crate::lexer::Type;
 use crate::parser::ast::NodeVarDef;
 use crate::utils::Bytecode;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 impl ToBytecode for NodeVarDef {
     fn to_bytecode(
         self,
-        func_symtable: &mut HashMap<String, FuncAnnotation>,
+        bytecode_len: usize,
+        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
         let (var_name, var_type, rhs) = self.disassemble();
-        let mut result = rhs.to_bytecode(func_symtable)?;
+        let mut result = rhs.to_bytecode(bytecode_len, func_symtable, func_lookup)?;
 
         if var_type != Type::Any {
             // SAFETY: the if itself checks for valid conversion input

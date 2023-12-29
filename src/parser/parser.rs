@@ -19,14 +19,16 @@ impl Parser {
 
     pub fn advance(&mut self) -> Result<NodeProg, ChalError> {
         if self.lexer.is_empty() {
-            return Err(ChalError::from(InternalError::new(
-                "Parser::advance(): advancing an empty parser",
-            )));
+            return Err(InternalError::new("Parser::advance(): advancing an empty parser").into());
         }
         NodeProg::new(self.lexer.advance_prog()?, self.span.clone())
     }
 
     pub fn is_empty(&self) -> bool {
         self.lexer.is_empty()
+    }
+
+    pub fn span(&self) -> Rc<Span> {
+        self.span.clone()
     }
 }

@@ -11,6 +11,7 @@ enum ParserErrorKind {
     InvalidAssignmentOperator,
     RepeatedExprTerminal,
     RepeatedExprOperator,
+    InvalidStatement,
 }
 
 pub struct ParserError {
@@ -75,6 +76,10 @@ impl ParserError {
         ParserError::new(ParserErrorKind::RepeatedExprOperator, start, end, span)
     }
 
+    pub fn invalid_statement(start: Position, end: Position, span: Rc<Span>) -> Self {
+        ParserError::new(ParserErrorKind::InvalidStatement, start, end, span)
+    }
+
     fn display_err(&self, f: &mut std::fmt::Formatter, msg: &str) -> std::fmt::Result {
         write!(
             f,
@@ -117,6 +122,8 @@ impl std::fmt::Display for ParserError {
             ParserErrorKind::RepeatedExprOperator => {
                 self.display_err(f, "repeated expression operator")
             }
+
+            ParserErrorKind::InvalidStatement => self.display_err(f, "invalid statement"),
         }
     }
 }

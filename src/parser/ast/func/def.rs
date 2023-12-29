@@ -1,4 +1,4 @@
-use crate::error::{ChalError, InternalError, LexerError, Span};
+use crate::error::{ChalError, InternalError, LexerError, Position, Span};
 use crate::lexer::{Delimiter, Keyword, Line, Special, TokenKind, Type};
 use crate::parser::ast::{parse_body, NodeStmnt};
 use crate::parser::{LineReader, TokenReader};
@@ -6,12 +6,16 @@ use crate::parser::{LineReader, TokenReader};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-#[derive(Debug)]
 pub struct NodeFuncDef {
     name: String,
     args: Vec<(String, Type)>,
     ret_type: Type,
     body: Vec<NodeStmnt>,
+
+    /* the positions refer to the function's header */
+    start: Position,
+    end: Position,
+    span: Rc<Span>,
 }
 
 impl NodeFuncDef {
@@ -23,29 +27,28 @@ impl NodeFuncDef {
          */
         let mut reader = LineReader::new(chunk, span.clone());
         let Some(header_src) = reader.advance() else {
-            return Err(ChalError::from(InternalError::new(
+            return Err(InternalError::new(
                 "NodeFuncDef::new(): creating a function definiton from empty source",
-            )));
+            )
+            .into());
         };
 
         if header_src.tokens().is_empty() {
-            return Err(ChalError::from(InternalError::new(
+            return Err(InternalError::new(
                 "NodeFuncDef::new(): creating a function definiton with empty source tokens",
-            )));
+            )
+            .into());
         }
 
         /* NOTE: remove this if nested function definitions become allowed */
         if header_src.indent() != 0 {
             let start = header_src.tokens().front().unwrap().start();
             let end = header_src.tokens().front().unwrap().end();
-            return Err(ChalError::from(LexerError::invalid_indentation(
-                start,
-                end,
-                span.clone(),
-            )));
+            return Err(LexerError::invalid_indentation(start, end, span.clone()).into());
         }
 
         let mut header = TokenReader::new(header_src.into(), span.clone());
+        let start = header.start();
 
         header.expect_exact(TokenKind::Keyword(Keyword::Fn))?;
 
@@ -78,20 +81,44 @@ impl NodeFuncDef {
             ret_type = header.expect_type()?;
         }
 
-        /* TODO: uncomment
         header.expect_exact(TokenKind::Special(Special::Colon))?;
+        let end = header.end();
         header.expect_exact(TokenKind::Newline)?;
-        */
 
         Ok(NodeFuncDef {
             name,
             args,
             ret_type,
             body: parse_body(reader)?,
+            start,
+            end,
+            span: header.span(),
         })
     }
 
-    pub fn disassemble(self) -> (String, Vec<(String, Type)>, Type, Vec<NodeStmnt>) {
-        (self.name, self.args, self.ret_type, self.body)
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn disassemble(
+        self,
+    ) -> (
+        String,
+        Vec<(String, Type)>,
+        Type,
+        Vec<NodeStmnt>,
+        Position,
+        Position,
+        Rc<Span>,
+    ) {
+        (
+            self.name,
+            self.args,
+            self.ret_type,
+            self.body,
+            self.start,
+            self.end,
+            self.span,
+        )
     }
 }

@@ -170,8 +170,8 @@ impl Span {
         let ellipsis = color(Colors::Gray, "...");
         const ELLIPSIS_LEN: usize = 3;
 
-        if pos.col > 25 {
-            let left_bound = pos.col - 25;
+        if pos.col > 35 {
+            let left_bound = pos.col - 35;
             let right_bound = pos.col + ctx_len;
 
             result.push_str(&ellipsis);
@@ -183,20 +183,20 @@ impl Span {
             result.push_str(&tmp);
 
             /* the added 2 are the buffered whitespaces around the line indicator */
-            res_pos = ln_len + ELLIPSIS_LEN + 25 + 2;
+            res_pos = ln_len + ELLIPSIS_LEN + 35 + 2;
         } else {
             let tmp: String = curr_line.chars().take(pos.col + ctx_len).collect();
             result.push_str(&tmp);
             res_pos = pos_.col + ln_len + 1;
         }
 
-        if curr_line.chars().count() - (pos.col + ctx_len) > 25 {
+        if curr_line.chars().count() - (pos.col + ctx_len) > 35 {
             /* same as curr_line[pos.col + len .. pos.col + len + 24]
              * but works with UTF-8
              */
             let tmp: String = curr_line
                 .chars()
-                .take(pos.col + ctx_len + 24)
+                .take(pos.col + ctx_len + 34)
                 .skip(pos.col + ctx_len)
                 .collect();
             result.push_str(&tmp);

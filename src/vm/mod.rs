@@ -1,9 +1,12 @@
 mod builtins;
+mod error;
 mod object;
 
 use builtins::{add, and, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
+use error::{CVMError, CVMErrorKind};
 use object::CVMObject;
 
+use crate::error::Position;
 use crate::lexer::Type;
 
 use crate::utils::{Bytecode, Stack};
@@ -11,37 +14,33 @@ use crate::utils::{Bytecode, Stack};
 use std::collections::{BTreeMap, VecDeque};
 // use fxhash::BTreeMap;
 
-#[derive(Debug)]
-pub enum CVMError {
-    ExpectedObject,
-    InvalidInstruction,
-    InvalidOperation,
-    UnknownVariable,
-    UnknownFunction,
-    TypeAssertionFail(Type, Type), /* exp, recv */
-    InvalidType(Type, Type),       /* exp, recv */
-}
-
 pub struct CVM {
     stack: Stack<CVMObject>,
     var_heap: BTreeMap<String, VecDeque<CVMObject>>,
-    func_heap: BTreeMap<String, Vec<u8>>,
+    call_stack: Stack<usize>,
+
+    start: Position,
+    end: Position,
+    span_id: u16,
+}
+
+macro_rules! parse_constant {
+    ( $cvm:expr, $type:ident, $current_idx:ident, $code:ident) => {{
+        let type_size = std::mem::size_of::<$type>();
+        let Ok(chunk) =
+            &$code[$current_idx..$current_idx + type_size].try_into() as &Result<[u8; 8], _>
+        else {
+            return Err($cvm.error(CVMErrorKind::InvalidInstruction));
+        };
+        ($type::from_ne_bytes(*chunk), $current_idx + type_size)
+    }};
 }
 
 macro_rules! push_constant {
     ( $cvm:expr, $type:ident, $obj_type:ident, $current_idx:ident, $code:ident) => {{
-        let chunk = &$code[$current_idx..$current_idx + 8];
-        let val = $type::from_ne_bytes(chunk.try_into().expect("TODO: add proper error handling"));
+        let (val, next_idx) = parse_constant!($cvm, $type, $current_idx, $code);
         $cvm.stack.push(CVMObject::$obj_type(val));
-        Ok($current_idx + 8)
-    }};
-}
-
-macro_rules! push_var {
-    ( $cvm:expr, $var_name:ident, $type:ident, $obj_type:ident, $val_idx:expr, $code:ident) => {{
-        let chunk = &$code[$val_idx..$val_idx + 8];
-        let val = $type::from_ne_bytes(chunk.try_into().expect("TODO: add proper error handling"));
-        Ok($val_idx + 8)
+        Ok(next_idx)
     }};
 }
 
@@ -58,33 +57,14 @@ macro_rules! parse_bytecode_str {
 
 impl CVM {
     pub fn new() -> Self {
-        let mut func_heap = BTreeMap::<String, Vec<u8>>::default();
-        func_heap.insert(
-            String::from("print"),
-            vec![
-                Bytecode::OpGetVar as u8,
-                111,
-                117,
-                116,
-                112,
-                117,
-                116,
-                0,
-                Bytecode::OpPrint as u8,
-                Bytecode::OpDeleteVar as u8,
-                111,
-                117,
-                116,
-                112,
-                117,
-                116,
-                0,
-            ],
-        );
         CVM {
-            stack: Stack::<CVMObject>::new(),
+            stack: Stack::<CVMObject>::with_capacity(1000),
             var_heap: BTreeMap::<String, VecDeque<CVMObject>>::default(),
-            func_heap,
+            call_stack: Stack::<usize>::new(),
+
+            start: Position::new(1, 1),
+            end: Position::new(1, 1),
+            span_id: 0,
         }
     }
 
@@ -93,10 +73,9 @@ impl CVM {
         Some(self.stack.peek()?.as_type())
     }
 
-    pub fn execute(&mut self, code: Vec<u8>) -> Result<(), CVMError> {
-        let mut current_idx = 0 as usize;
-        let code_len = code.len();
-        while current_idx < code_len {
+    pub fn execute(&mut self, start: usize, code: Vec<u8>) -> Result<(), CVMError> {
+        let mut current_idx = start;
+        while current_idx < code.len() {
             current_idx = self.execute_next(current_idx, &code)?;
         }
         Ok(())
@@ -118,12 +97,22 @@ impl CVM {
                 self.stack.push(CVMObject::Str(val.to_string()));
                 Ok(next_idx)
             }
+            Bytecode::OpConstB => {
+                let Ok(chunk) =
+                    &code[current_idx..current_idx + 1].try_into() as &Result<[u8; 1], _>
+                else {
+                    return Err(self.error(CVMErrorKind::InvalidInstruction));
+                };
+                let byte = u8::from_ne_bytes(*chunk);
+                self.stack.push(CVMObject::Bool(byte != 0));
+                Ok(current_idx + 1)
+            }
 
             Bytecode::OpDebug => {
                 /*
                 println!("CVM_STACK: {:#?}\n", self.stack);
-                println!("CVM_FUNC_HEAP: {:#?}\n", self.func_heap);
                 println!("CVM_VAR_HEAP: {:#?}\n", self.var_heap);
+                println!("CVM_CALL_STACK: {:#?}\n", self.call_stack);
                 */
                 Ok(current_idx)
             }
@@ -174,7 +163,7 @@ impl CVM {
             Bytecode::OpGetVar => {
                 let (var_name, next_idx) = parse_bytecode_str!(current_idx, code);
                 let Some(var_bucket) = self.var_heap.get(var_name) else {
-                    return Err(CVMError::UnknownVariable);
+                    return Err(self.error(CVMErrorKind::UnknownVariable(var_name.to_string())));
                 };
                 self.stack.push(
                     var_bucket
@@ -185,71 +174,49 @@ impl CVM {
                 Ok(next_idx)
             }
 
-            Bytecode::OpCreateFunc => {
-                let (fn_name, next_arg_idx) = parse_bytecode_str!(current_idx, code);
-                /*
-                let body_len = *code
-                    .get(next_arg_idx)
-                    .expect("TODO: add proper error handling for invalid bytecode syntax")
-                    as usize;
-                */
-                let body_len = u64::from_ne_bytes(
-                    code[next_arg_idx..next_arg_idx + 8]
-                        .try_into()
-                        .expect("TODO: add proper error handling for invalid instruction"),
-                );
-
-                let mut body_raw = Vec::with_capacity(body_len as usize);
-                let body_start = next_arg_idx + 8;
-                let body_end = body_start + body_len as usize;
-                body_raw.extend_from_slice(&code[body_start..body_end]);
-
-                // TODO: add checks for conflicting function implementations
-                self.func_heap
-                    .entry(fn_name.to_string())
-                    .or_insert(body_raw);
-                Ok(body_end)
-            }
-
             Bytecode::OpCallFunc => {
-                let (fn_name, next_idx) = parse_bytecode_str!(current_idx, code);
-                if !self.func_heap.contains_key(fn_name) {
-                    return Err(CVMError::UnknownFunction);
-                }
-                // TODO: check if this could be done without a clone
-                let function = self.func_heap.get(fn_name).unwrap().clone();
-                self.execute(function)?;
-                Ok(next_idx)
+                let (fn_pos, next_idx) = parse_constant!(self, u64, current_idx, code);
+                self.call_stack.push(next_idx);
+                Ok(fn_pos as usize)
             }
 
-            /* terminates the current function's execution */
-            Bytecode::OpReturn => Ok(code.len()),
+            Bytecode::OpReturn => {
+                /* if there are no other call_stacks, we terminate the execution of main */
+                if let Some(prev_idx) = self.call_stack.pop() {
+                    Ok(prev_idx)
+                } else {
+                    Ok(code.len())
+                }
+            }
+
             Bytecode::OpAssertType => {
                 let Some(assert_raw) = code.get(current_idx) else {
-                    return Err(CVMError::InvalidInstruction);
+                    return Err(self.error(CVMErrorKind::InvalidInstruction));
                 };
                 let assert_raw: Bytecode = unsafe { std::mem::transmute(*assert_raw) };
                 let Ok(assert) = assert_raw.try_into() else {
-                    return Err(CVMError::InvalidInstruction);
+                    return Err(self.error(CVMErrorKind::InvalidInstruction));
                 };
 
                 let Some(peek_raw) = self.stack.peek() else {
-                    return Err(CVMError::ExpectedObject);
+                    return Err(self.error(CVMErrorKind::ExpectedObject));
                 };
                 let peek_type = peek_raw.as_type();
 
                 if assert != peek_type {
-                    return Err(CVMError::TypeAssertionFail(peek_type, assert));
+                    return Err(self.error(CVMErrorKind::TypeAssertionFail(assert, peek_type)));
                 }
                 Ok(current_idx + 1)
             }
 
             Bytecode::OpIf => {
                 let Some(cond_raw) = self.stack.pop() else {
-                    return Err(CVMError::ExpectedObject);
+                    return Err(self.error(CVMErrorKind::ExpectedObject));
                 };
                 let CVMObject::Bool(cond) = cond_raw else {
-                    return Err(CVMError::InvalidType(Type::Bool, cond_raw.as_type()));
+                    return Err(
+                        self.error(CVMErrorKind::InvalidType(Type::Bool, cond_raw.as_type()))
+                    );
                 };
 
                 if !cond {
@@ -275,16 +242,46 @@ impl CVM {
 
             Bytecode::OpPrint => {
                 let Some(output_obj) = self.stack.pop() else {
-                    return Err(CVMError::ExpectedObject);
+                    return Err(self.error(CVMErrorKind::ExpectedObject));
                 };
                 let CVMObject::Str(output) = output_obj else {
-                    return Err(CVMError::InvalidType(Type::Str, output_obj.as_type()));
+                    return Err(
+                        self.error(CVMErrorKind::InvalidType(Type::Str, output_obj.as_type()))
+                    );
                 };
-                print!("{}", output);
+                println!("{}", output);
                 Ok(current_idx)
             }
 
-            _ => panic!("unknown instruction"),
+            Bytecode::OpStartLn => {
+                let (ln, next_idx) = parse_constant!(self, u64, current_idx, code);
+                self.start.ln = ln as usize;
+                Ok(next_idx)
+            }
+
+            Bytecode::OpStartCol => {
+                let (col, next_idx) = parse_constant!(self, u64, current_idx, code);
+                self.start.col = col as usize;
+                Ok(next_idx)
+            }
+
+            Bytecode::OpEndLn => {
+                let (ln, next_idx) = parse_constant!(self, u64, current_idx, code);
+                self.end.ln = ln as usize;
+                Ok(next_idx)
+            }
+
+            Bytecode::OpEndCol => {
+                let (col, next_idx) = parse_constant!(self, u64, current_idx, code);
+                self.end.col = col as usize;
+                Ok(next_idx)
+            }
+
+            _ => Err(self.error(CVMErrorKind::UnknownInstruction)),
         }
+    }
+
+    pub fn error(&self, kind: CVMErrorKind) -> CVMError {
+        CVMError::new(kind, self.start, self.end, self.span_id)
     }
 }

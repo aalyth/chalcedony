@@ -1,4 +1,4 @@
-use crate::error::{ChalError, Span};
+use crate::error::{ChalError, Position, Span};
 use crate::lexer::{Delimiter, Special, Token, TokenKind};
 use crate::parser::ast::NodeExpr;
 
@@ -7,15 +7,20 @@ use crate::parser::TokenReader;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-#[derive(Debug)]
 pub struct NodeFuncCall {
     name: String,
     args: Vec<NodeExpr>,
+
+    start: Position,
+    end: Position,
+    span: Rc<Span>,
 }
 
 impl NodeFuncCall {
     pub fn new(tokens: VecDeque<Token>, span: Rc<Span>) -> Result<Self, ChalError> {
         let mut reader = TokenReader::new(tokens, span.clone());
+
+        let start = reader.start();
 
         let name = reader.expect_ident()?;
         reader.expect_exact(TokenKind::Delimiter(Delimiter::OpenPar))?;
@@ -32,7 +37,15 @@ impl NodeFuncCall {
             first_iter = false;
         }
 
-        Ok(NodeFuncCall { name, args })
+        reader.expect_exact(TokenKind::Delimiter(Delimiter::ClosePar))?;
+
+        Ok(NodeFuncCall {
+            name,
+            args,
+            start,
+            end: reader.end(),
+            span: reader.span(),
+        })
     }
 
     fn advance_arg(reader: &mut TokenReader, span: Rc<Span>) -> Result<NodeExpr, ChalError> {
@@ -65,7 +78,7 @@ impl NodeFuncCall {
         self.name.clone()
     }
 
-    pub fn disassemble(self) -> (String, Vec<NodeExpr>) {
-        (self.name, self.args)
+    pub fn disassemble(self) -> (String, Vec<NodeExpr>, Position, Position, Rc<Span>) {
+        (self.name, self.args, self.start, self.end, self.span)
     }
 }

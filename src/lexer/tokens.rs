@@ -2,7 +2,6 @@ use crate::error::span::pos::Position;
 use crate::error::span::Span;
 use crate::error::{ChalError, InternalError, LexerError};
 
-use std::collections::HashSet;
 use std::rc::Rc;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -14,7 +13,6 @@ pub enum Keyword {
     Elif,
     Else,
     While,
-    For,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -94,24 +92,19 @@ impl Delimiter {
     }
 }
 
-/* TODO: remove statics */
-lazy_static! {
-    static ref SPECIAL: HashSet<char> = {
-        HashSet::from([
-            '(', ')', '[', ']', '{', '}', ':', ';', '+', '-', '*', '/', '%', '=', '<', '>', '!',
-            ',', '&', '|',
-        ])
-    };
-    static ref OPERATORS: HashSet<char> =
-        { HashSet::from(['+', '-', '*', '/', '%', '=', '<', '>', '!', ':', '&', '|']) };
-}
-
 pub fn is_special(c: &char) -> bool {
-    SPECIAL.contains(c)
+    match *c {
+        '(' | ')' | '[' | ']' | '{' | '}' | ':' | ';' | '+' | '-' | '*' | '/' | '%' | '=' | '<'
+        | '>' | '!' | ',' | '&' | '|' => true,
+        _ => false,
+    }
 }
 
 pub fn is_operator(c: &char) -> bool {
-    OPERATORS.contains(c)
+    match *c {
+        '+' | '-' | '*' | '/' | '%' | '=' | '<' | '>' | '!' | ':' | '&' | '|' => true,
+        _ => false,
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -120,6 +113,7 @@ pub enum TokenKind {
     Uint(u64),
     Float(f64),
     Str(String),
+    Bool(bool),
 
     Keyword(Keyword),
     Type(Type),
@@ -138,9 +132,7 @@ impl TokenKind {
         span: &Rc<Span>,
     ) -> Result<TokenKind, ChalError> {
         if src == "" {
-            return Err(ChalError::from(InternalError::new(
-                "TokenKind::new(): lexing an empty string",
-            )));
+            return Err(InternalError::new("TokenKind::new(): lexing an empty string").into());
         }
         if src == "\n" {
             return Ok(TokenKind::Newline);
@@ -163,7 +155,6 @@ impl TokenKind {
             "else" => return Ok(TokenKind::Keyword(Keyword::Else)),
             "elif" => return Ok(TokenKind::Keyword(Keyword::Elif)),
             "while" => return Ok(TokenKind::Keyword(Keyword::While)),
-            "for" => return Ok(TokenKind::Keyword(Keyword::For)),
 
             /* DELIMITERS */
             "(" => return Ok(TokenKind::Delimiter(Delimiter::OpenPar)),
@@ -210,30 +201,32 @@ impl TokenKind {
             "!=" => return Ok(TokenKind::Operator(Operator::BangEq)),
             ":=" => return Ok(TokenKind::Operator(Operator::Walrus)),
 
+            "true" => return Ok(TokenKind::Bool(true)),
+            "false" => return Ok(TokenKind::Bool(false)),
+
             _ => (),
         };
 
+        /* TODO: check if this is ok
         if let Ok(kind) = src.parse::<u64>() {
             return Ok(TokenKind::Uint(kind));
         }
+        */
 
-        if let Ok(kind) = src.parse::<i64>() {
-            return Ok(TokenKind::Int(kind));
+        if let Ok(val) = src.parse::<i64>() {
+            return Ok(TokenKind::Int(val));
         }
 
-        if let Ok(kind) = src.parse::<f64>() {
-            return Ok(TokenKind::Float(kind));
+        if let Ok(val) = src.parse::<f64>() {
+            return Ok(TokenKind::Float(val));
         }
 
-        if (src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"')) || 
-        (src.chars().nth(0) == Some('\'') && src.chars().nth(src.len() - 1) == Some('\'')) {
+        if (src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"'))
+            || (src.chars().nth(0) == Some('\'') && src.chars().nth(src.len() - 1) == Some('\''))
+        {
             return Ok(TokenKind::Str(src.to_string()));
         } else if src.chars().nth(0) == Some('"') {
-            return Err(ChalError::from(LexerError::unclosed_string(
-                *start,
-                *end,
-                Rc::clone(span),
-            )));
+            return Err(LexerError::unclosed_string(*start, *end, Rc::clone(span)).into());
         }
 
         if src.chars().nth(0).unwrap().is_numeric()
@@ -241,11 +234,7 @@ impl TokenKind {
                 .chars()
                 .all(|c: char| -> bool { !c.is_ascii_alphanumeric() && c == '_' })
         {
-            return Err(ChalError::from(LexerError::invalid_identifier(
-                *start,
-                *end,
-                Rc::clone(span),
-            )));
+            return Err(LexerError::invalid_identifier(*start, *end, Rc::clone(span)).into());
         }
 
         return Ok(TokenKind::Identifier(src.to_string()));
@@ -306,9 +295,10 @@ impl Token {
 
     pub fn into_neg(self) -> Result<Self, ChalError> {
         if self.kind != TokenKind::Operator(Operator::Sub) {
-            return Err(ChalError::from(InternalError::new(
+            return Err(InternalError::new(
                 "Token::into_neg(): trying to convert a non-subtraction token into unary negation",
-            )));
+            )
+            .into());
         }
 
         Ok(Token {

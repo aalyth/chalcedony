@@ -3,7 +3,6 @@ use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{parse_body, NodeExpr, NodeStmnt};
 use crate::parser::LineReader;
 
-#[derive(Debug)]
 pub struct NodeWhileLoop {
     condition: NodeExpr,
     body: Vec<NodeStmnt>,
@@ -11,8 +10,6 @@ pub struct NodeWhileLoop {
 
 impl NodeWhileLoop {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
-        // Err(ChalError::from(InternalError::new("NodeWhileLoop not implemented")))
-
         // while loop structure:
         // while a <= 42:    | header
         //     print(a)      > body

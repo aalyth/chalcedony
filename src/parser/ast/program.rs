@@ -7,7 +7,6 @@ use crate::parser::TokenReader;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-#[derive(Debug)]
 pub enum NodeProg {
     VarDef(NodeVarDef),
     FuncDef(NodeFuncDef),
@@ -16,16 +15,12 @@ pub enum NodeProg {
 impl NodeProg {
     pub fn new(mut chunk: VecDeque<Line>, span: Rc<Span>) -> Result<Self, ChalError> {
         if chunk.is_empty() {
-            return Err(ChalError::from(InternalError::new(
-                "NodeProg::new(): received an empty code chunk",
-            )));
+            return Err(InternalError::new("NodeProg::new(): received an empty code chunk").into());
         }
 
         let front_line = chunk.front().unwrap();
         if front_line.tokens().is_empty() {
-            return Err(ChalError::from(InternalError::new(
-                "NodeProg::new(): empty first line of chunk",
-            )));
+            return Err(InternalError::new("NodeProg::new(): empty first line of chunk").into());
         }
 
         let front_tok = front_line.tokens().front().unwrap();
@@ -38,11 +33,7 @@ impl NodeProg {
             }
             TokenKind::Keyword(Keyword::Fn) => NodeProg::func_def(chunk, span),
 
-            _ => {
-                return Err(ChalError::from(InternalError::new(
-                    "NodeProg::new(): invalid chunk front",
-                )))
-            }
+            _ => return Err(InternalError::new("NodeProg::new(): invalid chunk front").into()),
         }
     }
 

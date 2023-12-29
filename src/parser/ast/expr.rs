@@ -1,4 +1,4 @@
-use crate::error::{ChalError, ParserError, Span};
+use crate::error::{ChalError, ParserError, Position, Span};
 use crate::lexer;
 use crate::lexer::{Delimiter, Token, TokenKind};
 use crate::parser::ast::operators::{BinOprType, UnaryOprType};
@@ -11,7 +11,6 @@ use crate::parser::TokenReader;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-#[derive(Debug)]
 pub enum NodeExprInner {
     BinOpr(BinOprType),
     UnaryOpr(UnaryOprType),
@@ -20,8 +19,12 @@ pub enum NodeExprInner {
     FuncCall(NodeFuncCall),
 }
 
-#[derive(Debug)]
-pub struct NodeExpr(pub Vec<NodeExprInner>);
+pub struct NodeExpr {
+    expr: Vec<NodeExprInner>,
+    start: Position,
+    end: Position,
+    span: Rc<Span>,
+}
 
 #[derive(PartialEq)]
 enum Operator {
@@ -139,11 +142,12 @@ enum PrevType {
 macro_rules! push_terminal {
     ( $terminal:expr, $output:ident, $prev_type:ident, $current_tok:ident, $reader: ident) => {
         if $prev_type == PrevType::Terminal {
-            return Err(ChalError::from(ParserError::repeated_expr_terminal(
+            return Err(ParserError::repeated_expr_terminal(
                 $current_tok.start(),
                 $current_tok.end(),
                 $reader.span(),
-            )));
+            )
+            .into());
         }
         $prev_type = PrevType::Terminal;
         $output.push($terminal);
@@ -157,11 +161,12 @@ macro_rules! push_operator {
         if (!is_unary && $prev_type == PrevType::BinOpr)
             || (is_unary && $prev_type == PrevType::UnaryOpr)
         {
-            return Err(ChalError::from(ParserError::repeated_expr_operator(
+            return Err(ParserError::repeated_expr_operator(
                 $current_tok.start(),
                 $current_tok.end(),
                 $reader.span(),
-            )));
+            )
+            .into());
         }
         if !is_unary {
             $prev_type = PrevType::BinOpr;
@@ -179,6 +184,7 @@ impl NodeExpr {
 
         let mut output = Stack::<NodeExprInner>::new();
         let mut operators = Stack::<Operator>::new();
+        let start = reader.start();
 
         // let mut prev_type = false;
         let mut prev_type = PrevType::BinOpr;
@@ -217,6 +223,15 @@ impl NodeExpr {
                 TokenKind::Str(val) => {
                     push_terminal!(
                         NodeExprInner::Value(NodeValue::Str(val.clone())),
+                        output,
+                        prev_type,
+                        current,
+                        reader
+                    );
+                }
+                TokenKind::Bool(val) => {
+                    push_terminal!(
+                        NodeExprInner::Value(NodeValue::Bool(*val)),
                         output,
                         prev_type,
                         current,
@@ -266,12 +281,13 @@ impl NodeExpr {
 
                 TokenKind::Operator(current_opr) => {
                     let Ok(opr) = Operator::try_from(current_opr) else {
-                        return Err(ChalError::from(ParserError::unexpected_token(
+                        return Err(ParserError::unexpected_token(
                             current.kind().clone(),
                             current.start(),
                             current.end(),
                             span.clone(),
-                        )));
+                        )
+                        .into());
                     };
 
                     let current_precedence = opr.precedence();
@@ -304,7 +320,15 @@ impl NodeExpr {
 
                 TokenKind::Newline => break,
 
-                _ => (),
+                _ => {
+                    return Err(ParserError::unexpected_token(
+                        current.kind().clone(),
+                        current.start(),
+                        current.end(),
+                        reader.span(),
+                    )
+                    .into())
+                }
             }
         }
 
@@ -312,6 +336,15 @@ impl NodeExpr {
             output.push(operators.pop().unwrap().try_into().unwrap());
         }
 
-        Ok(NodeExpr(output.into()))
+        Ok(NodeExpr {
+            expr: output.into(),
+            start,
+            end: reader.end(),
+            span: span.clone(),
+        })
+    }
+
+    pub fn disassemble(self) -> (Vec<NodeExprInner>, Position, Position, Rc<Span>) {
+        (self.expr, self.start, self.end, self.span)
     }
 }

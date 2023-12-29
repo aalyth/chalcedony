@@ -1,14 +1,16 @@
 mod codegen;
 use codegen::ToBytecode;
 
-use crate::error::ChalError;
+use crate::error::{ChalError, Span};
 use crate::lexer::Type;
+use crate::parser::ast::NodeProg;
 use crate::parser::Parser;
 use crate::vm::CVM;
 
 use crate::utils::Bytecode;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct FuncAnnotation {
@@ -24,20 +26,25 @@ impl FuncAnnotation {
 
 pub struct Chalcedony {
     pub vm: CVM,
-    // var_symtable: HashMap<String, Type>,
-    func_symtable: HashMap<String, FuncAnnotation>,
+    func_symtable: BTreeMap<String, FuncAnnotation>,
+    func_lookup: BTreeMap<String, u64>,
 }
 
 impl Chalcedony {
     pub fn new() -> Self {
-        let mut func_symtable = HashMap::<String, FuncAnnotation>::new();
+        let mut func_symtable = BTreeMap::<String, FuncAnnotation>::new();
         func_symtable.insert(
-            String::from("print"),
+            "print".to_string(),
             FuncAnnotation::new(vec![(String::from("output"), Type::Str)], Type::Void),
         );
+
+        let mut func_lookup = BTreeMap::<String, u64>::new();
+        func_lookup.insert("print".to_string(), 0);
+
         Chalcedony {
             vm: CVM::new(),
             func_symtable,
+            func_lookup,
         }
     }
 
@@ -46,35 +53,79 @@ impl Chalcedony {
 
         let mut errors = Vec::<ChalError>::new();
 
+        let mut span_lookup = BTreeMap::<u16, Rc<Span>>::new();
+        span_lookup.insert(0, parser.span());
+
+        let mut main_start: usize = 0;
+
+        let mut bytecode = vec![
+            Bytecode::OpGetVar as u8,
+            111,
+            117,
+            116,
+            112,
+            117,
+            116,
+            0,
+            Bytecode::OpPrint as u8,
+            Bytecode::OpDeleteVar as u8,
+            111,
+            117,
+            116,
+            112,
+            117,
+            116,
+            0,
+            Bytecode::OpReturn as u8,
+        ];
+
         while !parser.is_empty() {
             match parser.advance() {
-                Ok(node) => {
-                    let bytecode_res = node.to_bytecode(&mut self.func_symtable);
-                    let Ok(bytecode) = bytecode_res else {
+                Ok(NodeProg::FuncDef(node)) => {
+                    let node_name = node.name().clone();
+                    let bytecode_res = node.to_bytecode(
+                        bytecode.len(),
+                        &mut self.func_symtable,
+                        &mut self.func_lookup,
+                    );
+
+                    let Ok(mut bytecode_raw) = bytecode_res else {
                         errors.push(bytecode_res.err().unwrap());
                         continue;
                     };
 
-                    if let Err(err) = self.vm.execute(bytecode) {
-                        // TODO: make it throw proper error
-                        println!("RUNTIME ERROR: {:?}\n", err);
+                    if node_name == "main" {
+                        main_start = bytecode.len();
+                    }
+
+                    bytecode.append(&mut bytecode_raw);
+                }
+                Ok(NodeProg::VarDef(node)) => {
+                    let bytecode_res = node.to_bytecode(
+                        bytecode.len(),
+                        &mut self.func_symtable,
+                        &mut self.func_lookup,
+                    );
+
+                    let Ok(bytecode_raw) = bytecode_res else {
+                        errors.push(bytecode_res.err().unwrap());
+                        continue;
+                    };
+
+                    if let Err(err) = self.vm.execute(0, bytecode_raw) {
+                        errors.push(err.into(&span_lookup));
                     }
                 }
                 Err(err) => errors.push(err),
             }
         }
-
-        let mut main_call = Vec::<u8>::new();
-        main_call.push(Bytecode::OpCallFunc as u8);
-        main_call.extend_from_slice("main".as_bytes());
-        main_call.push(0);
-        if let Err(err) = self.vm.execute(main_call) {
-            println!("RUNTIME ERROR: {:?}\n", err);
-        }
-
-        if !errors.is_empty() {
+        if errors.is_empty() {
+            if let Err(err) = self.vm.execute(main_start, bytecode) {
+                eprint!("{}", err.into(&span_lookup));
+            }
+        } else {
             for err in errors {
-                println!("{}", err);
+                eprint!("{}", err);
             }
         }
     }
