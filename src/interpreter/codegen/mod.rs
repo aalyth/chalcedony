@@ -16,8 +16,8 @@ pub trait ToBytecode {
     fn to_bytecode(
         self,
         bytecode_len: usize,
+        var_symtable: &mut BTreeMap<String, u64>,
         func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError>;
 }
 
@@ -25,12 +25,12 @@ impl ToBytecode for NodeProg {
     fn to_bytecode(
         self,
         bytecode_len: usize,
+        var_symtable: &mut BTreeMap<String, u64>,
         func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
         match self {
-            NodeProg::VarDef(node) => node.to_bytecode(bytecode_len, func_symtable, func_lookup),
-            NodeProg::FuncDef(node) => node.to_bytecode(bytecode_len, func_symtable, func_lookup),
+            NodeProg::VarDef(node) => node.to_bytecode(bytecode_len, var_symtable, func_symtable),
+            NodeProg::FuncDef(node) => node.to_bytecode(bytecode_len, var_symtable, func_symtable),
         }
     }
 }

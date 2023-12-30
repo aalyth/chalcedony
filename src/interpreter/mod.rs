@@ -16,18 +16,23 @@ use std::rc::Rc;
 pub struct FuncAnnotation {
     args: Vec<(String, Type)>,
     ret_type: Type,
+    location: u64,
 }
 
 impl FuncAnnotation {
-    pub fn new(args: Vec<(String, Type)>, ret_type: Type) -> Self {
-        FuncAnnotation { args, ret_type }
+    pub fn new(args: Vec<(String, Type)>, ret_type: Type, location: u64) -> Self {
+        FuncAnnotation {
+            args,
+            ret_type,
+            location,
+        }
     }
 }
 
 pub struct Chalcedony {
     pub vm: CVM,
+    var_symtable: BTreeMap<String, u64>,
     func_symtable: BTreeMap<String, FuncAnnotation>,
-    func_lookup: BTreeMap<String, u64>,
 }
 
 impl Chalcedony {
@@ -35,16 +40,16 @@ impl Chalcedony {
         let mut func_symtable = BTreeMap::<String, FuncAnnotation>::new();
         func_symtable.insert(
             "print".to_string(),
-            FuncAnnotation::new(vec![(String::from("output"), Type::Str)], Type::Void),
+            FuncAnnotation::new(vec![(String::from("output"), Type::Str)], Type::Void, 0),
         );
 
-        let mut func_lookup = BTreeMap::<String, u64>::new();
-        func_lookup.insert("print".to_string(), 0);
+        let mut var_symtable = BTreeMap::<String, u64>::new();
+        var_symtable.insert("output".to_string(), 0);
 
         Chalcedony {
             vm: CVM::new(),
+            var_symtable,
             func_symtable,
-            func_lookup,
         }
     }
 
@@ -60,21 +65,23 @@ impl Chalcedony {
 
         let mut bytecode = vec![
             Bytecode::OpGetVar as u8,
-            111,
-            117,
-            116,
-            112,
-            117,
-            116,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
             0,
             Bytecode::OpPrint as u8,
             Bytecode::OpDeleteVar as u8,
-            111,
-            117,
-            116,
-            112,
-            117,
-            116,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
             0,
             Bytecode::OpReturn as u8,
         ];
@@ -85,8 +92,8 @@ impl Chalcedony {
                     let node_name = node.name().clone();
                     let bytecode_res = node.to_bytecode(
                         bytecode.len(),
+                        &mut self.var_symtable,
                         &mut self.func_symtable,
-                        &mut self.func_lookup,
                     );
 
                     let Ok(mut bytecode_raw) = bytecode_res else {
@@ -103,8 +110,8 @@ impl Chalcedony {
                 Ok(NodeProg::VarDef(node)) => {
                     let bytecode_res = node.to_bytecode(
                         bytecode.len(),
+                        &mut self.var_symtable,
                         &mut self.func_symtable,
-                        &mut self.func_lookup,
                     );
 
                     let Ok(bytecode_raw) = bytecode_res else {

@@ -1,3 +1,4 @@
+use super::var::get_var_id;
 use super::ToBytecode;
 
 use crate::error::{ChalError, RuntimeError};
@@ -14,8 +15,8 @@ impl ToBytecode for NodeFuncDef {
     fn to_bytecode(
         self,
         bytecode_len: usize,
+        var_symtable: &mut BTreeMap<String, u64>,
         func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
         let (name, args, ret_type, body_raw, start, end, span) = self.disassemble();
 
@@ -26,9 +27,8 @@ impl ToBytecode for NodeFuncDef {
             var_lookup.insert(arg.0.clone());
         }
 
-        let annotation = FuncAnnotation::new(args, ret_type.clone());
+        let annotation = FuncAnnotation::new(args, ret_type.clone(), bytecode_len as u64);
         func_symtable.insert(name.clone(), annotation);
-        func_lookup.insert(name.clone(), bytecode_len as u64);
 
         let mut mock_lookup = HashSet::<String>::new();
         let mut returned = false;
@@ -39,8 +39,8 @@ impl ToBytecode for NodeFuncDef {
             body.append(&mut stmnt_to_bytecode(
                 stmnt,
                 bytecode_len,
+                var_symtable,
                 func_symtable,
-                func_lookup,
                 &mut mock_lookup,
                 &mut var_lookup,
             )?)
@@ -59,8 +59,10 @@ impl ToBytecode for NodeFuncDef {
         /* remove the arguments as local variables */
         for var in var_lookup.into_iter() {
             body.push(Bytecode::OpDeleteVar as u8);
-            body.extend_from_slice(var.as_bytes());
-            body.push(0);
+            let var_id = get_var_id(var, var_symtable);
+            body.extend_from_slice(&var_id.to_ne_bytes());
+            // body.extend_from_slice(var.as_bytes());
+            // body.push(0);
         }
 
         Ok(body)
@@ -71,8 +73,8 @@ impl ToBytecode for NodeFuncCall {
     fn to_bytecode(
         self,
         bytecode_len: usize,
+        var_symtable: &mut BTreeMap<String, u64>,
         func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
         let (fn_name, args, start, end, span) = self.disassemble();
         /* this check is already performed in expression and statement node parsing, but it's safer */
@@ -110,7 +112,7 @@ impl ToBytecode for NodeFuncCall {
 
         for arg in arg_iter {
             /* push the argument value */
-            result.append(&mut arg.to_bytecode(bytecode_len, func_symtable, func_lookup)?);
+            result.append(&mut arg.to_bytecode(bytecode_len, var_symtable, func_symtable)?);
 
             let ann = annotation_iter.next().unwrap();
 
@@ -120,12 +122,14 @@ impl ToBytecode for NodeFuncCall {
 
             /* put the argument value inside a local variable */
             result.push(Bytecode::OpCreateVar as u8);
-            result.extend_from_slice(ann.0.as_bytes());
-            result.push(0);
+            let var_id = get_var_id(ann.0, var_symtable);
+            result.extend_from_slice(&var_id.to_ne_bytes());
+            // result.extend_from_slice(ann.0.as_bytes());
+            // result.push(0);
         }
 
         /* complete the function call instruction */
-        let fn_pos = func_lookup[&fn_name];
+        let fn_pos = func_symtable[&fn_name].location;
         result.push(Bytecode::OpCallFunc as u8);
         result.extend_from_slice(&fn_pos.to_ne_bytes());
 

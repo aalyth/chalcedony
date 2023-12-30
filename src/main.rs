@@ -7,6 +7,8 @@ pub mod vm;
 
 use crate::interpreter::Chalcedony;
 
+#[macro_use]
+extern crate lazy_static;
 extern crate fxhash;
 
 use std::env;

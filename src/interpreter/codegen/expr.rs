@@ -1,3 +1,4 @@
+use super::var::get_var_id;
 use super::ToBytecode;
 
 use crate::error::{ChalError, Position, RuntimeError};
@@ -32,14 +33,14 @@ impl ToBytecode for NodeExpr {
     fn to_bytecode(
         self,
         bytecode_len: usize,
+        var_symtable: &mut BTreeMap<String, u64>,
         func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
         let (expr, start, end, _span) = self.disassemble();
         let mut result = Vec::<u8>::new();
         result.append(&mut set_positions(start, end));
         for e in expr {
-            result.append(&mut e.to_bytecode(bytecode_len, func_symtable, func_lookup)?)
+            result.append(&mut e.to_bytecode(bytecode_len, var_symtable, func_symtable)?)
         }
         Ok(result)
     }
@@ -58,8 +59,8 @@ impl ToBytecode for NodeExprInner {
     fn to_bytecode(
         self,
         bytecode_len: usize,
+        var_symtable: &mut BTreeMap<String, u64>,
         func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-        func_lookup: &mut BTreeMap<String, u64>,
     ) -> Result<Vec<u8>, ChalError> {
         match self {
             NodeExprInner::BinOpr(opr_type) => match opr_type {
@@ -102,10 +103,13 @@ impl ToBytecode for NodeExprInner {
             },
 
             NodeExprInner::VarCall(NodeVarCall(varname)) => {
+                // TODO: add proper checks for missing variable
                 let mut result = Vec::<u8>::with_capacity(varname.len() + 1);
                 result.push(Bytecode::OpGetVar as u8);
-                result.extend_from_slice(varname.as_bytes());
-                result.push(0);
+                let var_id = get_var_id(varname, var_symtable);
+                result.extend_from_slice(&var_id.to_ne_bytes());
+                // result.extend_from_slice(varname.as_bytes());
+                // result.push(0);
                 Ok(result)
             }
 
@@ -122,7 +126,7 @@ impl ToBytecode for NodeExprInner {
                 }
 
                 let mut res = Vec::<u8>::new();
-                res.append(&mut node.to_bytecode(bytecode_len, func_symtable, func_lookup)?);
+                res.append(&mut node.to_bytecode(bytecode_len, var_symtable, func_symtable)?);
                 Ok(res)
             }
         }

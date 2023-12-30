@@ -16,7 +16,8 @@ use std::collections::{BTreeMap, VecDeque};
 
 pub struct CVM {
     stack: Stack<CVMObject>,
-    var_heap: BTreeMap<String, VecDeque<CVMObject>>,
+    // var_heap: BTreeMap<String, VecDeque<CVMObject>>,
+    var_heap: Vec<Vec<CVMObject>>,
     call_stack: Stack<usize>,
 
     start: Position,
@@ -26,13 +27,11 @@ pub struct CVM {
 
 macro_rules! parse_constant {
     ( $cvm:expr, $type:ident, $current_idx:ident, $code:ident) => {{
-        let type_size = std::mem::size_of::<$type>();
-        let Ok(chunk) =
-            &$code[$current_idx..$current_idx + type_size].try_into() as &Result<[u8; 8], _>
+        let Ok(chunk) = &$code[$current_idx..$current_idx + 8].try_into() as &Result<[u8; 8], _>
         else {
             return Err($cvm.error(CVMErrorKind::InvalidInstruction));
         };
-        ($type::from_ne_bytes(*chunk), $current_idx + type_size)
+        ($type::from_ne_bytes(*chunk), $current_idx + 8)
     }};
 }
 
@@ -58,8 +57,9 @@ macro_rules! parse_bytecode_str {
 impl CVM {
     pub fn new() -> Self {
         CVM {
-            stack: Stack::<CVMObject>::with_capacity(1000),
-            var_heap: BTreeMap::<String, VecDeque<CVMObject>>::default(),
+            stack: Stack::<CVMObject>::new(),
+            // var_heap: BTreeMap::<String, VecDeque<CVMObject>>::default(),
+            var_heap: Vec::<Vec<CVMObject>>::new(),
             call_stack: Stack::<usize>::new(),
 
             start: Position::new(1, 1),
@@ -117,29 +117,23 @@ impl CVM {
                 Ok(current_idx)
             }
             Bytecode::OpCreateVar => {
-                let (var_name, next_idx) = parse_bytecode_str!(current_idx, code);
+                let (var_id, next_idx) = parse_constant!(self, u64, current_idx, code);
+                while self.var_heap.len() <= var_id as usize {
+                    self.var_heap.push(Vec::<CVMObject>::new());
+                }
                 let var_value = self
                     .stack
                     .pop()
                     .expect("TODO: add proper error handling for missing stack value");
-
-                if let Some(var_bucket) = self.var_heap.get_mut(var_name) {
-                    var_bucket.push_back(var_value);
-                } else {
-                    let mut new_bucket = VecDeque::new();
-                    new_bucket.push_back(var_value);
-                    self.var_heap.insert(var_name.to_string(), new_bucket);
-                }
+                self.var_heap[var_id as usize].push(var_value);
                 Ok(next_idx)
             }
 
             Bytecode::OpDeleteVar => {
-                let (var_name, next_opr) = parse_bytecode_str!(current_idx, code);
                 // TODO: add checking whether the variable exists (the code currently handles it silently)
-                self.var_heap.entry(var_name.to_string()).and_modify(|el| {
-                    el.pop_back();
-                });
-                Ok(next_opr)
+                let (var_id, next_idx) = parse_constant!(self, u64, current_idx, code);
+                self.var_heap[var_id as usize].pop();
+                Ok(next_idx)
             }
 
             Bytecode::OpAdd => add(self, current_idx),
@@ -161,16 +155,10 @@ impl CVM {
             Bytecode::OpNot => not(self, current_idx),
 
             Bytecode::OpGetVar => {
-                let (var_name, next_idx) = parse_bytecode_str!(current_idx, code);
-                let Some(var_bucket) = self.var_heap.get(var_name) else {
-                    return Err(self.error(CVMErrorKind::UnknownVariable(var_name.to_string())));
-                };
-                self.stack.push(
-                    var_bucket
-                        .back()
-                        .expect("TODO: add proper error handling for empty variable bucket")
-                        .clone(),
-                );
+                let (var_id, next_idx) = parse_constant!(self, u64, current_idx, code);
+                if let Some(val) = self.var_heap[var_id as usize].last() {
+                    self.stack.push(val.clone());
+                }
                 Ok(next_idx)
             }
 
