@@ -1,10 +1,11 @@
 use super::ToBytecode;
 
-use crate::error::{ChalError, InternalError, RuntimeError};
+use crate::error::{ChalError, RuntimeError};
 use crate::interpreter::FuncAnnotation;
 use crate::lexer::Type;
 use crate::parser::ast::operators::AssignOprType;
-use crate::parser::ast::{NodeRetStmnt, NodeStmnt, NodeVarCall};
+use crate::parser::ast::stmnt::NodeIfBranch;
+use crate::parser::ast::{NodeElifStmnt, NodeElseStmnt, NodeRetStmnt, NodeStmnt, NodeVarCall};
 use crate::utils::Bytecode;
 
 use std::collections::{BTreeMap, HashSet};
@@ -78,38 +79,83 @@ pub fn stmnt_to_bytecode(
         }
 
         NodeStmnt::IfStmnt(node) => {
-            let (cond, body_raw, branches) = node.disassemble();
+            let (cond_raw, body_raw, branches) = node.disassemble();
+
+            let mut cond = cond_raw.to_bytecode(bytecode_len, func_symtable, func_lookup)?;
+            let mut body = parse_body(
+                body_raw,
+                bytecode_len,
+                func_symtable,
+                func_lookup,
+                parent_scope,
+                local_scope,
+            )?;
+
+            /*
+            let mut branch_bodies: Vec<Vec<u8>> = Vec::new();
+            let mut branch_conditions: Vec<Vec<u8>> = Vec::new();
+            let mut err_vec: Vec<ChalError> = Vec::new();
+            for branch in branches {
+                match branch {
+                    NodeIfBranch::Elif(node) => {
+                        let raw_res = parse_elif(
+                            node,
+                            bytecode_len,
+                            func_symtable,
+                            func_lookup,
+                            parent_scope,
+                            local_scope,
+                        );
+                        match raw_res {
+                            Ok((cond, body)) => {
+                                branch_bodies.push(body);
+                                branch_conditions.push(cond);
+                            }
+                            Err(err) => err_vec.push(err),
+                        }
+                    }
+                    NodeIfBranch::Else(node) => {
+                        let raw_res = parse_else(
+                            node,
+                            bytecode_len,
+                            func_symtable,
+                            func_lookup,
+                            parent_scope,
+                            local_scope,
+                        );
+                        match raw_res {
+                            Ok(bytecode) => branch_bodies.push(bytecode),
+                            Err(err) => err_vec.push(err),
+                        }
+                    }
+                }
+            }
+
+            const OP_JMP_INSTR_LEN: usize = 1 + 8;
+            const OP_IF_INSTR_LEN: usize = 1 + 8;
+
+            let mut bodies_len: usize = branch_bodies.iter().map(|el| el.len()).sum();
+            bodies_len += branch_bodies.len() * OP_JMP_INSTR_LEN;
+            let conditions_len: usize = branch_conditions.iter().map(|el| el.len()).sum();
+
+            let mut result = Vec::<u8>::with_capacity(
+                cond.len()
+                    + OP_IF_INSTR_LEN
+                    + OP_JMP_INSTR_LEN
+                    + body.len()
+                    + bodies_len
+                    + conditions_len,
+            );
+            result.append(&mut cond);
+            result.push(Bytecode::OpIf as u8);
+            let body_len = (body.len() + OP_JMP_INSTR_LEN) as u64;
+            result.extend_from_slice(&body_len.to_ne_bytes());
+            */
 
             let mut result = Vec::<u8>::new();
-            result.append(&mut cond.to_bytecode(bytecode_len, func_symtable, func_lookup)?);
-            /* there is no need to use a type assertion for bool value since the OpIf
-             * instruction already checks it */
+            result.append(&mut cond);
             result.push(Bytecode::OpIf as u8);
-
-            let mut body = Vec::<u8>::new();
-            let mut current_parent_scope = parent_scope.clone();
-            current_parent_scope.extend(local_scope.clone().into_iter());
-
-            let mut current_local_scope = HashSet::<String>::new();
-            for stmnt in body_raw {
-                body.append(&mut stmnt_to_bytecode(
-                    stmnt,
-                    bytecode_len,
-                    func_symtable,
-                    func_lookup,
-                    &mut current_parent_scope,
-                    &mut current_local_scope,
-                )?);
-            }
-
-            for var in current_local_scope {
-                body.push(Bytecode::OpDeleteVar as u8);
-                body.extend_from_slice(var.as_bytes());
-                body.push(0);
-            }
-
-            let body_len = body.len() as u64;
-            result.extend_from_slice(&body_len.to_ne_bytes());
+            result.extend_from_slice(&(body.len() as u64).to_ne_bytes());
             result.append(&mut body);
 
             Ok(result)
@@ -189,4 +235,96 @@ pub fn stmnt_to_bytecode(
             Ok(result)
         }
     }
+}
+
+fn parse_elif(
+    node: NodeElifStmnt,
+    bytecode_len: usize,
+    func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+    func_lookup: &mut BTreeMap<String, u64>,
+    parent_scope: &mut HashSet<String>,
+    local_scope: &mut HashSet<String>,
+) -> Result<(Vec<u8>, Vec<u8>), ChalError> {
+    let (cond, body_raw) = node.disassemble();
+
+    let cond_bytecode = cond.to_bytecode(bytecode_len, func_symtable, func_lookup)?;
+    let body_bytecode = parse_body(
+        body_raw,
+        bytecode_len,
+        func_symtable,
+        func_lookup,
+        parent_scope,
+        local_scope,
+    )?;
+
+    /*
+    let mut result = Vec::<u8>::with_capacity(cond_bytecode.len() + body_bytecode.len() + 9);
+    result.append(&mut cond_bytecode);
+    result.push(Bytecode::OpIf as u8);
+    result.extend_from_slice(&(body_bytecode.len() as u64).to_ne_bytes());
+    result.append(&mut body_bytecode);
+    */
+
+    Ok((cond_bytecode, body_bytecode))
+}
+
+fn parse_else(
+    node: NodeElseStmnt,
+    bytecode_len: usize,
+    func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+    func_lookup: &mut BTreeMap<String, u64>,
+    parent_scope: &mut HashSet<String>,
+    local_scope: &mut HashSet<String>,
+) -> Result<Vec<u8>, ChalError> {
+    let body_raw = node.disassemble();
+    parse_body(
+        body_raw,
+        bytecode_len,
+        func_symtable,
+        func_lookup,
+        parent_scope,
+        local_scope,
+    )
+}
+
+fn parse_body(
+    body: Vec<NodeStmnt>,
+    bytecode_len: usize,
+    func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+    func_lookup: &mut BTreeMap<String, u64>,
+    parent_scope: &mut HashSet<String>,
+    local_scope: &mut HashSet<String>,
+) -> Result<Vec<u8>, ChalError> {
+    let mut result = Vec::<u8>::new();
+    let mut err_vec = Vec::<ChalError>::new();
+
+    let mut current_parent_scope = parent_scope.clone();
+    current_parent_scope.extend(local_scope.clone().into_iter());
+    let mut current_local_scope = HashSet::<String>::new();
+
+    for stmnt in body {
+        let stmnt_res = stmnt_to_bytecode(
+            stmnt,
+            bytecode_len,
+            func_symtable,
+            func_lookup,
+            &mut current_parent_scope,
+            &mut current_local_scope,
+        );
+        match stmnt_res {
+            Ok(mut bytecode) => result.append(&mut bytecode),
+            Err(err) => err_vec.push(err),
+        }
+    }
+
+    if !err_vec.is_empty() {
+        return Err(err_vec.into());
+    }
+
+    for var in current_local_scope {
+        result.push(Bytecode::OpDeleteVar as u8);
+        result.extend_from_slice(var.as_bytes());
+        result.push(0);
+    }
+    Ok(result)
 }

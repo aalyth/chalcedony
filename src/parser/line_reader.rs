@@ -20,6 +20,10 @@ impl LineReader {
         self.span.clone()
     }
 
+    pub fn indent(&self) -> Option<u64> {
+        Some(self.src.front()?.indent())
+    }
+
     pub fn peek_tok(&self) -> Option<&Token> {
         self.src.front()?.tokens().front()
     }
@@ -81,7 +85,7 @@ impl LineReader {
 
         let mut res = self.advance_until(cond)?;
 
-        /* if the chunk is of type if statement check for else bodies */
+        /* if the chunk is of type if statement check for elif/else bodies */
         if let Some(front_ln) = res.front() {
             if let Some(front_tok) = front_ln.tokens().front() {
                 if *front_tok.kind() != TokenKind::Keyword(Keyword::If) {
@@ -91,8 +95,10 @@ impl LineReader {
         };
         while let Some(peek) = self.peek_tok() {
             match peek.kind() {
-                TokenKind::Keyword(Keyword::Else) | TokenKind::Keyword(Keyword::Elif) => {
+                TokenKind::Keyword(Keyword::Elif) => res.append(&mut self.advance_until(cond)?),
+                TokenKind::Keyword(Keyword::Else) => {
                     res.append(&mut self.advance_until(cond)?);
+                    break;
                 }
                 _ => break,
             }

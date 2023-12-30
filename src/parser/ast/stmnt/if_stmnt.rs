@@ -46,7 +46,8 @@ impl NodeIfStmnt {
         })?;
 
         let mut branches = Vec::<NodeIfBranch>::new();
-        // TODO: trhow error when there is a branch after an else
+        /* NOTE: this block is guaranteed to be with at most 1 else statement
+         * (refer to LineReader::advance_chunk()) */
         while !reader.is_empty() {
             let next_branch = reader.advance_until(|ln| {
                 let Some(front) = ln.front_tok() else {
@@ -55,6 +56,7 @@ impl NodeIfStmnt {
                 *front.kind() == TokenKind::Keyword(Keyword::Elif)
                     || *front.kind() == TokenKind::Keyword(Keyword::Else)
             })?;
+
             branches.push(NodeIfBranch::new(LineReader::new(
                 next_branch,
                 reader.span(),
@@ -76,7 +78,10 @@ impl NodeIfStmnt {
 impl NodeIfBranch {
     pub fn new(reader: LineReader) -> Result<Self, ChalError> {
         let Some(front_tok) = reader.peek_tok() else {
-            return Err(InternalError::new("NodeIFBranch::new(): generating ").into());
+            return Err(InternalError::new(
+                "NodeIFBranch::new(): generating an if branch from an empty reader",
+            )
+            .into());
         };
 
         match front_tok.kind() {
@@ -86,7 +91,6 @@ impl NodeIfBranch {
             TokenKind::Keyword(Keyword::Else) => {
                 Ok(NodeIfBranch::Else(NodeElseStmnt::new(reader)?))
             }
-            // TODO: check weather this should be an internal or parser error
             _ => Err(InternalError::new("NodeIfBranch::new(): advancing a non-if branch").into()),
         }
     }
@@ -107,6 +111,10 @@ impl NodeElifStmnt {
             body: parse_body(reader)?,
         })
     }
+
+    pub fn disassemble(self) -> (NodeExpr, Vec<NodeStmnt>) {
+        (self.condition, self.body)
+    }
 }
 
 impl NodeElseStmnt {
@@ -119,5 +127,9 @@ impl NodeElseStmnt {
         Ok(NodeElseStmnt {
             body: parse_body(reader)?,
         })
+    }
+
+    pub fn disassemble(self) -> Vec<NodeStmnt> {
+        self.body
     }
 }

@@ -35,6 +35,10 @@ impl<T> Stack<T> {
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
+
+    pub fn iter(&self) -> std::iter::Rev<std::slice::Iter<'_, T>> {
+        self.values.iter().rev()
+    }
 }
 
 impl<T> Into<Vec<T>> for Stack<T> {

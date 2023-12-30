@@ -4,7 +4,7 @@ pub mod return_stmnt;
 mod while_loop;
 
 use assignment::NodeAssign;
-use if_stmnt::NodeIfStmnt;
+pub use if_stmnt::{NodeElifStmnt, NodeElseStmnt, NodeIfBranch, NodeIfStmnt};
 pub use return_stmnt::NodeRetStmnt;
 use while_loop::NodeWhileLoop;
 
@@ -124,9 +124,14 @@ pub fn parse_body(mut reader: LineReader) -> Result<Vec<NodeStmnt>, ChalError> {
                 res.push(NodeStmnt::WhileLoop(node));
             }
 
-            _ => err_vec.push(
-                ParserError::invalid_statement(front.start(), front.end(), reader.span()).into(),
-            ),
+            _ => {
+                let front = front.clone();
+                reader.advance();
+                err_vec.push(
+                    ParserError::invalid_statement(front.start(), front.end(), reader.span())
+                        .into(),
+                )
+            }
         }
     }
 

@@ -22,10 +22,15 @@ impl NodeFuncDef {
     pub fn new(chunk: VecDeque<Line>, span: Rc<Span>) -> Result<Self, ChalError> {
         /* function composition:
          * fn main() -> void:        | header
-         *     let a := 5            > body
+         *     let a = 5             > body
          *     print("Hello world")  > body
          */
+
+        /* NOTE: this looks strange, but it's used to check wheater the indentations inside the
+         * function body are correct */
         let mut reader = LineReader::new(chunk, span.clone());
+        let mut reader = reader.advance_chunk()?;
+
         let Some(header_src) = reader.advance() else {
             return Err(InternalError::new(
                 "NodeFuncDef::new(): creating a function definiton from empty source",

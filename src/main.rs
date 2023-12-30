@@ -12,8 +12,8 @@ extern crate fxhash;
 use std::env;
 use std::fs;
 
-// TODO: add error for empty function body
-// TODO: add pass feature for empty function body
+// TODO: add error for empty void function body
+// TODO: add pass feature for empty void function body
 
 // TODO: add type casts
 
