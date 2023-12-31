@@ -30,7 +30,7 @@ impl FuncAnnotation {
 }
 
 pub struct Chalcedony {
-    pub vm: CVM,
+    vm: CVM,
     var_symtable: BTreeMap<String, u64>,
     func_symtable: BTreeMap<String, FuncAnnotation>,
 }

@@ -1,11 +1,13 @@
+
+use crate::utils::PtrString;
 use crate::lexer::Type;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum CVMObject {
     Int(i64),
     Uint(u64),
     Float(f64),
-    Str(String),
+    Str(PtrString),
     Bool(bool),
 }
 

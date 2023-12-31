@@ -11,12 +11,8 @@ use crate::lexer::Type;
 
 use crate::utils::{Bytecode, Stack};
 
-use std::collections::{BTreeMap, VecDeque};
-// use fxhash::BTreeMap;
-
 pub struct CVM {
     stack: Stack<CVMObject>,
-    // var_heap: BTreeMap<String, VecDeque<CVMObject>>,
     var_heap: Vec<Vec<CVMObject>>,
     call_stack: Stack<usize>,
 
@@ -56,8 +52,9 @@ macro_rules! parse_bytecode_str {
 
 impl CVM {
     pub fn new() -> Self {
+        println!("SIZE: {:?}", std::mem::size_of::<CVMObject>());
         CVM {
-            stack: Stack::<CVMObject>::new(),
+            stack: Stack::<CVMObject>::with_capacity(100_000),
             // var_heap: BTreeMap::<String, VecDeque<CVMObject>>::default(),
             var_heap: Vec::<Vec<CVMObject>>::new(),
             call_stack: Stack::<usize>::new(),
@@ -94,7 +91,7 @@ impl CVM {
             Bytecode::OpConstF => push_constant!(self, f64, Float, current_idx, code),
             Bytecode::OpConstS => {
                 let (val, next_idx) = parse_bytecode_str!(current_idx, code);
-                self.stack.push(CVMObject::Str(val.to_string()));
+                self.stack.push(CVMObject::Str(val.to_string().into()));
                 Ok(next_idx)
             }
             Bytecode::OpConstB => {
@@ -119,7 +116,7 @@ impl CVM {
             Bytecode::OpCreateVar => {
                 let (var_id, next_idx) = parse_constant!(self, u64, current_idx, code);
                 while self.var_heap.len() <= var_id as usize {
-                    self.var_heap.push(Vec::<CVMObject>::new());
+                    self.var_heap.push(Vec::<CVMObject>::with_capacity(1_000));
                 }
                 let var_value = self
                     .stack
@@ -157,7 +154,8 @@ impl CVM {
             Bytecode::OpGetVar => {
                 let (var_id, next_idx) = parse_constant!(self, u64, current_idx, code);
                 if let Some(val) = self.var_heap[var_id as usize].last() {
-                    self.stack.push(val.clone());
+                    // TODO: check if this is proper behaviour for string variables
+                    self.stack.push(*val);
                 }
                 Ok(next_idx)
             }
@@ -242,27 +240,35 @@ impl CVM {
             }
 
             Bytecode::OpStartLn => {
+                /*
                 let (ln, next_idx) = parse_constant!(self, u64, current_idx, code);
                 self.start.ln = ln as usize;
-                Ok(next_idx)
+                */
+                Ok(current_idx + 8)
             }
 
             Bytecode::OpStartCol => {
+                /*
                 let (col, next_idx) = parse_constant!(self, u64, current_idx, code);
                 self.start.col = col as usize;
-                Ok(next_idx)
+                */
+                Ok(current_idx + 8)
             }
 
             Bytecode::OpEndLn => {
+                /*
                 let (ln, next_idx) = parse_constant!(self, u64, current_idx, code);
                 self.end.ln = ln as usize;
-                Ok(next_idx)
+                */
+                Ok(current_idx + 8)
             }
 
             Bytecode::OpEndCol => {
+                /*
                 let (col, next_idx) = parse_constant!(self, u64, current_idx, code);
                 self.end.col = col as usize;
-                Ok(next_idx)
+                */
+                Ok(current_idx + 8)
             }
 
             _ => Err(self.error(CVMErrorKind::UnknownInstruction)),

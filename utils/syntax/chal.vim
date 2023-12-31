@@ -10,10 +10,10 @@ syn match comment '#.*$'
 syn region string start='"' end='"'
 syn region string start="'" end="'"
 
-syn match number ' -\d\+\.\d\+'
-syn match number '\d\+\.\d\+'
-syn match number ' -\d\+'
 syn match number '\d\+'
+syn match number ' -\d\+'
+syn match number '\d\+\.\d\+'
+syn match number ' -\d\+\.\d\+'
 
 let b:current_syntax = 'chalcedony'
 hi def link types    Type

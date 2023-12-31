@@ -9,7 +9,6 @@ use crate::interpreter::Chalcedony;
 
 #[macro_use]
 extern crate lazy_static;
-extern crate fxhash;
 
 use std::env;
 use std::fs;
@@ -32,7 +31,6 @@ fn main() {
         eprintln!("Error: could not open the passed script");
         std::process::exit(1);
     };
-
     let mut interpreter = Chalcedony::new();
     interpreter.interpret(&script);
 }

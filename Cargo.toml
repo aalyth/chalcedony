@@ -7,8 +7,9 @@ edition = "2021"
 
 [dependencies]
 lazy_static = "1.4.0"
-fxhash = "0.2.1"
 
 # for more detailed flamegraphs
 [profile.release]
 debug = true
+# for some reason opt-level 2 is currently faster than 3
+opt-level = 3

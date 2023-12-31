@@ -1,4 +1,5 @@
 use crate::lexer::Type;
+use crate::utils::PtrString;
 use crate::vm::{CVMError, CVMErrorKind, CVMObject, CVM};
 
 fn get_operands(cvm: &mut CVM) -> Option<(CVMObject, CVMObject)> {
@@ -18,29 +19,20 @@ macro_rules! apply_bin_operator {
         let Some((left, right)) = get_operands($cvm) else {
             return Err($cvm.error(CVMErrorKind::ExpectedObject));
         };
-        match left {
-            CVMObject::Int(lval) => match right {
-                CVMObject::Int(rval) => push_operation!($cvm, Int, lval $opr rval),
-                CVMObject::Uint(rval) => push_operation!($cvm, Int, lval $opr (rval as i64)),
-                CVMObject::Float(rval) => push_operation!($cvm, Float, (lval as f64) $opr rval),
-                _ => return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
-            },
+        match (&left, &right) {
+            (CVMObject::Int(lval), CVMObject::Int(rval)) => push_operation!($cvm, Int, *lval $opr *rval),
+            (CVMObject::Int(lval), CVMObject::Uint(rval)) => push_operation!($cvm, Int, *lval $opr (*rval as i64)),
+            (CVMObject::Int(lval), CVMObject::Float(rval)) => push_operation!($cvm, Float, (*lval as f64) $opr *rval),
 
-            CVMObject::Uint(lval) => match right {
-                CVMObject::Int(rval) => push_operation!($cvm, Int, (lval as i64) $opr rval),
-                CVMObject::Uint(rval) => push_operation!($cvm, Uint, lval $opr rval),
-                CVMObject::Float(rval) => push_operation!($cvm, Float, (lval as f64) $opr rval),
-                _ => return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
-            },
+            (CVMObject::Uint(lval), CVMObject::Int(rval)) => push_operation!($cvm, Int, (*lval as i64) $opr *rval),
+            (CVMObject::Uint(lval), CVMObject::Uint(rval)) => push_operation!($cvm, Uint, *lval $opr *rval),
+            (CVMObject::Uint(lval), CVMObject::Float(rval)) => push_operation!($cvm, Float, (*lval as f64) $opr *rval),
 
-            CVMObject::Float(lval) => match right {
-                CVMObject::Int(rval) => push_operation!($cvm, Float, lval $opr (rval as f64)),
-                CVMObject::Uint(rval) => push_operation!($cvm, Float, lval $opr (rval as f64)),
-                CVMObject::Float(rval) => push_operation!($cvm, Float, lval $opr rval),
-                _ => return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
-            },
+            (CVMObject::Float(lval), CVMObject::Int(rval)) => push_operation!($cvm, Float, *lval $opr (*rval as f64)),
+            (CVMObject::Float(lval), CVMObject::Uint(rval)) => push_operation!($cvm, Float, *lval $opr (*rval as f64)),
+            (CVMObject::Float(lval), CVMObject::Float(rval)) => push_operation!($cvm, Float, *lval $opr *rval),
 
-            CVMObject::Str(lval) => $str_opr_handler($cvm, lval, right)?,
+            // (CVMObject::Str(lval), _) => $str_opr_handler($cvm, lval.to_string(), right)?,
             _ => return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type())))
         }
         Ok($current_idx)
@@ -63,49 +55,20 @@ pub fn div(cvm: &mut CVM, current_idx: usize) -> Result<usize, CVMError> {
     let Some((left, right)) = get_operands(cvm) else {
         return Err(cvm.error(CVMErrorKind::ExpectedObject));
     };
-    match left {
-        CVMObject::Int(lval) => match right {
-            CVMObject::Int(rval) => cvm.stack.push(CVMObject::Float(lval as f64 / rval as f64)),
-            CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Float(lval as f64 / rval as f64)),
-            CVMObject::Float(rval) => cvm.stack.push(CVMObject::Float(lval as f64 / rval)),
-            _ => {
-                return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
-                    left.as_type(),
-                    right.as_type(),
-                )))
-            }
-        },
+    match (&left, &right) {
+        (CVMObject::Int(lval), CVMObject::Int(rval)) => push_operation!(cvm, Float, (*lval as f64) / (*rval as f64)),
+        (CVMObject::Int(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Float, (*lval as f64) / (*rval as f64)),
+        (CVMObject::Int(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, (*lval as f64) / *rval),
 
-        CVMObject::Uint(lval) => match right {
-            CVMObject::Int(rval) => cvm.stack.push(CVMObject::Float(lval as f64 / rval as f64)),
-            CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Float(lval as f64 / rval as f64)),
-            CVMObject::Float(rval) => cvm.stack.push(CVMObject::Float(lval as f64 / rval)),
-            _ => {
-                return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
-                    left.as_type(),
-                    right.as_type(),
-                )))
-            }
-        },
+        (CVMObject::Uint(lval), CVMObject::Int(rval)) => push_operation!(cvm, Float, (*lval as f64) / (*rval as f64)),
+        (CVMObject::Uint(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Float, (*lval as f64) / (*rval as f64)),
+        (CVMObject::Uint(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, (*lval as f64) / *rval),
 
-        CVMObject::Float(lval) => match right {
-            CVMObject::Int(rval) => cvm.stack.push(CVMObject::Float(lval / rval as f64)),
-            CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Float(lval / rval as f64)),
-            CVMObject::Float(rval) => cvm.stack.push(CVMObject::Float(lval / rval)),
-            _ => {
-                return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
-                    left.as_type(),
-                    right.as_type(),
-                )))
-            }
-        },
+        (CVMObject::Float(lval), CVMObject::Int(rval)) => push_operation!(cvm, Float, *lval / (*rval as f64)),
+        (CVMObject::Float(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Float, *lval / (*rval as f64)),
+        (CVMObject::Float(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, *lval / *rval),
 
-        _ => {
-            return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
-                left.as_type(),
-                right.as_type(),
-            )))
-        }
+        _ => return Err(cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type())))
     }
     Ok(current_idx)
 }
@@ -114,61 +77,34 @@ pub fn modulo(cvm: &mut CVM, current_idx: usize) -> Result<usize, CVMError> {
     let Some((left, right)) = get_operands(cvm) else {
         return Err(cvm.error(CVMErrorKind::ExpectedObject));
     };
-    match left {
-        CVMObject::Int(lval) => match right {
-            CVMObject::Int(rval) => cvm.stack.push(CVMObject::Int(lval % rval)),
-            CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Int(lval % rval as i64)),
-            CVMObject::Float(rval) => cvm.stack.push(CVMObject::Float(lval as f64 % rval)),
-            _ => {
-                return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
-                    left.as_type(),
-                    right.as_type(),
-                )))
-            }
-        },
+    match (&left, &right) {
+        (CVMObject::Int(lval), CVMObject::Int(rval)) => push_operation!(cvm, Int, *lval % *rval),
+        (CVMObject::Int(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Int, *lval % (*rval as i64)),
+        (CVMObject::Int(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, (*lval as f64) % *rval),
 
-        CVMObject::Uint(lval) => match right {
-            CVMObject::Int(rval) => cvm.stack.push(CVMObject::Int(lval as i64 % rval)),
-            CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Uint(lval % rval)),
-            CVMObject::Float(rval) => cvm.stack.push(CVMObject::Float(lval as f64 % rval)),
-            _ => {
-                return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
-                    left.as_type(),
-                    right.as_type(),
-                )))
-            }
-        },
+        (CVMObject::Uint(lval), CVMObject::Int(rval)) => push_operation!(cvm, Int, (*lval as i64) % *rval),
+        (CVMObject::Uint(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Uint, *lval % *rval),
+        (CVMObject::Uint(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, (*lval as f64) % *rval),
 
-        CVMObject::Float(lval) => match right {
-            CVMObject::Int(rval) => cvm.stack.push(CVMObject::Float(lval % rval as f64)),
-            CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Float(lval % rval as f64)),
-            CVMObject::Float(rval) => cvm.stack.push(CVMObject::Float(lval % rval)),
-            _ => {
-                return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
-                    left.as_type(),
-                    right.as_type(),
-                )))
-            }
-        },
+        (CVMObject::Float(lval), CVMObject::Int(rval)) => push_operation!(cvm, Float, *lval % (*rval as f64)),
+        (CVMObject::Float(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Float, *lval % (*rval as f64)),
+        (CVMObject::Float(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, *lval % *rval),
 
-        _ => {
-            return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
-                left.as_type(),
-                right.as_type(),
-            )))
-        }
+        _ => return Err(cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type())))
     }
     Ok(current_idx)
 }
 
-fn add_str(cvm: &mut CVM, lval: String, right: CVMObject) -> Result<(), CVMError> {
+fn add_str(cvm: &mut CVM, lval: PtrString, right: CVMObject) -> Result<(), CVMError> {
+    /*
     match right {
-        CVMObject::Int(rval) => cvm.stack.push(CVMObject::Str(lval + &rval.to_string())),
-        CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Str(lval + &rval.to_string())),
-        CVMObject::Float(rval) => cvm.stack.push(CVMObject::Str(lval + &rval.to_string())),
-        CVMObject::Str(rval) => cvm.stack.push(CVMObject::Str(lval + &rval)),
-        CVMObject::Bool(rval) => cvm.stack.push(CVMObject::Str(lval + &rval.to_string())),
+        CVMObject::Int(rval) => cvm.stack.push(CVMObject::Str(lval + rval.to_string())),
+        CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Str(lval + rval.to_string())),
+        CVMObject::Float(rval) => cvm.stack.push(CVMObject::Str(lval + rval.to_string())),
+        CVMObject::Str(rval) => cvm.stack.push(CVMObject::Str(lval + rval)),
+        CVMObject::Bool(rval) => cvm.stack.push(CVMObject::Str(lval + rval)),
     }
+    */
     Ok(())
 }
 
@@ -180,6 +116,7 @@ fn sub_str(cvm: &mut CVM, _: String, right: CVMObject) -> Result<(), CVMError> {
 }
 
 fn mul_str(cvm: &mut CVM, lval: String, right: CVMObject) -> Result<(), CVMError> {
+    /*
     match right {
         CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Str(lval.repeat(rval as usize))),
         _ => {
@@ -189,6 +126,7 @@ fn mul_str(cvm: &mut CVM, lval: String, right: CVMObject) -> Result<(), CVMError
             )))
         }
     }
+    */
     Ok(())
 }
 
@@ -197,47 +135,28 @@ macro_rules! apply_logic_operator {
         let Some((left, right)) = get_operands($cvm) else {
             return Err($cvm.error(CVMErrorKind::ExpectedObject));
         };
-        match left {
-            CVMObject::Int(lval) => {
-                /* basically convert to bool */
-                let lval = lval != 0;
-                match right {
-                    CVMObject::Int(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0)),
-                    CVMObject::Uint(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0)),
-                    CVMObject::Float(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0.0)),
-                    CVMObject::Bool(rval) => push_operation!($cvm, Bool, lval $opr rval),
-                    _ => return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
-            }},
+        match (&left, &right) {
+            (CVMObject::Int(lval), CVMObject::Int(rval)) => push_operation!($cvm, Bool, (*lval != 0) $opr (*rval != 0)),
+            (CVMObject::Int(lval), CVMObject::Uint(rval)) => push_operation!($cvm, Bool, (*lval != 0) $opr (*rval != 0)),
+            (CVMObject::Int(lval), CVMObject::Float(rval)) => push_operation!($cvm, Bool, (*lval != 0) $opr (*rval != 0.0)),
+            (CVMObject::Int(lval), CVMObject::Bool(rval)) => push_operation!($cvm, Bool, (*lval != 0) $opr *rval),
 
-            CVMObject::Uint(lval) => {
-                let lval = lval != 0;
-                match right {
-                    CVMObject::Int(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0)),
-                    CVMObject::Uint(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0)),
-                    CVMObject::Float(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0.0)),
-                    CVMObject::Bool(rval) => push_operation!($cvm, Bool, lval $opr rval),
-                    _ => return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
-            }},
+            (CVMObject::Uint(lval), CVMObject::Int(rval)) => push_operation!($cvm, Bool, (*lval != 0) $opr (*rval != 0)),
+            (CVMObject::Uint(lval), CVMObject::Uint(rval)) => push_operation!($cvm, Bool, (*lval != 0) $opr (*rval != 0)),
+            (CVMObject::Uint(lval), CVMObject::Float(rval)) => push_operation!($cvm, Bool, (*lval != 0) $opr (*rval != 0.0)),
+            (CVMObject::Uint(lval), CVMObject::Bool(rval)) => push_operation!($cvm, Bool, (*lval != 0) $opr *rval),
 
-            CVMObject::Float(lval) => {
-                let lval = lval != 0.0;
-                match right {
-                    CVMObject::Int(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0)),
-                    CVMObject::Uint(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0)),
-                    CVMObject::Float(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0.0)),
-                    CVMObject::Bool(rval) => push_operation!($cvm, Bool, lval $opr rval),
-                    _ => return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
-            }},
+            (CVMObject::Float(lval), CVMObject::Int(rval)) => push_operation!($cvm, Bool, (*lval != 0.0) $opr (*rval != 0)),
+            (CVMObject::Float(lval), CVMObject::Uint(rval)) => push_operation!($cvm, Bool, (*lval != 0.0) $opr (*rval != 0)),
+            (CVMObject::Float(lval), CVMObject::Float(rval)) => push_operation!($cvm, Bool, (*lval != 0.0) $opr (*rval != 0.0)),
+            (CVMObject::Float(lval), CVMObject::Bool(rval)) => push_operation!($cvm, Bool, (*lval != 0.0) $opr *rval),
 
-            CVMObject::Bool(lval) => match right {
-                CVMObject::Int(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0)),
-                CVMObject::Uint(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0)),
-                CVMObject::Float(rval) => push_operation!($cvm, Bool, lval $opr (rval != 0.0)),
-                CVMObject::Bool(rval) => push_operation!($cvm, Bool, lval $opr rval),
-                _ => return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
-            }
+            (CVMObject::Bool(lval), CVMObject::Int(rval)) => push_operation!($cvm, Bool, *lval $opr (*rval != 0)),
+            (CVMObject::Bool(lval), CVMObject::Uint(rval)) => push_operation!($cvm, Bool, *lval $opr (*rval != 0)),
+            (CVMObject::Bool(lval), CVMObject::Float(rval)) => push_operation!($cvm, Bool, *lval $opr (*rval != 0.0)),
+            (CVMObject::Bool(lval), CVMObject::Bool(rval)) => push_operation!($cvm, Bool, *lval $opr *rval),
 
-            CVMObject::Str(_) =>  return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
+            _ =>  return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
         }
         Ok($current_idx)
     }};
@@ -264,7 +183,7 @@ macro_rules! apply_comp_operator {
             (CVMObject::Float(lval), CVMObject::Float(rval)) => push_operation!($cvm, Bool, *lval $opr *rval),
             (CVMObject::Float(_), CVMObject::Bool(rval)) => $bool_opr_handler($cvm, *rval, left)?,
 
-            (CVMObject::Str(lval), CVMObject::Str(rval)) => push_operation!($cvm, Bool, lval $opr rval),
+            // (CVMObject::Str(lval), CVMObject::Str(rval)) => push_operation!($cvm, Bool, lval $opr rval),
             (CVMObject::Bool(lval), _) => $bool_opr_handler($cvm, *lval, right)?,
 
             _ => return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),
