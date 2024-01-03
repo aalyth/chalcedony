@@ -5,4 +5,6 @@ fn fib(n: int) -> int:
     return 1
 
 fn main() -> void:
-    print('Fib 5: ' + fib(35))
+    let i = 35
+    let res = fib(i)
+    print('Fib ' + i + ': ' + res)

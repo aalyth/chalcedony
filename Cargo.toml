@@ -11,5 +11,5 @@ lazy_static = "1.4.0"
 # for more detailed flamegraphs
 [profile.release]
 debug = true
-# for some reason opt-level 2 is currently faster than 3
 opt-level = 3
+

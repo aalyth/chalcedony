@@ -1,9 +1,10 @@
 use std::alloc::{Layout, alloc, dealloc};
 use std::ptr;
 use std::fmt;
+use std::ops;
 
 /* an 8-byte ASCII string implementation */
-#[derive(Debug, Copy)]
+#[derive(Debug)]
 pub struct PtrString (*const u8);
 
 impl PtrString {
@@ -18,7 +19,7 @@ impl PtrString {
 }
 
 // TODO: add multiplication
-impl std::ops::Add<PtrString> for PtrString {
+impl ops::Add<PtrString> for PtrString {
     type Output = PtrString;  
 
     fn add(self, rhs: PtrString) -> Self::Output {
@@ -35,16 +36,31 @@ impl std::ops::Add<PtrString> for PtrString {
             let res = alloc(res_layout);
             ptr::copy(lhs, res, lhs_len);
             ptr::copy(rhs, res.add(lhs_len), rhs_len);
-            ptr::write(res.add(lhs_len + rhs_len + 1), 0);
+            ptr::write(res.add(lhs_len + rhs_len), 0);
 
-            let lhs_layout = Layout::array::<*const u8>(lhs_len + 1)
+            PtrString(res)
+        }
+    }
+}
+
+impl ops::Mul<usize> for PtrString {
+    type Output = PtrString;
+
+    fn mul(self, mult: usize) -> Self::Output {
+        unsafe {
+            let len = self.len();
+            let lhs = self.0 as *mut u8;
+
+            let res_layout = Layout::array::<*const u8>(len * mult + 1) 
                 .expect("Error: creating a string with size greater than isize::MAX");
 
-            let rhs_layout = Layout::array::<*const u8>(lhs_len + 1)
-                .expect("Error: creating a string with size greater than isize::MAX");
-            
-            dealloc(lhs, lhs_layout);
-            dealloc(rhs, rhs_layout);
+            let res = alloc(res_layout);
+
+            for i in 0..mult {
+                ptr::copy(lhs, res.add(i * len), len);
+            }
+
+            ptr::write(res.add(len * mult), 0);
 
             PtrString(res)
         }
@@ -93,6 +109,18 @@ impl Clone for PtrString {
 
             ptr::copy_nonoverlapping(ptr, res, len + 1);
             PtrString(res)
+        }
+    }
+}
+
+impl ops::Drop for PtrString {
+    fn drop(&mut self) {
+        unsafe {
+            let len = self.len();
+            let ptr = self.0 as *mut u8;
+            let layout = Layout::array::<*const u8>(len + 1)
+                .expect("Error: creating a string with size greater than isize::MAX");
+            dealloc(ptr, layout)
         }
     }
 }

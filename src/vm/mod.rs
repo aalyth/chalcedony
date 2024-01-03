@@ -52,7 +52,6 @@ macro_rules! parse_bytecode_str {
 
 impl CVM {
     pub fn new() -> Self {
-        println!("SIZE: {:?}", std::mem::size_of::<CVMObject>());
         CVM {
             stack: Stack::<CVMObject>::with_capacity(100_000),
             // var_heap: BTreeMap::<String, VecDeque<CVMObject>>::default(),
@@ -122,14 +121,20 @@ impl CVM {
                     .stack
                     .pop()
                     .expect("TODO: add proper error handling for missing stack value");
-                self.var_heap[var_id as usize].push(var_value);
+                let Some(var_bucket) = self.var_heap.get_mut(var_id as usize) else {
+                    panic!("TODO: add proper error handling for missing variable bucket")
+                };
+                var_bucket.push(var_value);
                 Ok(next_idx)
             }
 
             Bytecode::OpDeleteVar => {
                 // TODO: add checking whether the variable exists (the code currently handles it silently)
                 let (var_id, next_idx) = parse_constant!(self, u64, current_idx, code);
-                self.var_heap[var_id as usize].pop();
+                let Some(var_bucket) = self.var_heap.get_mut(var_id as usize) else {
+                    panic!("TODO: add proper error handling for missing variable bucket")
+                };
+                var_bucket.pop();
                 Ok(next_idx)
             }
 
@@ -153,9 +158,11 @@ impl CVM {
 
             Bytecode::OpGetVar => {
                 let (var_id, next_idx) = parse_constant!(self, u64, current_idx, code);
-                if let Some(val) = self.var_heap[var_id as usize].last() {
-                    // TODO: check if this is proper behaviour for string variables
-                    self.stack.push(*val);
+                let Some(var_bucket) = self.var_heap.get(var_id as usize) else {
+                    panic!("TODO: make this throw a proper error");
+                };
+                if let Some(val) = var_bucket.last() {
+                    self.stack.push(val.clone());
                 }
                 Ok(next_idx)
             }
