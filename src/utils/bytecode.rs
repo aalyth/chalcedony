@@ -1,5 +1,7 @@
 use crate::lexer::Type;
 
+use super::PtrString;
+
 #[repr(u8)]
 pub enum Bytecode {
     OpConstI = 1,
@@ -47,6 +49,48 @@ pub enum Bytecode {
     OpSetSpan = 205,  // <id: u16> -> sets the current span's id
 }
 
+#[derive(Debug)]
+pub enum BytecodeOpr {
+    ConstI(i64),
+    ConstU(u64),
+    ConstF(f64),
+    ConstS(PtrString),
+    ConstB(bool),
+
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+
+    And,
+    Or,
+    Lt,
+    Gt,
+    Eq,
+    LtEq,
+    GtEq,
+
+    Neg,
+    Not,
+
+    CreateVar(usize),
+    DeleteVar(usize),
+    GetVar(usize),
+
+    CallFunc(usize),
+    Return,
+
+    If(usize), // how much to jump over if the top of the stack is false
+    Jmp(isize), 
+
+    Assert(Type),
+    Print,
+    Cast(Type),
+
+    Debug,
+}
+
 impl TryInto<Bytecode> for Type {
     type Error = ();
     fn try_into(self) -> Result<Bytecode, Self::Error> {
@@ -75,4 +119,52 @@ impl TryInto<Type> for Bytecode {
             _ => Err(()),
         }
     }
+}
+
+pub fn fibonacci() -> Vec<BytecodeOpr> {
+    vec![
+        // print
+        BytecodeOpr::GetVar(0),
+        BytecodeOpr::Print,
+        BytecodeOpr::DeleteVar(0),
+        BytecodeOpr::Return,
+
+        // fib
+        BytecodeOpr::GetVar(1),
+        BytecodeOpr::ConstI(2),
+        BytecodeOpr::Gt,
+
+        // if n < 2
+        BytecodeOpr::If(13),
+        // fib(n-1)
+        BytecodeOpr::GetVar(1),
+        BytecodeOpr::ConstI(1),
+        BytecodeOpr::Sub,
+        BytecodeOpr::CreateVar(1),
+        BytecodeOpr::CallFunc(4),
+
+        // fib(n-2)
+        BytecodeOpr::GetVar(1),
+        BytecodeOpr::ConstI(2),
+        BytecodeOpr::Sub,
+        BytecodeOpr::CreateVar(1),
+        BytecodeOpr::CallFunc(4),
+
+        BytecodeOpr::Add,
+        BytecodeOpr::DeleteVar(1),
+        BytecodeOpr::Return,
+
+        // return 1
+        BytecodeOpr::DeleteVar(1),
+        BytecodeOpr::ConstI(1),
+        BytecodeOpr::Return,
+
+        // main
+        BytecodeOpr::ConstS("".to_string().into()),
+        BytecodeOpr::ConstI(35),
+        BytecodeOpr::CreateVar(1),
+        BytecodeOpr::CallFunc(4),
+        BytecodeOpr::Add,
+        BytecodeOpr::Print,
+    ]
 }

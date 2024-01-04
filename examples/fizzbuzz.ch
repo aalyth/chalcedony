@@ -14,5 +14,4 @@ fn main() -> void:
 
         if ans == '':
             print('' + i)
-            
         i += 1

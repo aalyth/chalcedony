@@ -31,7 +31,7 @@ fn main() -> void:
 # print('' + c)
     let i = 0
     let sum = 0
-    while i < 5000:
+    while i < 10000:
         if is_prime(i):
             sum += i
         i += 1

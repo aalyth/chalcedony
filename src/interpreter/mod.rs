@@ -7,7 +7,7 @@ use crate::parser::ast::NodeProg;
 use crate::parser::Parser;
 use crate::vm::CVM;
 
-use crate::utils::Bytecode;
+use crate::utils::BytecodeOpr;
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -31,7 +31,7 @@ impl FuncAnnotation {
 
 pub struct Chalcedony {
     vm: CVM,
-    var_symtable: BTreeMap<String, u64>,
+    var_symtable: BTreeMap<String, usize>,
     func_symtable: BTreeMap<String, FuncAnnotation>,
 }
 
@@ -43,7 +43,7 @@ impl Chalcedony {
             FuncAnnotation::new(vec![(String::from("output"), Type::Str)], Type::Void, 0),
         );
 
-        let mut var_symtable = BTreeMap::<String, u64>::new();
+        let mut var_symtable = BTreeMap::<String, usize>::new();
         var_symtable.insert("output".to_string(), 0);
 
         Chalcedony {
@@ -64,26 +64,10 @@ impl Chalcedony {
         let mut main_start: usize = 0;
 
         let mut bytecode = vec![
-            Bytecode::OpGetVar as u8,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            Bytecode::OpPrint as u8,
-            Bytecode::OpDeleteVar as u8,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            Bytecode::OpReturn as u8,
+            BytecodeOpr::GetVar(0),
+            BytecodeOpr::Print,
+            BytecodeOpr::DeleteVar(0),
+            BytecodeOpr::Return,
         ];
 
         while !parser.is_empty() {

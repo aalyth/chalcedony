@@ -33,4 +33,10 @@ fn main() {
     };
     let mut interpreter = Chalcedony::new();
     interpreter.interpret(&script);
+    /*
+    let mut cvm = vm::CVM::new();
+    let code = utils::fibonacci();
+    // println!("CODE: {:#?}", code);
+    cvm.execute(code.len() - 6, code);
+    */
 }

@@ -5,20 +5,19 @@ use crate::error::{ChalError, RuntimeError};
 use crate::interpreter::FuncAnnotation;
 use crate::lexer::Type;
 use crate::parser::ast::operators::AssignOprType;
-use crate::parser::ast::stmnt::NodeIfBranch;
 use crate::parser::ast::{NodeElifStmnt, NodeElseStmnt, NodeRetStmnt, NodeStmnt, NodeVarCall};
-use crate::utils::Bytecode;
+use crate::utils::BytecodeOpr;
 
 use std::collections::{BTreeMap, HashSet};
 
 pub fn stmnt_to_bytecode(
     node: NodeStmnt,
     bytecode_len: usize,
-    var_symtable: &mut BTreeMap<String, u64>,
+    var_symtable: &mut BTreeMap<String, usize>,
     func_symtable: &mut BTreeMap<String, FuncAnnotation>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
-) -> Result<Vec<u8>, ChalError> {
+) -> Result<Vec<BytecodeOpr>, ChalError> {
     match node {
         NodeStmnt::VarDef(node) => {
             let var_name = node.name();
@@ -26,15 +25,12 @@ pub fn stmnt_to_bytecode(
 
             /* this capacity is for the best case scenario, if we need to delete the already
              * existing variable, there will be another allocation*/
-            let mut result = Vec::<u8>::with_capacity(var_bytecode.len() + 1);
+            let mut result = Vec::<BytecodeOpr>::with_capacity(var_bytecode.len() + 1);
 
             /* 'shadow' the old variable value */
             if local_scope.contains(&var_name) {
-                result.push(Bytecode::OpDeleteVar as u8);
                 let var_id = get_var_id(var_name, var_symtable);
-                result.extend_from_slice(&var_id.to_ne_bytes());
-                // result.extend_from_slice(var_name.as_bytes());
-                // result.push(0);
+                result.push(BytecodeOpr::DeleteVar(var_id))
             } else {
                 local_scope.insert(var_name);
             }
@@ -61,27 +57,21 @@ pub fn stmnt_to_bytecode(
         }
 
         NodeStmnt::RetStmnt(NodeRetStmnt(expr)) => {
-            let mut result = Vec::<u8>::new();
+            let mut result = Vec::<BytecodeOpr>::new();
             result.append(&mut expr.to_bytecode(bytecode_len, var_symtable, func_symtable)?);
 
             /* remove all variables in the current scope */
             for var in parent_scope.iter() {
-                result.push(Bytecode::OpDeleteVar as u8);
                 let var_id = get_var_id(var.clone(), var_symtable);
-                result.extend_from_slice(&var_id.to_ne_bytes());
-                // result.extend_from_slice(var.as_bytes());
-                // result.push(0);
+                result.push(BytecodeOpr::DeleteVar(var_id))
             }
 
             for var in local_scope.iter() {
-                result.push(Bytecode::OpDeleteVar as u8);
                 let var_id = get_var_id(var.clone(), var_symtable);
-                result.extend_from_slice(&var_id.to_ne_bytes());
-                // result.extend_from_slice(var.as_bytes());
-                // result.push(0);
+                result.push(BytecodeOpr::DeleteVar(var_id))
             }
 
-            result.push(Bytecode::OpReturn as u8);
+            result.push(BytecodeOpr::Return);
             Ok(result)
         }
 
@@ -99,8 +89,8 @@ pub fn stmnt_to_bytecode(
             )?;
 
             /*
-            let mut branch_bodies: Vec<Vec<u8>> = Vec::new();
-            let mut branch_conditions: Vec<Vec<u8>> = Vec::new();
+            let mut branch_bodies: Vec<Vec<BytecodeOpr>> = Vec::new();
+            let mut branch_conditions: Vec<Vec<BytecodeOpr>> = Vec::new();
             let mut err_vec: Vec<ChalError> = Vec::new();
             for branch in branches {
                 match branch {
@@ -145,7 +135,7 @@ pub fn stmnt_to_bytecode(
             bodies_len += branch_bodies.len() * OP_JMP_INSTR_LEN;
             let conditions_len: usize = branch_conditions.iter().map(|el| el.len()).sum();
 
-            let mut result = Vec::<u8>::with_capacity(
+            let mut result = Vec::<BytecodeOpr>::with_capacity(
                 cond.len()
                     + OP_IF_INSTR_LEN
                     + OP_JMP_INSTR_LEN
@@ -154,15 +144,14 @@ pub fn stmnt_to_bytecode(
                     + conditions_len,
             );
             result.append(&mut cond);
-            result.push(Bytecode::OpIf as u8);
+            result.push(Bytecode::OpIf as BytecodeOpr);
             let body_len = (body.len() + OP_JMP_INSTR_LEN) as u64;
             result.extend_from_slice(&body_len.to_ne_bytes());
             */
 
-            let mut result = Vec::<u8>::new();
+            let mut result = Vec::<BytecodeOpr>::new();
             result.append(&mut cond);
-            result.push(Bytecode::OpIf as u8);
-            result.extend_from_slice(&(body.len() as u64).to_ne_bytes());
+            result.push(BytecodeOpr::If(body.len()));
             result.append(&mut body);
 
             Ok(result)
@@ -171,11 +160,10 @@ pub fn stmnt_to_bytecode(
         NodeStmnt::WhileLoop(node) => {
             let (cond, body_raw) = node.disassemble();
 
-            let mut result = Vec::<u8>::new();
+            let mut result = Vec::<BytecodeOpr>::new();
             result.append(&mut cond.to_bytecode(bytecode_len, var_symtable, func_symtable)?);
             /* there is no need to use a type assertion for bool value since the OpIf
              * instruction already checks it */
-            result.push(Bytecode::OpIf as u8);
 
             let mut body = parse_body(
                 body_raw,
@@ -187,14 +175,13 @@ pub fn stmnt_to_bytecode(
             )?;
 
             /* skipping over the body if the condition is false */
-            let body_len = body.len() as u64 + 9;
-            result.extend_from_slice(&body_len.to_ne_bytes());
+            let body_len = body.len() + 1;
+            result.push(BytecodeOpr::If(body_len));
             result.append(&mut body);
 
             /* how much to go back when we have iterated the body */
-            let dist: i64 = -(result.len() as i64) - 1;
-            result.push(Bytecode::OpJmp as u8);
-            result.extend_from_slice(&dist.to_ne_bytes());
+            let dist = -(result.len() as isize) - 1;
+            result.push(BytecodeOpr::Jmp(dist));
 
             Ok(result)
         }
@@ -202,33 +189,24 @@ pub fn stmnt_to_bytecode(
         NodeStmnt::Assign(node) => {
             let (NodeVarCall(varname), opr, rhs) = node.disassemble();
             let var_id = get_var_id(varname, var_symtable);
-            let mut result = Vec::<u8>::new();
+            let mut result = Vec::<BytecodeOpr>::new();
             if opr != AssignOprType::Eq {
-                result.push(Bytecode::OpGetVar as u8);
-                result.extend_from_slice(&var_id.to_ne_bytes());
-                // result.extend_from_slice(&varname.as_bytes());
-                // result.push(0);
+                result.push(BytecodeOpr::GetVar(var_id));
             }
 
             result.append(&mut rhs.to_bytecode(bytecode_len, var_symtable, func_symtable)?);
 
             match opr {
-                AssignOprType::AddEq => result.push(Bytecode::OpAdd as u8),
-                AssignOprType::SubEq => result.push(Bytecode::OpSub as u8),
-                AssignOprType::MulEq => result.push(Bytecode::OpMul as u8),
-                AssignOprType::DivEq => result.push(Bytecode::OpDiv as u8),
-                AssignOprType::ModEq => result.push(Bytecode::OpMod as u8),
+                AssignOprType::AddEq => result.push(BytecodeOpr::Add),
+                AssignOprType::SubEq => result.push(BytecodeOpr::Sub),
+                AssignOprType::MulEq => result.push(BytecodeOpr::Mul),
+                AssignOprType::DivEq => result.push(BytecodeOpr::Div),
+                AssignOprType::ModEq => result.push(BytecodeOpr::Mod),
                 _ => {}
             }
 
-            result.push(Bytecode::OpDeleteVar as u8);
-            result.extend_from_slice(&var_id.to_ne_bytes());
-            // result.extend_from_slice(&varname.as_bytes());
-            // result.push(0);
-            result.push(Bytecode::OpCreateVar as u8);
-            // result.extend_from_slice(&varname.as_bytes());
-            // result.push(0);
-            result.extend_from_slice(&var_id.to_ne_bytes());
+            result.push(BytecodeOpr::DeleteVar(var_id));
+            result.push(BytecodeOpr::CreateVar(var_id));
 
             Ok(result)
         }
@@ -238,11 +216,11 @@ pub fn stmnt_to_bytecode(
 fn parse_elif(
     node: NodeElifStmnt,
     bytecode_len: usize,
-    var_symtable: &mut BTreeMap<String, u64>,
+    var_symtable: &mut BTreeMap<String, usize>,
     func_symtable: &mut BTreeMap<String, FuncAnnotation>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
-) -> Result<(Vec<u8>, Vec<u8>), ChalError> {
+) -> Result<(Vec<BytecodeOpr>, Vec<BytecodeOpr>), ChalError> {
     let (cond, body_raw) = node.disassemble();
 
     let cond_bytecode = cond.to_bytecode(bytecode_len, var_symtable, func_symtable)?;
@@ -256,9 +234,9 @@ fn parse_elif(
     )?;
 
     /*
-    let mut result = Vec::<u8>::with_capacity(cond_bytecode.len() + body_bytecode.len() + 9);
+    let mut result = Vec::<BytecodeOpr>::with_capacity(cond_bytecode.len() + body_bytecode.len() + 9);
     result.append(&mut cond_bytecode);
-    result.push(Bytecode::OpIf as u8);
+    result.push(Bytecode::OpIf as BytecodeOpr);
     result.extend_from_slice(&(body_bytecode.len() as u64).to_ne_bytes());
     result.append(&mut body_bytecode);
     */
@@ -269,11 +247,11 @@ fn parse_elif(
 fn parse_else(
     node: NodeElseStmnt,
     bytecode_len: usize,
-    var_symtable: &mut BTreeMap<String, u64>,
+    var_symtable: &mut BTreeMap<String, usize>,
     func_symtable: &mut BTreeMap<String, FuncAnnotation>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
-) -> Result<Vec<u8>, ChalError> {
+) -> Result<Vec<BytecodeOpr>, ChalError> {
     let body_raw = node.disassemble();
     parse_body(
         body_raw,
@@ -288,12 +266,12 @@ fn parse_else(
 fn parse_body(
     body: Vec<NodeStmnt>,
     bytecode_len: usize,
-    var_symtable: &mut BTreeMap<String, u64>,
+    var_symtable: &mut BTreeMap<String, usize>,
     func_symtable: &mut BTreeMap<String, FuncAnnotation>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
-) -> Result<Vec<u8>, ChalError> {
-    let mut result = Vec::<u8>::new();
+) -> Result<Vec<BytecodeOpr>, ChalError> {
+    let mut result = Vec::<BytecodeOpr>::new();
     let mut err_vec = Vec::<ChalError>::new();
 
     let mut current_parent_scope = parent_scope.clone();
@@ -320,11 +298,8 @@ fn parse_body(
     }
 
     for var in current_local_scope {
-        result.push(Bytecode::OpDeleteVar as u8);
         let var_id = get_var_id(var, var_symtable);
-        result.extend_from_slice(&var_id.to_ne_bytes());
-        // result.extend_from_slice(var.as_bytes());
-        // result.push(0);
+        result.push(BytecodeOpr::DeleteVar(var_id));
     }
     Ok(result)
 }

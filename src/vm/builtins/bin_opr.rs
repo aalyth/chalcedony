@@ -173,8 +173,7 @@ macro_rules! apply_comp_operator {
             (CVMObject::Float(lval), CVMObject::Float(rval)) => push_operation!($cvm, Bool, lval $opr rval),
             (left @ CVMObject::Float(_), CVMObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left)?,
 
-            // TODO add PtrString equality
-            // (CVMObject::Str(lval), CVMObject::Str(rval)) => push_operation!($cvm, Bool, lval $opr rval),
+            (CVMObject::Str(lval), CVMObject::Str(rval)) => push_operation!($cvm, Bool, lval $opr rval),
             (CVMObject::Bool(lval), right @ _) => $bool_opr_handler($cvm, lval, right)?,
 
             (left @ _, right @ _)=> return Err($cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type()))),

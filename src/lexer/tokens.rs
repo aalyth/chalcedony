@@ -224,7 +224,7 @@ impl TokenKind {
         if (src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"'))
             || (src.chars().nth(0) == Some('\'') && src.chars().nth(src.len() - 1) == Some('\''))
         {
-            return Ok(TokenKind::Str(src.to_string()));
+            return Ok(TokenKind::Str(src[1 .. src.len() - 1].to_string()));
         } else if src.chars().nth(0) == Some('"') {
             return Err(LexerError::unclosed_string(*start, *end, Rc::clone(span)).into());
         }

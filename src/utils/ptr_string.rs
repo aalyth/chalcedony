@@ -2,6 +2,7 @@ use std::alloc::{Layout, alloc, dealloc};
 use std::ptr;
 use std::fmt;
 use std::ops;
+use std::cmp;
 
 /* an 8-byte ASCII string implementation */
 #[derive(Debug)]
@@ -63,6 +64,43 @@ impl ops::Mul<usize> for PtrString {
             ptr::write(res.add(len * mult), 0);
 
             PtrString(res)
+        }
+    }
+}
+
+impl cmp::PartialEq for PtrString {
+    fn eq(&self, other: &PtrString) -> bool {
+        self.partial_cmp(other) == None
+    }
+}
+
+impl cmp::PartialOrd for PtrString {
+    fn partial_cmp(&self, other: &PtrString) -> Option<cmp::Ordering> {
+        unsafe {
+            let lhs_len = self.len();
+            let rhs_len = other.len();
+            let len = cmp::min(lhs_len, rhs_len);
+
+            for i in 0 .. len {
+                let lval = *self.0.add(i);
+                let rval = *other.0.add(i);
+                if lval < rval {
+                    return Some(cmp::Ordering::Less);
+                } 
+                if lval > rval {
+                    return Some(cmp::Ordering::Greater);
+                }
+            }
+
+            if lhs_len < rhs_len {
+                return Some(cmp::Ordering::Less);
+            }
+
+            if lhs_len > rhs_len {
+                return Some(cmp::Ordering::Greater);
+            }
+
+            return None;
         }
     }
 }

@@ -1,7 +1,3 @@
-mod builtins;
-mod error;
-mod object;
-
 use builtins::{add, and, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
 use error::{CVMError, CVMErrorKind};
 use object::CVMObject;
@@ -9,24 +5,17 @@ use object::CVMObject;
 use crate::error::Position;
 use crate::lexer::Type;
 
-use crate::utils::{Stack, BytecodeOpr};
+use crate::utils::{Bytecode, Stack, BytecodeOpr};
 
-pub struct CVM {
+pub struct CVMTest {
     stack: Stack<CVMObject>,
     var_heap: Vec<Vec<CVMObject>>,
     call_stack: Stack<usize>,
 }
 
-macro_rules! push_constant {
-    ($cvm:ident, $type:ident, $val:ident, $current_idx:ident) => {{
-        $cvm.stack.push(CVMObject::$type(*$val));
-        Ok($current_idx)
-    }};
-}
-
-impl CVM {
+impl CVMTest {
     pub fn new() -> Self {
-        CVM {
+        CVMTest {
             stack: Stack::<CVMObject>::with_capacity(100_000),
             var_heap: Vec::<Vec<CVMObject>>::new(),
             call_stack: Stack::<usize>::new(),
@@ -46,15 +35,12 @@ impl CVM {
             panic!("TODO: make this throw a proper error");
         };
         current_idx += 1;
-        match front {
-            BytecodeOpr::ConstI(val) => push_constant!(self, Int, val, current_idx),
-            BytecodeOpr::ConstU(val) => push_constant!(self, Uint, val, current_idx),
-            BytecodeOpr::ConstF(val) => push_constant!(self, Float, val, current_idx),
-            BytecodeOpr::ConstS(val) => {
-                self.stack.push(CVMObject::Str(val.clone()));
-                Ok(current_idx)
-            },
-            BytecodeOpr::ConstB(val) => push_constant!(self, Bool, val, current_idx),
+        match *front {
+            BytecodeOpr::ConstI(val) => self.stack.push(CVMObject::Int(val)),
+            BytecodeOpr::ConstU(val) => self.stack.push(CVMObject::Uint(val)),
+            BytecodeOpr::ConstF(val) => self.stack.push(CVMObject::Float(val)),
+            BytecodeOpr::ConstS(val) => self.stack.push(CVMObject::Str(val)),
+            BytecodeOpr::ConstB(val) => self.stack.push(CVMObject::Bool(val)),
 
             BytecodeOpr::Debug => {
                 /*
@@ -65,14 +51,14 @@ impl CVM {
                 Ok(current_idx)
             }
             BytecodeOpr::CreateVar(var_id) => {
-                while self.var_heap.len() <= *var_id as usize {
+                while self.var_heap.len() <= var_id as usize {
                     self.var_heap.push(Vec::<CVMObject>::with_capacity(1_000));
                 }
                 let var_value = self
                     .stack
                     .pop()
                     .expect("TODO: add proper error handling for missing stack value");
-                let Some(var_bucket) = self.var_heap.get_mut(*var_id as usize) else {
+                let Some(var_bucket) = self.var_heap.get_mut(var_id as usize) else {
                     panic!("TODO: add proper error handling for missing variable bucket")
                 };
                 var_bucket.push(var_value);
@@ -80,7 +66,7 @@ impl CVM {
             }
 
             BytecodeOpr::DeleteVar(var_id) => {
-                let Some(var_bucket) = self.var_heap.get_mut(*var_id as usize) else {
+                let Some(var_bucket) = self.var_heap.get_mut(var_id as usize) else {
                     panic!("TODO: add proper error handling for missing variable bucket")
                 };
                 var_bucket.pop();
@@ -106,7 +92,7 @@ impl CVM {
             BytecodeOpr::Not => not(self, current_idx),
 
             BytecodeOpr::GetVar(var_id) => {
-                let Some(var_bucket) = self.var_heap.get(*var_id as usize) else {
+                let Some(var_bucket) = self.var_heap.get(var_id as usize) else {
                     panic!("TODO: make this throw a proper error");
                 };
                 if let Some(val) = var_bucket.last() {
@@ -117,7 +103,7 @@ impl CVM {
 
             BytecodeOpr::CallFunc(func_pos) => {
                 self.call_stack.push(current_idx);
-                Ok(*func_pos)
+                Ok(func_pos)
             }
 
             BytecodeOpr::Return => {
@@ -129,7 +115,7 @@ impl CVM {
                 }
             }
 
-            BytecodeOpr::Assert(_type) => {
+            BytecodeOpr::Assert(Type) => {
                 /*
                 let Some(assert_raw) = code.get(current_idx) else {
                     return Err(self.error(CVMErrorKind::InvalidInstruction));
@@ -169,7 +155,7 @@ impl CVM {
             }
 
             BytecodeOpr::Jmp(dist) => {
-                Ok((current_idx as isize + dist) as usize)
+                Ok(current_idx+ dist)
             }
 
             BytecodeOpr::Print => {
@@ -193,4 +179,3 @@ impl CVM {
         CVMError::new(kind, Position::new(1, 1), Position::new(1, 1), 0)
     }
 }
-
