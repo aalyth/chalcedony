@@ -1,4 +1,5 @@
-use crate::error::{ChalError, InternalError, LexerError, Position, Span};
+use crate::error::span::{Span, Spanning};
+use crate::error::{ChalError, InternalError, LexerError};
 use crate::lexer::{Delimiter, Keyword, Line, Special, TokenKind, Type};
 use crate::parser::ast::{parse_body, NodeStmnt};
 use crate::parser::{LineReader, TokenReader};
@@ -7,19 +8,17 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 
 pub struct NodeFuncDef {
-    name: String,
-    args: Vec<(String, Type)>,
-    ret_type: Type,
-    body: Vec<NodeStmnt>,
+    pub name: String,
+    pub args: Vec<(String, Type)>,
+    pub ret_type: Type,
+    pub body: Vec<NodeStmnt>,
 
-    /* the positions refer to the function's header */
-    start: Position,
-    end: Position,
-    span: Rc<Span>,
+    /* the span refers to the function's header */
+    pub span: Span,
 }
 
 impl NodeFuncDef {
-    pub fn new(chunk: VecDeque<Line>, span: Rc<Span>) -> Result<Self, ChalError> {
+    pub fn new(chunk: VecDeque<Line>, spanner: Rc<dyn Spanning>) -> Result<Self, ChalError> {
         /* function composition:
          * fn main() -> void:        | header
          *     let a = 5             > body
@@ -28,7 +27,7 @@ impl NodeFuncDef {
 
         /* NOTE: this looks strange, but it's used to check wheater the indentations inside the
          * function body are correct */
-        let mut reader = LineReader::new(chunk, span.clone());
+        let mut reader = LineReader::new(chunk, spanner.clone());
         let mut reader = reader.advance_chunk()?;
 
         let Some(header_src) = reader.advance() else {
@@ -47,13 +46,12 @@ impl NodeFuncDef {
 
         /* NOTE: remove this if nested function definitions become allowed */
         if header_src.indent() != 0 {
-            let start = header_src.tokens().front().unwrap().start();
-            let end = header_src.tokens().front().unwrap().end();
-            return Err(LexerError::invalid_indentation(start, end, span.clone()).into());
+            let front_tok = header_src.tokens().front().unwrap();
+            return Err(LexerError::invalid_indentation(front_tok.span.clone()).into());
         }
 
-        let mut header = TokenReader::new(header_src.into(), span.clone());
-        let start = header.start();
+        let mut header = TokenReader::new(header_src.into(), spanner.clone());
+        let start = header.current().start;
 
         header.expect_exact(TokenKind::Keyword(Keyword::Fn))?;
 
@@ -87,17 +85,16 @@ impl NodeFuncDef {
         }
 
         header.expect_exact(TokenKind::Special(Special::Colon))?;
-        let end = header.end();
+        let end = header.current().end;
         header.expect_exact(TokenKind::Newline)?;
 
+        let span = Span::new(start, end, reader.spanner());
         Ok(NodeFuncDef {
             name,
             args,
             ret_type,
             body: parse_body(reader)?,
-            start,
-            end,
-            span: header.span(),
+            span,
         })
     }
 
@@ -105,6 +102,7 @@ impl NodeFuncDef {
         self.name.clone()
     }
 
+    /*
     pub fn disassemble(
         self,
     ) -> (
@@ -126,4 +124,5 @@ impl NodeFuncDef {
             self.span,
         )
     }
+    */
 }

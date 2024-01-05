@@ -1,18 +1,18 @@
-use std::alloc::{Layout, alloc, dealloc};
-use std::ptr;
+use std::alloc::{alloc, dealloc, Layout};
+use std::cmp;
 use std::fmt;
 use std::ops;
-use std::cmp;
+use std::ptr;
 
 /* an 8-byte ASCII string implementation */
 #[derive(Debug)]
-pub struct PtrString (*const u8);
+pub struct PtrString(*const u8);
 
 impl PtrString {
     unsafe fn len(&self) -> usize {
         let PtrString(ptr) = self;
         let mut i: usize = 0;
-        while *ptr.add(i) != 0  {
+        while *ptr.add(i) != 0 {
             i += 1;
         }
         i
@@ -21,7 +21,7 @@ impl PtrString {
 
 // TODO: add multiplication
 impl ops::Add<PtrString> for PtrString {
-    type Output = PtrString;  
+    type Output = PtrString;
 
     fn add(self, rhs: PtrString) -> Self::Output {
         unsafe {
@@ -33,7 +33,7 @@ impl ops::Add<PtrString> for PtrString {
 
             let res_layout = Layout::array::<*const u8>(lhs_len + rhs_len + 1)
                 .expect("Error: creating a string with size greater than isize::MAX");
-            
+
             let res = alloc(res_layout);
             ptr::copy(lhs, res, lhs_len);
             ptr::copy(rhs, res.add(lhs_len), rhs_len);
@@ -52,7 +52,7 @@ impl ops::Mul<usize> for PtrString {
             let len = self.len();
             let lhs = self.0 as *mut u8;
 
-            let res_layout = Layout::array::<*const u8>(len * mult + 1) 
+            let res_layout = Layout::array::<*const u8>(len * mult + 1)
                 .expect("Error: creating a string with size greater than isize::MAX");
 
             let res = alloc(res_layout);
@@ -81,12 +81,12 @@ impl cmp::PartialOrd for PtrString {
             let rhs_len = other.len();
             let len = cmp::min(lhs_len, rhs_len);
 
-            for i in 0 .. len {
+            for i in 0..len {
                 let lval = *self.0.add(i);
                 let rval = *other.0.add(i);
                 if lval < rval {
                     return Some(cmp::Ordering::Less);
-                } 
+                }
                 if lval > rval {
                     return Some(cmp::Ordering::Greater);
                 }

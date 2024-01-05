@@ -28,7 +28,7 @@ pub fn parse_body(mut reader: LineReader) -> Result<Vec<NodeStmnt>, ChalError> {
     let mut err_vec = Vec::<ChalError>::new();
 
     while let Some(front) = reader.peek_tok() {
-        match *front.kind() {
+        match front.kind {
             TokenKind::Keyword(Keyword::Let) => {
                 let tok_reader_raw = reader.advance_reader();
                 let Ok(tok_reader) = tok_reader_raw else {
@@ -71,8 +71,8 @@ pub fn parse_body(mut reader: LineReader) -> Result<Vec<NodeStmnt>, ChalError> {
 
                 // SAFETY: there is always at least 2 elements in the line (the identifer + newline)
                 if let Some(peek) = line.tokens().get(1) {
-                    if *peek.kind() == TokenKind::Delimiter(Delimiter::OpenPar) {
-                        let node_raw = NodeFuncCall::new(line.into(), reader.span().clone());
+                    if peek.kind == TokenKind::Delimiter(Delimiter::OpenPar) {
+                        let node_raw = NodeFuncCall::new(line.into(), reader.spanner());
                         let Ok(node) = node_raw else {
                             err_vec.push(node_raw.err().unwrap());
                             continue;
@@ -82,7 +82,7 @@ pub fn parse_body(mut reader: LineReader) -> Result<Vec<NodeStmnt>, ChalError> {
                     }
                 }
 
-                let token_reader = TokenReader::new(line.into(), reader.span().clone());
+                let token_reader = TokenReader::new(line.into(), reader.spanner().clone());
                 let node_raw = NodeAssign::new(token_reader);
                 let Ok(node) = node_raw else {
                     err_vec.push(node_raw.err().unwrap());
@@ -127,10 +127,7 @@ pub fn parse_body(mut reader: LineReader) -> Result<Vec<NodeStmnt>, ChalError> {
             _ => {
                 let front = front.clone();
                 reader.advance();
-                err_vec.push(
-                    ParserError::invalid_statement(front.start(), front.end(), reader.span())
-                        .into(),
-                )
+                err_vec.push(ParserError::invalid_statement(front.span).into())
             }
         }
     }

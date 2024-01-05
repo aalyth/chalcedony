@@ -1,7 +1,6 @@
 use crate::lexer::Token;
 use std::collections::VecDeque;
 
-#[derive(Debug)]
 pub struct Line {
     /* the number of spaces in (not tabulations) */
     indent: u64,

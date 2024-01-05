@@ -26,7 +26,7 @@ impl NodeVarDef {
         }
 
         let rhs = reader.advance_until(|tk| tk == &TokenKind::Newline)?;
-        let value = NodeExpr::new(rhs, reader.span())?;
+        let value = NodeExpr::new(rhs, reader.spanner())?;
         reader.expect_exact(TokenKind::Newline)?;
 
         Ok(NodeVarDef { name, kind, value })

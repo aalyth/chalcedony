@@ -1,13 +1,13 @@
 mod codegen;
 use codegen::ToBytecode;
 
-use crate::error::{ChalError, Span};
+use crate::error::{span::Spanning, ChalError};
 use crate::lexer::Type;
 use crate::parser::ast::NodeProg;
 use crate::parser::Parser;
 use crate::vm::CVM;
 
-use crate::utils::BytecodeOpr;
+use crate::utils::Bytecode;
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -58,16 +58,16 @@ impl Chalcedony {
 
         let mut errors = Vec::<ChalError>::new();
 
-        let mut span_lookup = BTreeMap::<u16, Rc<Span>>::new();
-        span_lookup.insert(0, parser.span());
+        let mut span_lookup = BTreeMap::<u16, Rc<dyn Spanning>>::new();
+        span_lookup.insert(0, parser.spanner());
 
         let mut main_start: usize = 0;
 
         let mut bytecode = vec![
-            BytecodeOpr::GetVar(0),
-            BytecodeOpr::Print,
-            BytecodeOpr::DeleteVar(0),
-            BytecodeOpr::Return,
+            Bytecode::GetVar(0),
+            Bytecode::Print,
+            Bytecode::DeleteVar(0),
+            Bytecode::Return,
         ];
 
         while !parser.is_empty() {

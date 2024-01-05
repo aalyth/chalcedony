@@ -6,7 +6,7 @@ use crate::interpreter::FuncAnnotation;
 use crate::lexer::Type;
 use crate::parser::ast::operators::AssignOprType;
 use crate::parser::ast::{NodeElifStmnt, NodeElseStmnt, NodeRetStmnt, NodeStmnt, NodeVarCall};
-use crate::utils::BytecodeOpr;
+use crate::utils::Bytecode;
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -17,7 +17,7 @@ pub fn stmnt_to_bytecode(
     func_symtable: &mut BTreeMap<String, FuncAnnotation>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
-) -> Result<Vec<BytecodeOpr>, ChalError> {
+) -> Result<Vec<Bytecode>, ChalError> {
     match node {
         NodeStmnt::VarDef(node) => {
             let var_name = node.name();
@@ -25,12 +25,12 @@ pub fn stmnt_to_bytecode(
 
             /* this capacity is for the best case scenario, if we need to delete the already
              * existing variable, there will be another allocation*/
-            let mut result = Vec::<BytecodeOpr>::with_capacity(var_bytecode.len() + 1);
+            let mut result = Vec::<Bytecode>::with_capacity(var_bytecode.len() + 1);
 
             /* 'shadow' the old variable value */
             if local_scope.contains(&var_name) {
                 let var_id = get_var_id(var_name, var_symtable);
-                result.push(BytecodeOpr::DeleteVar(var_id))
+                result.push(Bytecode::DeleteVar(var_id))
             } else {
                 local_scope.insert(var_name);
             }
@@ -40,43 +40,39 @@ pub fn stmnt_to_bytecode(
         }
 
         NodeStmnt::FuncCall(node) => {
-            let Some(annotation) = func_symtable.get(&node.name()) else {
-                let (fn_name, _, start, end, span) = node.disassemble();
-                return Err(RuntimeError::unknown_function(fn_name, start, end, span).into());
+            let Some(annotation) = func_symtable.get(&node.name) else {
+                return Err(RuntimeError::unknown_function(node.name, node.span).into());
             };
 
             let fn_ty = &annotation.ret_type;
             if *fn_ty != Type::Void {
-                let (_, _, start, end, span) = node.disassemble();
-                return Err(
-                    RuntimeError::non_void_func_stmnt(fn_ty.clone(), start, end, span).into(),
-                );
+                return Err(RuntimeError::non_void_func_stmnt(fn_ty.clone(), node.span).into());
             }
 
             node.to_bytecode(bytecode_len, var_symtable, func_symtable)
         }
 
         NodeStmnt::RetStmnt(NodeRetStmnt(expr)) => {
-            let mut result = Vec::<BytecodeOpr>::new();
+            let mut result = Vec::<Bytecode>::new();
             result.append(&mut expr.to_bytecode(bytecode_len, var_symtable, func_symtable)?);
 
             /* remove all variables in the current scope */
             for var in parent_scope.iter() {
                 let var_id = get_var_id(var.clone(), var_symtable);
-                result.push(BytecodeOpr::DeleteVar(var_id))
+                result.push(Bytecode::DeleteVar(var_id))
             }
 
             for var in local_scope.iter() {
                 let var_id = get_var_id(var.clone(), var_symtable);
-                result.push(BytecodeOpr::DeleteVar(var_id))
+                result.push(Bytecode::DeleteVar(var_id))
             }
 
-            result.push(BytecodeOpr::Return);
+            result.push(Bytecode::Return);
             Ok(result)
         }
 
         NodeStmnt::IfStmnt(node) => {
-            let (cond_raw, body_raw, branches) = node.disassemble();
+            let (cond_raw, body_raw, _branches) = node.disassemble();
 
             let mut cond = cond_raw.to_bytecode(bytecode_len, var_symtable, func_symtable)?;
             let mut body = parse_body(
@@ -89,8 +85,8 @@ pub fn stmnt_to_bytecode(
             )?;
 
             /*
-            let mut branch_bodies: Vec<Vec<BytecodeOpr>> = Vec::new();
-            let mut branch_conditions: Vec<Vec<BytecodeOpr>> = Vec::new();
+            let mut branch_bodies: Vec<Vec<Bytecode>> = Vec::new();
+            let mut branch_conditions: Vec<Vec<Bytecode>> = Vec::new();
             let mut err_vec: Vec<ChalError> = Vec::new();
             for branch in branches {
                 match branch {
@@ -135,7 +131,7 @@ pub fn stmnt_to_bytecode(
             bodies_len += branch_bodies.len() * OP_JMP_INSTR_LEN;
             let conditions_len: usize = branch_conditions.iter().map(|el| el.len()).sum();
 
-            let mut result = Vec::<BytecodeOpr>::with_capacity(
+            let mut result = Vec::<Bytecode>::with_capacity(
                 cond.len()
                     + OP_IF_INSTR_LEN
                     + OP_JMP_INSTR_LEN
@@ -144,14 +140,14 @@ pub fn stmnt_to_bytecode(
                     + conditions_len,
             );
             result.append(&mut cond);
-            result.push(Bytecode::OpIf as BytecodeOpr);
+            result.push(Bytecode::OpIf as Bytecode);
             let body_len = (body.len() + OP_JMP_INSTR_LEN) as u64;
             result.extend_from_slice(&body_len.to_ne_bytes());
             */
 
-            let mut result = Vec::<BytecodeOpr>::new();
+            let mut result = Vec::<Bytecode>::new();
             result.append(&mut cond);
-            result.push(BytecodeOpr::If(body.len()));
+            result.push(Bytecode::If(body.len()));
             result.append(&mut body);
 
             Ok(result)
@@ -160,7 +156,7 @@ pub fn stmnt_to_bytecode(
         NodeStmnt::WhileLoop(node) => {
             let (cond, body_raw) = node.disassemble();
 
-            let mut result = Vec::<BytecodeOpr>::new();
+            let mut result = Vec::<Bytecode>::new();
             result.append(&mut cond.to_bytecode(bytecode_len, var_symtable, func_symtable)?);
             /* there is no need to use a type assertion for bool value since the OpIf
              * instruction already checks it */
@@ -176,12 +172,12 @@ pub fn stmnt_to_bytecode(
 
             /* skipping over the body if the condition is false */
             let body_len = body.len() + 1;
-            result.push(BytecodeOpr::If(body_len));
+            result.push(Bytecode::If(body_len));
             result.append(&mut body);
 
             /* how much to go back when we have iterated the body */
             let dist = -(result.len() as isize) - 1;
-            result.push(BytecodeOpr::Jmp(dist));
+            result.push(Bytecode::Jmp(dist));
 
             Ok(result)
         }
@@ -189,24 +185,24 @@ pub fn stmnt_to_bytecode(
         NodeStmnt::Assign(node) => {
             let (NodeVarCall(varname), opr, rhs) = node.disassemble();
             let var_id = get_var_id(varname, var_symtable);
-            let mut result = Vec::<BytecodeOpr>::new();
+            let mut result = Vec::<Bytecode>::new();
             if opr != AssignOprType::Eq {
-                result.push(BytecodeOpr::GetVar(var_id));
+                result.push(Bytecode::GetVar(var_id));
             }
 
             result.append(&mut rhs.to_bytecode(bytecode_len, var_symtable, func_symtable)?);
 
             match opr {
-                AssignOprType::AddEq => result.push(BytecodeOpr::Add),
-                AssignOprType::SubEq => result.push(BytecodeOpr::Sub),
-                AssignOprType::MulEq => result.push(BytecodeOpr::Mul),
-                AssignOprType::DivEq => result.push(BytecodeOpr::Div),
-                AssignOprType::ModEq => result.push(BytecodeOpr::Mod),
+                AssignOprType::AddEq => result.push(Bytecode::Add),
+                AssignOprType::SubEq => result.push(Bytecode::Sub),
+                AssignOprType::MulEq => result.push(Bytecode::Mul),
+                AssignOprType::DivEq => result.push(Bytecode::Div),
+                AssignOprType::ModEq => result.push(Bytecode::Mod),
                 _ => {}
             }
 
-            result.push(BytecodeOpr::DeleteVar(var_id));
-            result.push(BytecodeOpr::CreateVar(var_id));
+            result.push(Bytecode::DeleteVar(var_id));
+            result.push(Bytecode::CreateVar(var_id));
 
             Ok(result)
         }
@@ -220,7 +216,7 @@ fn parse_elif(
     func_symtable: &mut BTreeMap<String, FuncAnnotation>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
-) -> Result<(Vec<BytecodeOpr>, Vec<BytecodeOpr>), ChalError> {
+) -> Result<(Vec<Bytecode>, Vec<Bytecode>), ChalError> {
     let (cond, body_raw) = node.disassemble();
 
     let cond_bytecode = cond.to_bytecode(bytecode_len, var_symtable, func_symtable)?;
@@ -234,9 +230,9 @@ fn parse_elif(
     )?;
 
     /*
-    let mut result = Vec::<BytecodeOpr>::with_capacity(cond_bytecode.len() + body_bytecode.len() + 9);
+    let mut result = Vec::<Bytecode>::with_capacity(cond_bytecode.len() + body_bytecode.len() + 9);
     result.append(&mut cond_bytecode);
-    result.push(Bytecode::OpIf as BytecodeOpr);
+    result.push(Bytecode::OpIf as Bytecode);
     result.extend_from_slice(&(body_bytecode.len() as u64).to_ne_bytes());
     result.append(&mut body_bytecode);
     */
@@ -251,7 +247,7 @@ fn parse_else(
     func_symtable: &mut BTreeMap<String, FuncAnnotation>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
-) -> Result<Vec<BytecodeOpr>, ChalError> {
+) -> Result<Vec<Bytecode>, ChalError> {
     let body_raw = node.disassemble();
     parse_body(
         body_raw,
@@ -270,8 +266,8 @@ fn parse_body(
     func_symtable: &mut BTreeMap<String, FuncAnnotation>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
-) -> Result<Vec<BytecodeOpr>, ChalError> {
-    let mut result = Vec::<BytecodeOpr>::new();
+) -> Result<Vec<Bytecode>, ChalError> {
+    let mut result = Vec::<Bytecode>::new();
     let mut err_vec = Vec::<ChalError>::new();
 
     let mut current_parent_scope = parent_scope.clone();
@@ -299,7 +295,7 @@ fn parse_body(
 
     for var in current_local_scope {
         let var_id = get_var_id(var, var_symtable);
-        result.push(BytecodeOpr::DeleteVar(var_id));
+        result.push(Bytecode::DeleteVar(var_id));
     }
     Ok(result)
 }

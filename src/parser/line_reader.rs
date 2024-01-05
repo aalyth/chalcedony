@@ -1,4 +1,5 @@
-use crate::error::{ChalError, InternalError, LexerError, Span};
+use crate::error::span::{Span, Spanning};
+use crate::error::{ChalError, InternalError, LexerError};
 use crate::lexer::{Keyword, Line, Token, TokenKind};
 
 use std::collections::VecDeque;
@@ -8,16 +9,16 @@ use super::token_reader::TokenReader;
 
 pub struct LineReader {
     src: VecDeque<Line>,
-    span: Rc<Span>,
+    spanner: Rc<dyn Spanning>,
 }
 
 impl LineReader {
-    pub fn new(src: VecDeque<Line>, span: Rc<Span>) -> Self {
-        LineReader { src, span }
+    pub fn new(src: VecDeque<Line>, spanner: Rc<dyn Spanning>) -> Self {
+        LineReader { src, spanner }
     }
 
-    pub fn span(&self) -> Rc<Span> {
-        self.span.clone()
+    pub fn spanner(&self) -> Rc<dyn Spanning> {
+        self.spanner.clone()
     }
 
     pub fn indent(&self) -> Option<u64> {
@@ -59,11 +60,11 @@ impl LineReader {
             }
 
             if front.indent().abs_diff(prev_indent) > 4 {
-                return Err(LexerError::invalid_indentation(
-                    front.tokens().front().unwrap().start(),
-                    front.tokens().front().unwrap().end(),
-                    self.span.clone(),
-                )
+                return Err(LexerError::invalid_indentation(Span::new(
+                    front.tokens().front().unwrap().span.start,
+                    front.tokens().front().unwrap().span.end,
+                    self.spanner.clone(),
+                ))
                 .into());
             }
             prev_indent = front.indent();
@@ -88,13 +89,13 @@ impl LineReader {
         /* if the chunk is of type if statement check for elif/else bodies */
         if let Some(front_ln) = res.front() {
             if let Some(front_tok) = front_ln.tokens().front() {
-                if *front_tok.kind() != TokenKind::Keyword(Keyword::If) {
-                    return Ok(LineReader::new(res, self.span.clone()));
+                if front_tok.kind != TokenKind::Keyword(Keyword::If) {
+                    return Ok(LineReader::new(res, self.spanner.clone()));
                 }
             }
         };
         while let Some(peek) = self.peek_tok() {
-            match peek.kind() {
+            match peek.kind {
                 TokenKind::Keyword(Keyword::Elif) => res.append(&mut self.advance_until(cond)?),
                 TokenKind::Keyword(Keyword::Else) => {
                     res.append(&mut self.advance_until(cond)?);
@@ -104,7 +105,7 @@ impl LineReader {
             }
         }
 
-        Ok(LineReader::new(res, self.span.clone()))
+        Ok(LineReader::new(res, self.spanner.clone()))
     }
 
     pub fn advance_reader(&mut self) -> Result<TokenReader, ChalError> {
@@ -115,6 +116,6 @@ impl LineReader {
             .into());
         };
 
-        Ok(TokenReader::new(next.into(), self.span.clone()))
+        Ok(TokenReader::new(next.into(), self.spanner.clone()))
     }
 }

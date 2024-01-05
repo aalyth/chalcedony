@@ -1,6 +1,5 @@
-
-use crate::utils::PtrString;
 use crate::lexer::Type;
+use crate::utils::PtrString;
 
 #[derive(Debug, Clone)]
 pub enum CVMObject {

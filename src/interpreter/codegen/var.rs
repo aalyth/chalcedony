@@ -4,7 +4,7 @@ use crate::error::ChalError;
 use crate::interpreter::FuncAnnotation;
 use crate::lexer::Type;
 use crate::parser::ast::NodeVarDef;
-use crate::utils::BytecodeOpr;
+use crate::utils::Bytecode;
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -28,16 +28,16 @@ impl ToBytecode for NodeVarDef {
         bytecode_len: usize,
         var_symtable: &mut BTreeMap<String, usize>,
         func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-    ) -> Result<Vec<BytecodeOpr>, ChalError> {
+    ) -> Result<Vec<Bytecode>, ChalError> {
         let (var_name, var_type, rhs) = self.disassemble();
         let mut result = rhs.to_bytecode(bytecode_len, var_symtable, func_symtable)?;
 
         if var_type != Type::Any {
-            result.push(BytecodeOpr::Assert(var_type));
+            result.push(Bytecode::Assert(var_type));
         }
 
         let var_id = get_var_id(var_name, var_symtable);
-        result.push(BytecodeOpr::CreateVar(var_id));
+        result.push(Bytecode::CreateVar(var_id));
         Ok(result)
     }
 }

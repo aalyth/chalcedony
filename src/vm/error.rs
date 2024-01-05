@@ -1,4 +1,5 @@
-use crate::error::{ChalError, InternalError, Position, RuntimeError, Span};
+use crate::error::span::{Position, Span, Spanning};
+use crate::error::{ChalError, InternalError, RuntimeError};
 use crate::lexer::Type;
 
 use std::collections::BTreeMap;
@@ -21,22 +22,22 @@ pub enum CVMErrorKind {
 pub struct CVMError {
     start: Position,
     end: Position,
-    span_id: u16,
+    spanner_id: u16,
     kind: CVMErrorKind,
 }
 
 impl CVMError {
-    pub fn new(kind: CVMErrorKind, start: Position, end: Position, span_id: u16) -> Self {
+    pub fn new(kind: CVMErrorKind, start: Position, end: Position, spanner_id: u16) -> Self {
         CVMError {
             kind,
             start,
             end,
-            span_id,
+            spanner_id,
         }
     }
 
-    pub fn into(self, span_lookup: &BTreeMap<u16, Rc<Span>>) -> ChalError {
-        let Some(span) = span_lookup.get(&self.span_id) else {
+    pub fn into(self, span_lookup: &BTreeMap<u16, Rc<dyn Spanning>>) -> ChalError {
+        let Some(spanner) = span_lookup.get(&self.spanner_id) else {
             return InternalError::new("CVMError::into(): invalid span_id").into();
         };
 
@@ -52,29 +53,44 @@ impl CVMError {
 
             CVMErrorKind::UnknownInstruction => InternalError::new("unknown instruction").into(),
 
-            CVMErrorKind::UnknownVariable(var) => {
-                RuntimeError::unknown_variable(var, self.start, self.end, span.clone()).into()
-            }
+            CVMErrorKind::UnknownVariable(var) => RuntimeError::unknown_variable(
+                var,
+                Span::new(self.start, self.end, spanner.clone()),
+            )
+            .into(),
 
-            CVMErrorKind::UnknownFunction(func) => {
-                RuntimeError::unknown_function(func, self.start, self.end, span.clone()).into()
-            }
+            CVMErrorKind::UnknownFunction(func) => RuntimeError::unknown_function(
+                func,
+                Span::new(self.start, self.end, spanner.clone()),
+            )
+            .into(),
 
-            CVMErrorKind::TypeAssertionFail(exp, recv) => {
-                RuntimeError::invalid_type(exp, recv, self.start, self.end, span.clone()).into()
-            }
+            CVMErrorKind::TypeAssertionFail(exp, recv) => RuntimeError::invalid_type(
+                exp,
+                recv,
+                Span::new(self.start, self.end, spanner.clone()),
+            )
+            .into(),
 
-            CVMErrorKind::InvalidBinOperation(lhs, rhs) => {
-                RuntimeError::invalid_operation(lhs, rhs, self.start, self.end, span.clone()).into()
-            }
+            CVMErrorKind::InvalidBinOperation(lhs, rhs) => RuntimeError::invalid_operation(
+                lhs,
+                rhs,
+                Span::new(self.start, self.end, spanner.clone()),
+            )
+            .into(),
 
-            CVMErrorKind::InvalidUnOperation(ty) => {
-                RuntimeError::invalid_un_operation(ty, self.start, self.end, span.clone()).into()
-            }
+            CVMErrorKind::InvalidUnOperation(ty) => RuntimeError::invalid_un_operation(
+                ty,
+                Span::new(self.start, self.end, spanner.clone()),
+            )
+            .into(),
 
-            CVMErrorKind::InvalidType(exp, recv) => {
-                RuntimeError::invalid_type(exp, recv, self.start, self.end, span.clone()).into()
-            }
+            CVMErrorKind::InvalidType(exp, recv) => RuntimeError::invalid_type(
+                exp,
+                recv,
+                Span::new(self.start, self.end, spanner.clone()),
+            )
+            .into(),
         }
     }
 }

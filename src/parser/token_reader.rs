@@ -1,4 +1,5 @@
-use crate::error::{ChalError, InternalError, ParserError, Position, Span};
+use crate::error::span::{Position, Span, Spanning};
+use crate::error::{ChalError, InternalError, ParserError};
 use crate::lexer::{Token, TokenKind, Type};
 
 use std::collections::VecDeque;
@@ -6,13 +7,12 @@ use std::rc::Rc;
 
 pub struct TokenReader {
     src: VecDeque<Token>,
-    start: Position,
-    end: Position,
-    span: Rc<Span>,
+    current: Span,
+    spanner: Rc<dyn Spanning>,
 }
 
 impl TokenReader {
-    pub fn new(src: VecDeque<Token>, span: Rc<Span>) -> Self {
+    pub fn new(src: VecDeque<Token>, spanner: Rc<dyn Spanning>) -> Self {
         let mut start = Position::new(0, 0);
         let mut end = Position::new(0, 0);
 
@@ -20,28 +20,23 @@ impl TokenReader {
          * and take the first token's end position */
         if !src.is_empty() {
             let front = src.front().unwrap();
-            start = front.start();
-            end = front.end();
+            start = front.span.start;
+            end = front.span.end;
         }
 
         TokenReader {
-            start,
-            end,
             src,
-            span,
+            current: Span::new(start, end, spanner.clone()),
+            spanner,
         }
     }
 
-    pub fn span(&self) -> Rc<Span> {
-        self.span.clone()
+    pub fn current(&self) -> Span {
+        self.current.clone()
     }
 
-    pub fn start(&self) -> Position {
-        self.start
-    }
-
-    pub fn end(&self) -> Position {
-        self.end
+    pub fn spanner(&self) -> Rc<dyn Spanning> {
+        self.spanner.clone()
     }
 
     pub fn advance(&mut self) -> Option<Token> {
@@ -49,8 +44,8 @@ impl TokenReader {
             return None;
         };
 
-        self.start = res.start();
-        self.end = res.end();
+        self.current.start = res.span.start;
+        self.current.end = res.span.end;
         Some(res)
     }
 
@@ -81,12 +76,12 @@ impl TokenReader {
             return false;
         };
 
-        *peek.kind() == exp
+        peek.kind == exp
     }
 
     pub fn expect_ident(&mut self) -> Result<String, ChalError> {
         let exp = self.expect(TokenKind::Identifier(String::new()))?;
-        match exp.kind() {
+        match exp.kind {
             TokenKind::Identifier(res) => Ok(res.clone()),
             _ => Err(
                 InternalError::new("TokenReader::expect_ident(): invalid expect() value").into(),
@@ -96,7 +91,7 @@ impl TokenReader {
 
     pub fn expect_type(&mut self) -> Result<Type, ChalError> {
         let exp = self.expect(TokenKind::Type(Type::Any))?;
-        match exp.kind() {
+        match exp.kind {
             TokenKind::Type(res) => Ok(res.clone()),
             _ => {
                 Err(InternalError::new("TokenReader::expect_type(): invalid expect() value").into())
@@ -120,7 +115,7 @@ impl TokenReader {
         }
 
         let mut result = VecDeque::<Token>::new();
-        while !self.src.is_empty() && !cond(self.src.front().unwrap().kind()) {
+        while !self.src.is_empty() && !cond(&self.src.front().unwrap().kind) {
             result.push_back(self.advance().unwrap());
         }
         Ok(result)
@@ -132,24 +127,17 @@ impl TokenReader {
         cond: fn(&TokenKind, &TokenKind) -> bool,
     ) -> Result<Token, ChalError> {
         let Some(token) = self.peek() else {
-            return Err(
-                ParserError::expected_token(exp, self.end, self.end, self.span.clone()).into(),
-            );
+            return Err(ParserError::expected_token(exp, self.current.clone()).into());
         };
 
-        if cond(token.kind(), &exp) {
+        if cond(&token.kind, &exp) {
             return Ok(self.advance().unwrap());
         }
 
-        let mut start = token.start();
-        let mut end = token.end();
-        if token.kind() == &TokenKind::Newline {
-            start = self.end();
-            end = self.end();
+        let mut span = token.span.clone();
+        if token.kind == TokenKind::Newline {
+            span = self.current.clone();
         }
-        Err(
-            ParserError::invalid_token(exp, token.kind().clone(), start, end, self.span.clone())
-                .into(),
-        )
+        Err(ParserError::invalid_token(exp, token.kind.clone(), span).into())
     }
 }

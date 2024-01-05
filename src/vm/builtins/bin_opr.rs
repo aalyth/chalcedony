@@ -2,12 +2,12 @@ use crate::lexer::Type;
 use crate::utils::PtrString;
 use crate::vm::{CVMError, CVMErrorKind, CVMObject, CVM};
 
-fn get_operands(cvm: &mut CVM) -> Result<(CVMObject, CVMObject), CVMError>{
+fn get_operands(cvm: &mut CVM) -> Result<(CVMObject, CVMObject), CVMError> {
     let Some(right) = cvm.stack.pop() else {
-        return Err(cvm.error(CVMErrorKind::ExpectedObject))
+        return Err(cvm.error(CVMErrorKind::ExpectedObject));
     };
     let Some(left) = cvm.stack.pop() else {
-        return Err(cvm.error(CVMErrorKind::ExpectedObject))
+        return Err(cvm.error(CVMErrorKind::ExpectedObject));
     };
     Ok((left, right))
 }
@@ -56,19 +56,42 @@ pub fn mul(cvm: &mut CVM, current_idx: usize) -> Result<usize, CVMError> {
 pub fn div(cvm: &mut CVM, current_idx: usize) -> Result<usize, CVMError> {
     let (left, right) = get_operands(cvm)?;
     match (left, right) {
-        (CVMObject::Int(lval), CVMObject::Int(rval)) => push_operation!(cvm, Float, (lval as f64) / (rval as f64)),
-        (CVMObject::Int(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Float, (lval as f64) / (rval as f64)),
-        (CVMObject::Int(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, (lval as f64) / rval),
+        (CVMObject::Int(lval), CVMObject::Int(rval)) => {
+            push_operation!(cvm, Float, (lval as f64) / (rval as f64))
+        }
+        (CVMObject::Int(lval), CVMObject::Uint(rval)) => {
+            push_operation!(cvm, Float, (lval as f64) / (rval as f64))
+        }
+        (CVMObject::Int(lval), CVMObject::Float(rval)) => {
+            push_operation!(cvm, Float, (lval as f64) / rval)
+        }
 
-        (CVMObject::Uint(lval), CVMObject::Int(rval)) => push_operation!(cvm, Float, (lval as f64) / (rval as f64)),
-        (CVMObject::Uint(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Float, (lval as f64) / (rval as f64)),
-        (CVMObject::Uint(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, (lval as f64) / rval),
+        (CVMObject::Uint(lval), CVMObject::Int(rval)) => {
+            push_operation!(cvm, Float, (lval as f64) / (rval as f64))
+        }
+        (CVMObject::Uint(lval), CVMObject::Uint(rval)) => {
+            push_operation!(cvm, Float, (lval as f64) / (rval as f64))
+        }
+        (CVMObject::Uint(lval), CVMObject::Float(rval)) => {
+            push_operation!(cvm, Float, (lval as f64) / rval)
+        }
 
-        (CVMObject::Float(lval), CVMObject::Int(rval)) => push_operation!(cvm, Float, lval / (rval as f64)),
-        (CVMObject::Float(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Float, lval / (rval as f64)),
-        (CVMObject::Float(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, lval / rval),
+        (CVMObject::Float(lval), CVMObject::Int(rval)) => {
+            push_operation!(cvm, Float, lval / (rval as f64))
+        }
+        (CVMObject::Float(lval), CVMObject::Uint(rval)) => {
+            push_operation!(cvm, Float, lval / (rval as f64))
+        }
+        (CVMObject::Float(lval), CVMObject::Float(rval)) => {
+            push_operation!(cvm, Float, lval / rval)
+        }
 
-        (left @ _, right @ _) => return Err(cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type())))
+        (left @ _, right @ _) => {
+            return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
+                left.as_type(),
+                right.as_type(),
+            )))
+        }
     }
     Ok(current_idx)
 }
@@ -77,29 +100,56 @@ pub fn modulo(cvm: &mut CVM, current_idx: usize) -> Result<usize, CVMError> {
     let (left, right) = get_operands(cvm)?;
     match (left, right) {
         (CVMObject::Int(lval), CVMObject::Int(rval)) => push_operation!(cvm, Int, lval % rval),
-        (CVMObject::Int(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Int, lval % (rval as i64)),
-        (CVMObject::Int(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, (lval as f64) % rval),
+        (CVMObject::Int(lval), CVMObject::Uint(rval)) => {
+            push_operation!(cvm, Int, lval % (rval as i64))
+        }
+        (CVMObject::Int(lval), CVMObject::Float(rval)) => {
+            push_operation!(cvm, Float, (lval as f64) % rval)
+        }
 
-        (CVMObject::Uint(lval), CVMObject::Int(rval)) => push_operation!(cvm, Int, (lval as i64) % rval),
+        (CVMObject::Uint(lval), CVMObject::Int(rval)) => {
+            push_operation!(cvm, Int, (lval as i64) % rval)
+        }
         (CVMObject::Uint(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Uint, lval % rval),
-        (CVMObject::Uint(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, (lval as f64) % rval),
+        (CVMObject::Uint(lval), CVMObject::Float(rval)) => {
+            push_operation!(cvm, Float, (lval as f64) % rval)
+        }
 
-        (CVMObject::Float(lval), CVMObject::Int(rval)) => push_operation!(cvm, Float, lval % (rval as f64)),
-        (CVMObject::Float(lval), CVMObject::Uint(rval)) => push_operation!(cvm, Float, lval % (rval as f64)),
-        (CVMObject::Float(lval), CVMObject::Float(rval)) => push_operation!(cvm, Float, lval % rval),
+        (CVMObject::Float(lval), CVMObject::Int(rval)) => {
+            push_operation!(cvm, Float, lval % (rval as f64))
+        }
+        (CVMObject::Float(lval), CVMObject::Uint(rval)) => {
+            push_operation!(cvm, Float, lval % (rval as f64))
+        }
+        (CVMObject::Float(lval), CVMObject::Float(rval)) => {
+            push_operation!(cvm, Float, lval % rval)
+        }
 
-        (left @ _, right @ _) => return Err(cvm.error(CVMErrorKind::InvalidBinOperation(left.as_type(), right.as_type())))
+        (left @ _, right @ _) => {
+            return Err(cvm.error(CVMErrorKind::InvalidBinOperation(
+                left.as_type(),
+                right.as_type(),
+            )))
+        }
     }
     Ok(current_idx)
 }
 
 fn add_str(cvm: &mut CVM, lval: PtrString, right: CVMObject) -> Result<(), CVMError> {
     match right {
-        CVMObject::Int(rval) => cvm.stack.push(CVMObject::Str(lval + rval.to_string().into())),
-        CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Str(lval + rval.to_string().into())),
-        CVMObject::Float(rval) => cvm.stack.push(CVMObject::Str(lval + rval.to_string().into())),
+        CVMObject::Int(rval) => cvm
+            .stack
+            .push(CVMObject::Str(lval + rval.to_string().into())),
+        CVMObject::Uint(rval) => cvm
+            .stack
+            .push(CVMObject::Str(lval + rval.to_string().into())),
+        CVMObject::Float(rval) => cvm
+            .stack
+            .push(CVMObject::Str(lval + rval.to_string().into())),
         CVMObject::Str(rval) => cvm.stack.push(CVMObject::Str(lval + rval)),
-        CVMObject::Bool(rval) => cvm.stack.push(CVMObject::Str(lval + rval.to_string().into())),
+        CVMObject::Bool(rval) => cvm
+            .stack
+            .push(CVMObject::Str(lval + rval.to_string().into())),
     }
     Ok(())
 }

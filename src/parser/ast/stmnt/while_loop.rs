@@ -19,7 +19,7 @@ impl NodeWhileLoop {
         header.expect_exact(TokenKind::Keyword(Keyword::While))?;
 
         let cond_raw = header.advance_until(|tk| *tk == TokenKind::Special(Special::Colon))?;
-        let cond = NodeExpr::new(cond_raw, reader.span())?;
+        let cond = NodeExpr::new(cond_raw, reader.spanner())?;
 
         header.expect_exact(TokenKind::Special(Special::Colon))?;
         header.expect_exact(TokenKind::Newline)?;

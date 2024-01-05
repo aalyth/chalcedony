@@ -1,8 +1,5 @@
-use crate::error::span::pos::Position;
 use crate::error::span::Span;
 use crate::error::{ChalError, InternalError, LexerError};
-
-use std::rc::Rc;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Keyword {
@@ -125,12 +122,7 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
-    fn new(
-        src: &str,
-        start: &Position,
-        end: &Position,
-        span: &Rc<Span>,
-    ) -> Result<TokenKind, ChalError> {
+    fn new(src: &str, span: &Span) -> Result<TokenKind, ChalError> {
         if src == "" {
             return Err(InternalError::new("TokenKind::new(): lexing an empty string").into());
         }
@@ -224,9 +216,9 @@ impl TokenKind {
         if (src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"'))
             || (src.chars().nth(0) == Some('\'') && src.chars().nth(src.len() - 1) == Some('\''))
         {
-            return Ok(TokenKind::Str(src[1 .. src.len() - 1].to_string()));
+            return Ok(TokenKind::Str(src[1..src.len() - 1].to_string()));
         } else if src.chars().nth(0) == Some('"') {
-            return Err(LexerError::unclosed_string(*start, *end, Rc::clone(span)).into());
+            return Err(LexerError::unclosed_string(span.clone()).into());
         }
 
         if src.chars().nth(0).unwrap().is_numeric()
@@ -234,7 +226,7 @@ impl TokenKind {
                 .chars()
                 .all(|c: char| -> bool { !c.is_ascii_alphanumeric() && c == '_' })
         {
-            return Err(LexerError::invalid_identifier(*start, *end, Rc::clone(span)).into());
+            return Err(LexerError::invalid_identifier(span.clone()).into());
         }
 
         return Ok(TokenKind::Identifier(src.to_string()));
@@ -253,44 +245,17 @@ impl TokenKind {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Token {
-    kind: TokenKind,
-    start: Position,
-    end: Position,
-    src: String,
+    pub kind: TokenKind,
+    pub span: Span,
+    pub src: String,
 }
 
 impl Token {
-    pub fn new(
-        src: String,
-        start: Position,
-        end: Position,
-        span: &Rc<Span>,
-    ) -> Result<Self, ChalError> {
-        let kind = TokenKind::new(&src, &start, &end, span)?;
-        Ok(Token {
-            kind,
-            start,
-            end,
-            src,
-        })
-    }
-
-    pub fn kind(&self) -> &TokenKind {
-        &self.kind
-    }
-
-    pub fn start(&self) -> Position {
-        self.start
-    }
-
-    pub fn end(&self) -> Position {
-        self.end
-    }
-
-    pub fn src(&self) -> &str {
-        &self.src
+    pub fn new(src: String, span: Span) -> Result<Self, ChalError> {
+        let kind = TokenKind::new(&src, &span)?;
+        Ok(Token { kind, span, src })
     }
 
     pub fn into_neg(self) -> Result<Self, ChalError> {
@@ -303,8 +268,7 @@ impl Token {
 
         Ok(Token {
             kind: TokenKind::Operator(Operator::Neg),
-            start: self.start,
-            end: self.end,
+            span: self.span,
             src: self.src,
         })
     }

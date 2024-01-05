@@ -4,7 +4,8 @@ use crate::lexer::tokens::{
 };
 use crate::lexer::CharReader;
 
-use crate::error::{span::Position, span::Span, ChalError, InternalError, LexerError};
+use crate::error::span::{InlineSpanner, Position, Span, Spanning};
+use crate::error::{ChalError, InternalError, LexerError};
 
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -17,7 +18,7 @@ pub struct Lexer {
     reader: CharReader,
 
     /* so errors can be traced to the source code  */
-    span: Rc<Span>,
+    spanner: Rc<dyn Spanning>,
 
     /* clone of the previous token kind */
     prev: Option<TokenKind>,
@@ -31,10 +32,11 @@ impl Lexer {
         /* this is so empty lines at the end do not cause errors */
         src.push_str("\n");
 
+        // TODO: make a function for a file and for an inline lexer
         Lexer {
             delim_stack: VecDeque::<Token>::new(),
             reader: CharReader::new(src),
-            span: Rc::new(Span::new(code)),
+            spanner: Rc::new(InlineSpanner::new(code)),
             prev: None,
         }
     }
@@ -61,7 +63,7 @@ impl Lexer {
 
         let front = line.tokens().front().unwrap().clone();
 
-        match front.kind() {
+        match front.kind {
             TokenKind::Keyword(Keyword::Let) => result.push_back(line),
 
             TokenKind::Keyword(Keyword::Fn) => loop {
@@ -86,9 +88,7 @@ impl Lexer {
             invalid @ _ => {
                 return Err(LexerError::invalid_global_statement(
                     invalid.clone(),
-                    front.start(),
-                    front.end(),
-                    self.span().clone(),
+                    front.span.clone(),
                 )
                 .into())
             }
@@ -97,15 +97,7 @@ impl Lexer {
         /* check for unclosed delimiters */
         if self.is_empty() && !self.delim_stack.is_empty() {
             for delim in &self.delim_stack {
-                errors.push(
-                    LexerError::unclosed_delimiter(
-                        delim.src(),
-                        delim.start(),
-                        delim.end(),
-                        self.span.clone(),
-                    )
-                    .into(),
-                );
+                errors.push(LexerError::unclosed_delimiter(&delim.src, delim.span.clone()).into());
             }
         }
 
@@ -131,14 +123,8 @@ impl Lexer {
         let mut errors = Vec::<ChalError>::new();
 
         if indent % 4 != 0 {
-            errors.push(
-                LexerError::invalid_indentation(
-                    *self.reader.pos(),
-                    *self.reader.pos(),
-                    self.span.clone(),
-                )
-                .into(),
-            );
+            let pos = self.reader.pos();
+            errors.push(LexerError::invalid_indentation(self.get_span(*pos, *pos)).into());
         }
 
         let mut result = VecDeque::<Token>::new();
@@ -150,7 +136,7 @@ impl Lexer {
                 Err(err) => errors.push(err),
             }
             /* check the current token type */
-            if result.back().is_some() && *result.back().unwrap().kind() == TokenKind::Newline {
+            if result.back().is_some() && result.back().unwrap().kind == TokenKind::Newline {
                 break;
             }
             if self.is_empty() {
@@ -179,9 +165,9 @@ impl Lexer {
          *
          * 3. update the prev token
          */
-        let mut tok = Token::new(src, start, end, &self.span)?;
+        let mut tok = Token::new(src, self.get_span(start, end))?;
 
-        match tok.kind() {
+        match &tok.kind {
             TokenKind::Delimiter(Delimiter::OpenPar)
             | TokenKind::Delimiter(Delimiter::OpenBrace)
             | TokenKind::Delimiter(Delimiter::OpenBracket) => {
@@ -192,23 +178,19 @@ impl Lexer {
             TokenKind::Delimiter(close_delim) => {
                 if self.delim_stack.back() == None {
                     return Err(LexerError::unexpected_closing_delimiter(
-                        tok.src(),
-                        start,
-                        end,
-                        self.span.clone(),
+                        &tok.src,
+                        tok.span.clone(),
                     )
                     .into());
                 }
 
                 let open_delim = self.delim_stack.pop_back().unwrap();
 
-                if *open_delim.kind() != TokenKind::Delimiter(close_delim.inverse()) {
+                if open_delim.kind != TokenKind::Delimiter(close_delim.inverse()) {
                     return Err(LexerError::mismatching_delimiters(
-                        open_delim.src(),
-                        tok.src(),
-                        open_delim.start(),
-                        start,
-                        self.span.clone(),
+                        &open_delim.src,
+                        &tok.src,
+                        self.get_span(open_delim.span.start, start),
                     )
                     .into());
                 }
@@ -226,7 +208,7 @@ impl Lexer {
             _ => (),
         };
 
-        self.prev = Some(tok.kind().clone());
+        self.prev = Some(tok.kind.clone());
 
         Ok(tok)
     }
@@ -358,7 +340,11 @@ impl Lexer {
         self.reader.is_empty()
     }
 
-    pub fn span(&self) -> &Rc<Span> {
-        &self.span
+    pub fn spanner(&self) -> Rc<dyn Spanning> {
+        self.spanner.clone()
+    }
+
+    fn get_span(&self, start: Position, end: Position) -> Span {
+        Span::new(start, end, self.spanner.clone())
     }
 }

@@ -32,7 +32,7 @@ impl NodeIfStmnt {
         header.expect_exact(TokenKind::Keyword(Keyword::If))?;
 
         let cond_raw = header.advance_until(|tk| *tk == TokenKind::Special(Special::Colon))?;
-        let condition = NodeExpr::new(cond_raw, reader.span())?;
+        let condition = NodeExpr::new(cond_raw, reader.spanner())?;
 
         header.expect_exact(TokenKind::Special(Special::Colon))?;
         header.expect_exact(TokenKind::Newline)?;
@@ -41,8 +41,8 @@ impl NodeIfStmnt {
             let Some(front) = ln.front_tok() else {
                 return false;
             };
-            *front.kind() == TokenKind::Keyword(Keyword::Else)
-                || *front.kind() == TokenKind::Keyword(Keyword::Elif)
+            front.kind == TokenKind::Keyword(Keyword::Else)
+                || front.kind == TokenKind::Keyword(Keyword::Elif)
         })?;
 
         let mut branches = Vec::<NodeIfBranch>::new();
@@ -53,20 +53,20 @@ impl NodeIfStmnt {
                 let Some(front) = ln.front_tok() else {
                     return false;
                 };
-                *front.kind() == TokenKind::Keyword(Keyword::Elif)
-                    || *front.kind() == TokenKind::Keyword(Keyword::Else)
+                front.kind == TokenKind::Keyword(Keyword::Elif)
+                    || front.kind == TokenKind::Keyword(Keyword::Else)
             })?;
 
             branches.push(NodeIfBranch::new(LineReader::new(
                 next_branch,
-                reader.span(),
+                reader.spanner(),
             ))?);
         }
 
         Ok(NodeIfStmnt {
             condition,
             branches,
-            body: parse_body(LineReader::new(body, reader.span()))?,
+            body: parse_body(LineReader::new(body, reader.spanner()))?,
         })
     }
 
@@ -84,7 +84,7 @@ impl NodeIfBranch {
             .into());
         };
 
-        match front_tok.kind() {
+        match front_tok.kind {
             TokenKind::Keyword(Keyword::Elif) => {
                 Ok(NodeIfBranch::Elif(NodeElifStmnt::new(reader)?))
             }
@@ -105,7 +105,7 @@ impl NodeElifStmnt {
         header.expect_exact(TokenKind::Special(Special::Colon))?;
         header.expect_exact(TokenKind::Newline)?;
 
-        let cond = NodeExpr::new(cond_raw, reader.span())?;
+        let cond = NodeExpr::new(cond_raw, reader.spanner())?;
         Ok(NodeElifStmnt {
             condition: cond,
             body: parse_body(reader)?,

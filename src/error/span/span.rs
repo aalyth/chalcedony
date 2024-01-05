@@ -1,25 +1,14 @@
 use crate::error::format::{color, Colors};
 use crate::error::span::pos::Position;
 
-pub struct Span {
+use super::Spanning;
+
+pub struct InlineSpanner {
     src: Vec<String>,
 }
 
-impl Span {
-    pub fn new(src_code: &str) -> Span {
-        let mut result = Vec::<String>::new();
-        result.push("".to_string());
-        for i in src_code.chars() {
-            let end_pos = result.len() - 1;
-            match i {
-                '\n' => result.push("".to_string()),
-                _ => result[end_pos].push(i),
-            }
-        }
-        Span { src: result }
-    }
-
-    pub fn context(&self, start: &Position, end: &Position) -> String {
+impl Spanning for InlineSpanner {
+    fn context(&self, start: &Position, end: &Position) -> String {
         let mut result = String::new();
 
         let context: (String, usize) = self.context_span(start, end);
@@ -42,6 +31,21 @@ impl Span {
         result.push_str("\n");
 
         result
+    }
+}
+
+impl InlineSpanner {
+    pub fn new(src_code: &str) -> InlineSpanner {
+        let mut result = Vec::<String>::new();
+        result.push("".to_string());
+        for i in src_code.chars() {
+            let end_pos = result.len() - 1;
+            match i {
+                '\n' => result.push("".to_string()),
+                _ => result[end_pos].push(i),
+            }
+        }
+        InlineSpanner { src: result }
     }
 
     /* returns the context string and the relative index in the result string of the start position */
@@ -142,15 +146,15 @@ impl Span {
      */
     fn context_substr(&self, pos_: &Position, ctx_len: usize) -> (String, usize) {
         if pos_.ln == 0 || pos_.col == 0 {
-            panic!("Error: Span::context_substr(): invalid position.");
+            panic!("Error: InlineSpanner::context_substr(): invalid position.");
         }
 
         let pos: Position = Position::new(pos_.ln - 1, pos_.col - 1);
         if pos.ln > self.src.len() {
-            panic!("Error: Span::context_substr(): position out of bounds.");
+            panic!("Error: InlineSpanner::context_substr(): position out of bounds.");
         }
         if pos.col > self.src[pos.ln].len() {
-            panic!("Error: Span::context_substr(): position out of bounds.");
+            panic!("Error: InlineSpanner::context_substr(): position out of bounds.");
         }
 
         let curr_line = &self.src[pos.ln];

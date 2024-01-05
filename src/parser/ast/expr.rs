@@ -1,4 +1,5 @@
-use crate::error::{ChalError, ParserError, Position, Span};
+use crate::error::span::{Span, Spanning};
+use crate::error::{ChalError, ParserError};
 use crate::lexer;
 use crate::lexer::{Delimiter, Token, TokenKind};
 use crate::parser::ast::operators::{BinOprType, UnaryOprType};
@@ -20,10 +21,8 @@ pub enum NodeExprInner {
 }
 
 pub struct NodeExpr {
-    expr: Vec<NodeExprInner>,
-    start: Position,
-    end: Position,
-    span: Rc<Span>,
+    pub expr: Vec<NodeExprInner>,
+    pub span: Span,
 }
 
 #[derive(PartialEq)]
@@ -140,14 +139,9 @@ enum PrevType {
 }
 
 macro_rules! push_terminal {
-    ( $terminal:expr, $output:ident, $prev_type:ident, $current_tok:ident, $reader: ident) => {
+    ( $terminal:expr, $output:ident, $prev_type:ident, $current_tok:ident ) => {
         if $prev_type == PrevType::Terminal {
-            return Err(ParserError::repeated_expr_terminal(
-                $current_tok.start(),
-                $current_tok.end(),
-                $reader.span(),
-            )
-            .into());
+            return Err(ParserError::repeated_expr_terminal($current_tok.span).into());
         }
         $prev_type = PrevType::Terminal;
         $output.push($terminal);
@@ -155,18 +149,13 @@ macro_rules! push_terminal {
 }
 
 macro_rules! push_operator {
-    ( $operator:expr, $opr_stack:ident, $prev_type:ident, $current_tok:ident, $reader: ident) => {
+    ( $operator:expr, $opr_stack:ident, $prev_type:ident, $current_tok:ident ) => {
         let is_unary = $operator == Operator::Neg || $operator == Operator::Bang;
         /* we don't care about the previous operator if the current is an unary operator */
         if (!is_unary && $prev_type == PrevType::BinOpr)
             || (is_unary && $prev_type == PrevType::UnaryOpr)
         {
-            return Err(ParserError::repeated_expr_operator(
-                $current_tok.start(),
-                $current_tok.end(),
-                $reader.span(),
-            )
-            .into());
+            return Err(ParserError::repeated_expr_operator($current_tok.span).into());
         }
         if !is_unary {
             $prev_type = PrevType::BinOpr;
@@ -179,12 +168,12 @@ macro_rules! push_operator {
 
 impl NodeExpr {
     /* this implementation is based on the Shunting Yard algorithm */
-    pub fn new(tokens: VecDeque<Token>, span: Rc<Span>) -> Result<NodeExpr, ChalError> {
-        let mut reader = TokenReader::new(tokens, span.clone());
+    pub fn new(tokens: VecDeque<Token>, spanner: Rc<dyn Spanning>) -> Result<NodeExpr, ChalError> {
+        let mut reader = TokenReader::new(tokens, spanner.clone());
 
         let mut output = Stack::<NodeExprInner>::new();
         let mut operators = Stack::<Operator>::new();
-        let start = reader.start();
+        let start = reader.current().start;
 
         // let mut prev_type = false;
         let mut prev_type = PrevType::BinOpr;
@@ -192,14 +181,13 @@ impl NodeExpr {
         while !reader.is_empty() {
             let current = reader.advance().unwrap();
 
-            match current.kind() {
+            match &current.kind {
                 TokenKind::Int(val) => {
                     push_terminal!(
                         NodeExprInner::Value(NodeValue::Int(*val)),
                         output,
                         prev_type,
-                        current,
-                        reader
+                        current
                     );
                 }
                 TokenKind::Uint(val) => {
@@ -207,8 +195,7 @@ impl NodeExpr {
                         NodeExprInner::Value(NodeValue::Uint(*val)),
                         output,
                         prev_type,
-                        current,
-                        reader
+                        current
                     );
                 }
                 TokenKind::Float(val) => {
@@ -216,8 +203,7 @@ impl NodeExpr {
                         NodeExprInner::Value(NodeValue::Float(*val)),
                         output,
                         prev_type,
-                        current,
-                        reader
+                        current
                     );
                 }
                 TokenKind::Str(val) => {
@@ -225,8 +211,7 @@ impl NodeExpr {
                         NodeExprInner::Value(NodeValue::Str(val.clone())),
                         output,
                         prev_type,
-                        current,
-                        reader
+                        current
                     );
                 }
                 TokenKind::Bool(val) => {
@@ -234,8 +219,7 @@ impl NodeExpr {
                         NodeExprInner::Value(NodeValue::Bool(*val)),
                         output,
                         prev_type,
-                        current,
-                        reader
+                        current
                     );
                 }
 
@@ -243,14 +227,13 @@ impl NodeExpr {
                     if reader.peek() == None {
                         let node = NodeExprInner::VarCall(NodeVarCall::new(
                             current.clone(),
-                            span.clone(),
+                            spanner.clone(),
                         )?);
-                        push_terminal!(node, output, prev_type, current, reader);
+                        push_terminal!(node, output, prev_type, current);
                         continue;
                     };
 
-                    if let TokenKind::Delimiter(Delimiter::OpenPar) = reader.peek().unwrap().kind()
-                    {
+                    if let TokenKind::Delimiter(Delimiter::OpenPar) = reader.peek().unwrap().kind {
                         let mut buffer = VecDeque::<Token>::new();
                         buffer.push_back(current.clone());
                         /* push the open parenthesis */
@@ -260,7 +243,7 @@ impl NodeExpr {
                         while !reader.is_empty() && open_delims > 0 {
                             let current = reader.advance().unwrap();
 
-                            match current.kind() {
+                            match current.kind {
                                 TokenKind::Delimiter(Delimiter::OpenPar) => open_delims += 1,
                                 TokenKind::Delimiter(Delimiter::ClosePar) => open_delims -= 1,
                                 _ => (),
@@ -269,25 +252,21 @@ impl NodeExpr {
                         }
                         /* SAFETY: the buffer should always have at least 1 element in it */
                         let node =
-                            NodeExprInner::FuncCall(NodeFuncCall::new(buffer, span.clone())?);
-                        push_terminal!(node, output, prev_type, current, reader);
+                            NodeExprInner::FuncCall(NodeFuncCall::new(buffer, spanner.clone())?);
+                        push_terminal!(node, output, prev_type, current);
                         continue;
                     }
 
                     let node =
-                        NodeExprInner::VarCall(NodeVarCall::new(current.clone(), span.clone())?);
-                    push_terminal!(node, output, prev_type, current, reader);
+                        NodeExprInner::VarCall(NodeVarCall::new(current.clone(), spanner.clone())?);
+                    push_terminal!(node, output, prev_type, current);
                 }
 
                 TokenKind::Operator(current_opr) => {
                     let Ok(opr) = Operator::try_from(current_opr) else {
-                        return Err(ParserError::unexpected_token(
-                            current.kind().clone(),
-                            current.start(),
-                            current.end(),
-                            span.clone(),
-                        )
-                        .into());
+                        return Err(
+                            ParserError::unexpected_token(current.kind, current.span).into()
+                        );
                     };
 
                     let current_precedence = opr.precedence();
@@ -301,7 +280,7 @@ impl NodeExpr {
                         output.push(top.try_into().unwrap());
                     }
 
-                    push_operator!(opr, operators, prev_type, current, reader);
+                    push_operator!(opr, operators, prev_type, current);
                 }
 
                 TokenKind::Delimiter(Delimiter::OpenPar) => {
@@ -320,15 +299,7 @@ impl NodeExpr {
 
                 TokenKind::Newline => break,
 
-                _ => {
-                    return Err(ParserError::unexpected_token(
-                        current.kind().clone(),
-                        current.start(),
-                        current.end(),
-                        reader.span(),
-                    )
-                    .into())
-                }
+                _ => return Err(ParserError::unexpected_token(current.kind, current.span).into()),
             }
         }
 
@@ -338,13 +309,13 @@ impl NodeExpr {
 
         Ok(NodeExpr {
             expr: output.into(),
-            start,
-            end: reader.end(),
-            span: span.clone(),
+            span: Span::new(start, reader.current().end, spanner.clone()),
         })
     }
 
+    /*
     pub fn disassemble(self) -> (Vec<NodeExprInner>, Position, Position, Rc<Span>) {
         (self.expr, self.start, self.end, self.span)
     }
+    */
 }
