@@ -183,8 +183,8 @@ pub fn stmnt_to_bytecode(
         }
 
         NodeStmnt::Assign(node) => {
-            let (NodeVarCall(varname), opr, rhs) = node.disassemble();
-            let var_id = get_var_id(varname, var_symtable);
+            let (var_node, opr, rhs) = node.disassemble();
+            let var_id = get_var_id(var_node.name, var_symtable);
             let mut result = Vec::<Bytecode>::new();
             if opr != AssignOprType::Eq {
                 result.push(Bytecode::GetVar(var_id));

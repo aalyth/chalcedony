@@ -1,10 +1,13 @@
-use crate::error::span::Spanning;
+use crate::error::span::{Span, Spanning};
 use crate::error::{ChalError, ParserError};
 use crate::lexer::{Token, TokenKind};
 
 use std::rc::Rc;
 
-pub struct NodeVarCall(pub String);
+pub struct NodeVarCall {
+    pub name: String,
+    pub span: Span,
+}
 
 impl NodeVarCall {
     pub fn new(token: Token, spanner: Rc<dyn Spanning>) -> Result<Self, ChalError> {
@@ -17,6 +20,9 @@ impl NodeVarCall {
             )
             .into());
         };
-        Ok(NodeVarCall(name.clone()))
+        Ok(NodeVarCall {
+            name: name.clone(),
+            span: token.span,
+        })
     }
 }

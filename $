@@ -23,9 +23,8 @@ impl ToBytecode for NodeFuncDef {
         let mut var_lookup = HashSet::<String>::new();
         for arg in &self.args {
             var_lookup.insert(arg.0.clone());
-            /* this asserts the variable is in the var symtable */
-            let _ = get_var_id(arg.0.clone(), var_symtable);
         }
+        println!("FUNCTION VAR LOOKUP: {:#?}\n", var_lookup)
 
         let annotation = FuncAnnotation::new(self.args, self.ret_type.clone(), bytecode_len as u64);
         func_symtable.insert(self.name.clone(), annotation);

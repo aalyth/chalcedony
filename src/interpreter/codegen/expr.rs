@@ -69,9 +69,11 @@ impl ToBytecode for NodeExprInner {
                 NodeValue::Bool(val) => Ok(vec![Bytecode::ConstB(val)]),
             },
 
-            NodeExprInner::VarCall(NodeVarCall(varname)) => {
-                // TODO: add proper checks for missing variable
-                let var_id = get_var_id(varname, var_symtable);
+            NodeExprInner::VarCall(node) => {
+                if !var_symtable.contains_key(&node.name) {
+                    return Err(RuntimeError::unknown_variable(node.name, node.span).into());
+                }
+                let var_id = get_var_id(node.name, var_symtable);
                 Ok(vec![Bytecode::GetVar(var_id)])
             }
 
