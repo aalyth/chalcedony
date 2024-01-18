@@ -5,7 +5,8 @@ use crate::error::{ChalError, RuntimeError};
 use crate::interpreter::FuncAnnotation;
 use crate::lexer::Type;
 use crate::parser::ast::operators::AssignOprType;
-use crate::parser::ast::{NodeElifStmnt, NodeElseStmnt, NodeRetStmnt, NodeStmnt, NodeVarCall};
+use crate::parser::ast::stmnt::{NodeElifStmnt, NodeElseStmnt, NodeIfBranch};
+use crate::parser::ast::{NodeRetStmnt, NodeStmnt, NodeVarCall};
 use crate::utils::Bytecode;
 
 use std::collections::{BTreeMap, HashSet};
@@ -72,11 +73,11 @@ pub fn stmnt_to_bytecode(
         }
 
         NodeStmnt::IfStmnt(node) => {
-            let (cond_raw, body_raw, _branches) = node.disassemble();
-
-            let mut cond = cond_raw.to_bytecode(bytecode_len, var_symtable, func_symtable)?;
+            let mut cond = node
+                .condition
+                .to_bytecode(bytecode_len, var_symtable, func_symtable)?;
             let mut body = parse_body(
-                body_raw,
+                node.body,
                 bytecode_len,
                 var_symtable,
                 func_symtable,
@@ -84,71 +85,55 @@ pub fn stmnt_to_bytecode(
                 local_scope,
             )?;
 
-            /*
-            let mut branch_bodies: Vec<Vec<Bytecode>> = Vec::new();
-            let mut branch_conditions: Vec<Vec<Bytecode>> = Vec::new();
+            let mut branch_bytecodes: Vec<Vec<Bytecode>> = Vec::new();
             let mut err_vec: Vec<ChalError> = Vec::new();
-            for branch in branches {
-                match branch {
-                    NodeIfBranch::Elif(node) => {
-                        let raw_res = parse_elif(
-                            node,
-                            bytecode_len,
-                            func_symtable,
-                            func_lookup,
-                            parent_scope,
-                            local_scope,
-                        );
-                        match raw_res {
-                            Ok((cond, body)) => {
-                                branch_bodies.push(body);
-                                branch_conditions.push(cond);
-                            }
-                            Err(err) => err_vec.push(err),
-                        }
-                    }
-                    NodeIfBranch::Else(node) => {
-                        let raw_res = parse_else(
-                            node,
-                            bytecode_len,
-                            func_symtable,
-                            func_lookup,
-                            parent_scope,
-                            local_scope,
-                        );
-                        match raw_res {
-                            Ok(bytecode) => branch_bodies.push(bytecode),
-                            Err(err) => err_vec.push(err),
-                        }
-                    }
+            for branch in node.branches {
+                let raw_res = parse_branch(
+                    branch,
+                    bytecode_len,
+                    var_symtable,
+                    func_symtable,
+                    parent_scope,
+                    local_scope,
+                );
+
+                match raw_res {
+                    Ok(body) => branch_bytecodes.push(body),
+                    Err(err) => err_vec.push(err),
                 }
             }
 
-            const OP_JMP_INSTR_LEN: usize = 1 + 8;
-            const OP_IF_INSTR_LEN: usize = 1 + 8;
+            let mut bodies_len: usize = branch_bytecodes.iter().map(|el| el.len()).sum();
+            let body_len = body.len() + 1;
+            bodies_len += branch_bytecodes.len() - 1; // we add one space for each jump to the end of the
+                                                      // condition
 
-            let mut bodies_len: usize = branch_bodies.iter().map(|el| el.len()).sum();
-            bodies_len += branch_bodies.len() * OP_JMP_INSTR_LEN;
-            let conditions_len: usize = branch_conditions.iter().map(|el| el.len()).sum();
-
-            let mut result = Vec::<Bytecode>::with_capacity(
-                cond.len()
-                    + OP_IF_INSTR_LEN
-                    + OP_JMP_INSTR_LEN
-                    + body.len()
-                    + bodies_len
-                    + conditions_len,
-            );
+            let mut result =
+                Vec::<Bytecode>::with_capacity(cond.len() + 1 + body.len() + bodies_len);
+            let mut leftover_branch_len: isize = bodies_len as isize;
             result.append(&mut cond);
-            result.push(Bytecode::OpIf as Bytecode);
-            let body_len = (body.len() + OP_JMP_INSTR_LEN) as u64;
-            result.extend_from_slice(&body_len.to_ne_bytes());
-            */
-
-            let mut result = Vec::<Bytecode>::new();
-            result.append(&mut cond);
-            result.push(Bytecode::If(body.len()));
+            result.push(Bytecode::If(body_len));
             result.append(&mut body);
+            result.push(Bytecode::Jmp(leftover_branch_len));
+
+            if !err_vec.is_empty() {
+                return Err(err_vec.into());
+            }
+
+            if branch_bytecodes.len() == 1 {
+                result.append(branch_bytecodes.get_mut(0).unwrap());
+                return Ok(result);
+            }
+
+            for i in 0..branch_bytecodes.len() - 1 {
+                let mut branch = branch_bytecodes.get_mut(i).unwrap();
+                leftover_branch_len = leftover_branch_len - (branch.len() + 1) as isize;
+                result.append(&mut branch);
+                result.push(Bytecode::Jmp(leftover_branch_len));
+            }
+
+            let mut last = branch_bytecodes.last_mut().unwrap();
+            result.append(&mut last);
 
             Ok(result)
         }
@@ -209,6 +194,34 @@ pub fn stmnt_to_bytecode(
     }
 }
 
+fn parse_branch(
+    node: NodeIfBranch,
+    bytecode_len: usize,
+    var_symtable: &mut BTreeMap<String, usize>,
+    func_symtable: &mut BTreeMap<String, FuncAnnotation>,
+    parent_scope: &mut HashSet<String>,
+    local_scope: &mut HashSet<String>,
+) -> Result<Vec<Bytecode>, ChalError> {
+    match node {
+        NodeIfBranch::Else(node_else) => parse_else(
+            node_else,
+            bytecode_len,
+            var_symtable,
+            func_symtable,
+            parent_scope,
+            local_scope,
+        ),
+        NodeIfBranch::Elif(node_elif) => parse_elif(
+            node_elif,
+            bytecode_len,
+            var_symtable,
+            func_symtable,
+            parent_scope,
+            local_scope,
+        ),
+    }
+}
+
 fn parse_elif(
     node: NodeElifStmnt,
     bytecode_len: usize,
@@ -216,11 +229,11 @@ fn parse_elif(
     func_symtable: &mut BTreeMap<String, FuncAnnotation>,
     parent_scope: &mut HashSet<String>,
     local_scope: &mut HashSet<String>,
-) -> Result<(Vec<Bytecode>, Vec<Bytecode>), ChalError> {
+) -> Result<Vec<Bytecode>, ChalError> {
     let (cond, body_raw) = node.disassemble();
 
-    let cond_bytecode = cond.to_bytecode(bytecode_len, var_symtable, func_symtable)?;
-    let body_bytecode = parse_body(
+    let mut cond_bytecode = cond.to_bytecode(bytecode_len, var_symtable, func_symtable)?;
+    let mut body_bytecode = parse_body(
         body_raw,
         bytecode_len,
         var_symtable,
@@ -229,15 +242,15 @@ fn parse_elif(
         local_scope,
     )?;
 
-    /*
-    let mut result = Vec::<Bytecode>::with_capacity(cond_bytecode.len() + body_bytecode.len() + 9);
-    result.append(&mut cond_bytecode);
-    result.push(Bytecode::OpIf as Bytecode);
-    result.extend_from_slice(&(body_bytecode.len() as u64).to_ne_bytes());
-    result.append(&mut body_bytecode);
-    */
+    let cond_len = cond_bytecode.len();
+    let body_len = body_bytecode.len();
 
-    Ok((cond_bytecode, body_bytecode))
+    let mut result = Vec::<Bytecode>::with_capacity(cond_len + body_len + 1);
+    result.append(&mut cond_bytecode);
+    result.push(Bytecode::If(body_len + 1));
+    result.append(&mut body_bytecode);
+
+    Ok(result)
 }
 
 fn parse_else(

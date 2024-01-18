@@ -110,6 +110,7 @@ impl Chalcedony {
                 Err(err) => errors.push(err),
             }
         }
+
         if errors.is_empty() {
             if let Err(err) = self.vm.execute(main_start, bytecode) {
                 eprint!("{}", err.into(&span_lookup));

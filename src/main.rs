@@ -13,6 +13,8 @@ extern crate lazy_static;
 use std::env;
 use std::fs;
 
+// TODO: !!! finish elif and elses
+
 // TODO: add error for empty void function body
 // TODO: add pass feature for empty void function body
 

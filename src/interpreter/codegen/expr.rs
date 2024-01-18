@@ -5,13 +5,10 @@ use crate::error::{ChalError, RuntimeError};
 use crate::interpreter::FuncAnnotation;
 use crate::lexer::Type;
 use crate::parser::ast::operators::{BinOprType, UnaryOprType};
-use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue, NodeVarCall};
+use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue};
 use crate::utils::Bytecode;
 
 use std::collections::BTreeMap;
-
-const U32_BYTES: usize = 4;
-const POS_BYTES: usize = 1 + U32_BYTES;
 
 impl ToBytecode for NodeExpr {
     fn to_bytecode(

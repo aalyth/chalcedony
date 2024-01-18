@@ -43,10 +43,17 @@ impl ToBytecode for NodeFuncDef {
                 func_symtable,
                 &mut mock_lookup,
                 &mut var_lookup,
-            )?)
+            )?);
+            // if we have a return statement, there's no need to waste time on unreachable code
+            if returned {
+                break;
+            }
         }
 
         match self.ret_type {
+            Type::Void if body.len() == 0 && !returned => {
+                return Err(RuntimeError::no_default_return_stmnt(self.span).into())
+            }
             Type::Void if !returned => {
                 body.push(Bytecode::Return);
             }

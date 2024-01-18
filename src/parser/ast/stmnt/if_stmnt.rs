@@ -7,9 +7,9 @@ use crate::parser::LineReader;
 use super::parse_body;
 
 pub struct NodeIfStmnt {
-    condition: NodeExpr,
-    body: Vec<NodeStmnt>,
-    branches: Vec<NodeIfBranch>,
+    pub condition: NodeExpr,
+    pub body: Vec<NodeStmnt>,
+    pub branches: Vec<NodeIfBranch>,
 }
 
 pub enum NodeIfBranch {
