@@ -21,3 +21,9 @@ impl CVMObject {
         }
     }
 }
+
+impl Default for CVMObject {
+    fn default() -> Self {
+        Self::Int(0)
+    }
+}

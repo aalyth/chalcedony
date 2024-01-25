@@ -52,7 +52,7 @@ impl std::fmt::Display for ChalError {
 
             ChalError::LexerErr(err) => write!(f, "{}", err),
             ChalError::ParserErr(err) => write!(f, "{}", err),
-            ChalError::CompileErr(err) => todo!(), // TODO
+            ChalError::CompileErr(_) => todo!(), // TODO
             ChalError::RuntimeErr(err) => write!(f, "{}", err),
             ChalError::InternalErr(err) => write!(f, "{}", err),
         }

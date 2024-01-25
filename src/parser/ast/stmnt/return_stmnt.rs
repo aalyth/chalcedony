@@ -10,7 +10,8 @@ impl NodeRetStmnt {
         reader.expect_exact(TokenKind::Keyword(Keyword::Return))?;
 
         let value_raw = reader.advance_until(|tk| *tk == TokenKind::Newline)?;
-        let value = NodeExpr::new(value_raw, reader.spanner())?;
+        let value_reader = TokenReader::new(value_raw, reader.spanner());
+        let value = NodeExpr::new(value_reader)?;
 
         Ok(NodeRetStmnt(value))
     }

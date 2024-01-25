@@ -33,15 +33,52 @@ impl Lexer {
         src.push_str("\n");
 
         // TODO: make a function for a file and for an inline lexer
-        Lexer {
+        let mut result = Lexer {
             delim_stack: VecDeque::<Token>::new(),
             reader: CharReader::new(src),
             spanner: Rc::new(InlineSpanner::new(code)),
             prev: None,
-        }
+        };
+        result.remove_trailing_space();
+        return result;
     }
 
-    /* advances the next program node (a fn def or variable def) */
+    fn advance_chunk(&mut self) -> Result<VecDeque<Line>, ChalError> {
+        let mut errors = Vec::<ChalError>::new();
+        let mut result = VecDeque::<Line>::new();
+
+        loop {
+            match self.reader.peek() {
+                Some(' ') | Some('\n') | Some('#') => {}
+                Some('e') => match self.reader.peek_word().as_str() {
+                    "elif" => {}
+                    "else" => {}
+                    _ => break,
+                },
+                Some(_) => break,
+                None => break,
+            }
+
+            let (line, mut err) = self.advance_line();
+            if !err.is_empty() {
+                errors.append(&mut err);
+            }
+
+            if !err.is_empty() {
+            } else {
+                /* a line with a length of 1 is just an empty line */
+                if line.tokens().len() >= 2 {
+                    result.push_back(line);
+                }
+            }
+        }
+        if !errors.is_empty() {
+            return Err(errors.into());
+        }
+        Ok(result)
+    }
+
+    /* advances the next program node */
     pub fn advance_prog(&mut self) -> Result<VecDeque<Line>, ChalError> {
         if self.reader.is_empty() {
             return Err(
@@ -56,7 +93,7 @@ impl Lexer {
         /* a line with a length of 1 is just an empty line */
         while line.tokens().len() < 2 {
             if !err.is_empty() {
-                return Err(ChalError::from(err));
+                return Err(err.into());
             }
             (line, err) = self.advance_line();
         }
@@ -64,33 +101,22 @@ impl Lexer {
         let front = line.tokens().front().unwrap().clone();
 
         match front.kind {
-            TokenKind::Keyword(Keyword::Let) => result.push_back(line),
+            TokenKind::Keyword(Keyword::Let) | TokenKind::Identifier(_) => result.push_back(line),
 
-            TokenKind::Keyword(Keyword::Fn) => loop {
-                match self.reader.peek() {
-                    Some(' ') | Some('\n') | Some('#') => (),
-                    Some(_) => break,
-                    None => break,
-                }
-
-                if !err.is_empty() {
-                    errors.append(&mut err);
-                } else {
-                    /* a line with a length of 1 is just an empty line */
-                    if line.tokens().len() >= 2 {
-                        result.push_back(line);
-                    }
-                }
-
-                (line, err) = self.advance_line();
-            },
+            TokenKind::Keyword(Keyword::Fn)
+            | TokenKind::Keyword(Keyword::If)
+            | TokenKind::Keyword(Keyword::While) => {
+                result.push_back(line);
+                result.append(&mut self.advance_chunk()?);
+            }
 
             invalid @ _ => {
+                self.remove_trailing_space();
                 return Err(LexerError::invalid_global_statement(
                     invalid.clone(),
                     front.span.clone(),
                 )
-                .into())
+                .into());
             }
         }
 

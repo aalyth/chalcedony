@@ -1,11 +1,8 @@
-use crate::error::span::{Span, Spanning};
+use crate::error::span::Span;
 use crate::error::{ChalError, InternalError, LexerError};
-use crate::lexer::{Delimiter, Keyword, Line, Special, TokenKind, Type};
+use crate::lexer::{Delimiter, Keyword, Special, TokenKind, Type};
 use crate::parser::ast::{parse_body, NodeStmnt};
 use crate::parser::{LineReader, TokenReader};
-
-use std::collections::VecDeque;
-use std::rc::Rc;
 
 pub struct NodeFuncDef {
     pub name: String,
@@ -18,7 +15,7 @@ pub struct NodeFuncDef {
 }
 
 impl NodeFuncDef {
-    pub fn new(chunk: VecDeque<Line>, spanner: Rc<dyn Spanning>) -> Result<Self, ChalError> {
+    pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
         /* function composition:
          * fn main() -> void:        | header
          *     let a = 5             > body
@@ -27,7 +24,6 @@ impl NodeFuncDef {
 
         /* NOTE: this looks strange, but it's used to check wheater the indentations inside the
          * function body are correct */
-        let mut reader = LineReader::new(chunk, spanner.clone());
         let mut reader = reader.advance_chunk()?;
 
         let Some(header_src) = reader.advance() else {
@@ -50,7 +46,7 @@ impl NodeFuncDef {
             return Err(LexerError::invalid_indentation(front_tok.span.clone()).into());
         }
 
-        let mut header = TokenReader::new(header_src.into(), spanner.clone());
+        let mut header = TokenReader::new(header_src.into(), reader.spanner());
         let start = header.current().start;
 
         header.expect_exact(TokenKind::Keyword(Keyword::Fn))?;
@@ -101,28 +97,4 @@ impl NodeFuncDef {
     pub fn name(&self) -> String {
         self.name.clone()
     }
-
-    /*
-    pub fn disassemble(
-        self,
-    ) -> (
-        String,
-        Vec<(String, Type)>,
-        Type,
-        Vec<NodeStmnt>,
-        Position,
-        Position,
-        Rc<Span>,
-    ) {
-        (
-            self.name,
-            self.args,
-            self.ret_type,
-            self.body,
-            self.start,
-            self.end,
-            self.span,
-        )
-    }
-    */
 }

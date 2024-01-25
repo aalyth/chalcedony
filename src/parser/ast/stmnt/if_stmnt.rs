@@ -2,7 +2,7 @@ use crate::error::{ChalError, InternalError};
 use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{NodeExpr, NodeStmnt};
 
-use crate::parser::LineReader;
+use crate::parser::{LineReader, TokenReader};
 
 use super::parse_body;
 
@@ -18,12 +18,12 @@ pub enum NodeIfBranch {
 }
 
 pub struct NodeElifStmnt {
-    condition: NodeExpr,
-    body: Vec<NodeStmnt>,
+    pub condition: NodeExpr,
+    pub body: Vec<NodeStmnt>,
 }
 
 pub struct NodeElseStmnt {
-    body: Vec<NodeStmnt>,
+    pub body: Vec<NodeStmnt>,
 }
 
 impl NodeIfStmnt {
@@ -32,7 +32,8 @@ impl NodeIfStmnt {
         header.expect_exact(TokenKind::Keyword(Keyword::If))?;
 
         let cond_raw = header.advance_until(|tk| *tk == TokenKind::Special(Special::Colon))?;
-        let condition = NodeExpr::new(cond_raw, reader.spanner())?;
+        let cond_reader = TokenReader::new(cond_raw, reader.spanner());
+        let condition = NodeExpr::new(cond_reader)?;
 
         header.expect_exact(TokenKind::Special(Special::Colon))?;
         header.expect_exact(TokenKind::Newline)?;
@@ -69,10 +70,6 @@ impl NodeIfStmnt {
             body: parse_body(LineReader::new(body, reader.spanner()))?,
         })
     }
-
-    pub fn disassemble(self) -> (NodeExpr, Vec<NodeStmnt>, Vec<NodeIfBranch>) {
-        (self.condition, self.body, self.branches)
-    }
 }
 
 impl NodeIfBranch {
@@ -105,15 +102,12 @@ impl NodeElifStmnt {
         header.expect_exact(TokenKind::Special(Special::Colon))?;
         header.expect_exact(TokenKind::Newline)?;
 
-        let cond = NodeExpr::new(cond_raw, reader.spanner())?;
+        let cond_reader = TokenReader::new(cond_raw, reader.spanner());
+        let cond = NodeExpr::new(cond_reader)?;
         Ok(NodeElifStmnt {
             condition: cond,
             body: parse_body(reader)?,
         })
-    }
-
-    pub fn disassemble(self) -> (NodeExpr, Vec<NodeStmnt>) {
-        (self.condition, self.body)
     }
 }
 
@@ -127,9 +121,5 @@ impl NodeElseStmnt {
         Ok(NodeElseStmnt {
             body: parse_body(reader)?,
         })
-    }
-
-    pub fn disassemble(self) -> Vec<NodeStmnt> {
-        self.body
     }
 }

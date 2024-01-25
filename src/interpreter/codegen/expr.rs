@@ -1,37 +1,24 @@
-use super::var::get_var_id;
 use super::ToBytecode;
 
 use crate::error::{ChalError, RuntimeError};
-use crate::interpreter::FuncAnnotation;
+use crate::interpreter::Chalcedony;
 use crate::lexer::Type;
 use crate::parser::ast::operators::{BinOprType, UnaryOprType};
 use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue};
 use crate::utils::Bytecode;
 
-use std::collections::BTreeMap;
-
 impl ToBytecode for NodeExpr {
-    fn to_bytecode(
-        self,
-        bytecode_len: usize,
-        var_symtable: &mut BTreeMap<String, usize>,
-        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-    ) -> Result<Vec<Bytecode>, ChalError> {
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let mut result = Vec::<Bytecode>::new();
         for e in self.expr {
-            result.append(&mut e.to_bytecode(bytecode_len, var_symtable, func_symtable)?)
+            result.append(&mut e.to_bytecode(interpreter)?)
         }
         Ok(result)
     }
 }
 
 impl ToBytecode for NodeExprInner {
-    fn to_bytecode(
-        self,
-        bytecode_len: usize,
-        var_symtable: &mut BTreeMap<String, usize>,
-        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-    ) -> Result<Vec<Bytecode>, ChalError> {
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         match self {
             NodeExprInner::BinOpr(opr_type) => match opr_type {
                 BinOprType::Add => Ok(vec![Bytecode::Add]),
@@ -66,25 +53,19 @@ impl ToBytecode for NodeExprInner {
                 NodeValue::Bool(val) => Ok(vec![Bytecode::ConstB(val)]),
             },
 
-            NodeExprInner::VarCall(node) => {
-                if !var_symtable.contains_key(&node.name) {
-                    return Err(RuntimeError::unknown_variable(node.name, node.span).into());
-                }
-                let var_id = get_var_id(node.name, var_symtable);
-                Ok(vec![Bytecode::GetVar(var_id)])
-            }
+            NodeExprInner::VarCall(node) => node.to_bytecode(interpreter),
 
             NodeExprInner::FuncCall(node) => {
-                let Some(annotation) = func_symtable.get(&node.name) else {
+                let Some(annotation) = interpreter.func_symtable.get(&node.name).cloned() else {
                     return Err(RuntimeError::unknown_function(node.name, node.span).into());
                 };
 
-                let fn_ty = &annotation.ret_type;
+                let fn_ty = &annotation.borrow().ret_type;
                 if *fn_ty == Type::Void {
                     return Err(RuntimeError::void_func_expr(node.span).into());
                 }
 
-                node.to_bytecode(bytecode_len, var_symtable, func_symtable)
+                node.to_bytecode(interpreter)
             }
         }
     }

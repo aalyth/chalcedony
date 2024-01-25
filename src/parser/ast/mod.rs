@@ -8,7 +8,10 @@ pub mod var;
 pub use expr::{NodeExpr, NodeExprInner};
 pub use func::{NodeFuncCall, NodeFuncDef};
 pub use program::NodeProg;
-pub use stmnt::{parse_body, NodeElifStmnt, NodeElseStmnt, NodeRetStmnt, NodeStmnt};
+pub use stmnt::{
+    parse_body, NodeAssign, NodeElifStmnt, NodeElseStmnt, NodeIfStmnt, NodeRetStmnt, NodeStmnt,
+    NodeWhileLoop,
+};
 pub use var::{NodeVarCall, NodeVarDef};
 
 pub enum NodeValue {

@@ -1,4 +1,4 @@
-use crate::error::span::{Span, Spanning};
+use crate::error::span::Span;
 use crate::error::ChalError;
 use crate::lexer::{Delimiter, Special, Token, TokenKind};
 use crate::parser::ast::NodeExpr;
@@ -6,7 +6,6 @@ use crate::parser::ast::NodeExpr;
 use crate::parser::TokenReader;
 
 use std::collections::VecDeque;
-use std::rc::Rc;
 
 pub struct NodeFuncCall {
     pub name: String,
@@ -15,9 +14,7 @@ pub struct NodeFuncCall {
 }
 
 impl NodeFuncCall {
-    pub fn new(tokens: VecDeque<Token>, spanner: Rc<dyn Spanning>) -> Result<Self, ChalError> {
-        let mut reader = TokenReader::new(tokens, spanner.clone());
-
+    pub fn new(mut reader: TokenReader) -> Result<Self, ChalError> {
         let start = reader.current().start;
 
         let name = reader.expect_ident()?;
@@ -30,7 +27,7 @@ impl NodeFuncCall {
                 reader.expect_exact(TokenKind::Special(Special::Comma))?;
             }
 
-            let arg_expr = NodeFuncCall::advance_arg(&mut reader, spanner.clone())?;
+            let arg_expr = NodeFuncCall::advance_arg(&mut reader)?;
             args.push(arg_expr);
             first_iter = false;
         }
@@ -42,14 +39,11 @@ impl NodeFuncCall {
         Ok(NodeFuncCall {
             name,
             args,
-            span: Span::new(start, end, spanner.clone()),
+            span: Span::new(start, end, reader.spanner()),
         })
     }
 
-    fn advance_arg(
-        reader: &mut TokenReader,
-        spanner: Rc<dyn Spanning>,
-    ) -> Result<NodeExpr, ChalError> {
+    fn advance_arg(reader: &mut TokenReader) -> Result<NodeExpr, ChalError> {
         let mut buffer = VecDeque::<Token>::new();
         let mut open_delims: u64 = 0;
 
@@ -72,6 +66,7 @@ impl NodeFuncCall {
             buffer.push_back(current);
         }
 
-        NodeExpr::new(buffer, spanner)
+        let buffer_reader = TokenReader::new(buffer, reader.spanner());
+        NodeExpr::new(buffer_reader)
     }
 }

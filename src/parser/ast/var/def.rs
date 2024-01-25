@@ -3,9 +3,9 @@ use crate::lexer::{Keyword, Operator, Special, TokenKind, Type};
 use crate::parser::{ast::NodeExpr, TokenReader};
 
 pub struct NodeVarDef {
-    kind: Type,
-    name: String,
-    value: NodeExpr,
+    pub kind: Type,
+    pub name: String,
+    pub value: NodeExpr,
 }
 
 impl NodeVarDef {
@@ -26,17 +26,10 @@ impl NodeVarDef {
         }
 
         let rhs = reader.advance_until(|tk| tk == &TokenKind::Newline)?;
-        let value = NodeExpr::new(rhs, reader.spanner())?;
+        let rhs_reader = TokenReader::new(rhs, reader.spanner());
+        let value = NodeExpr::new(rhs_reader)?;
         reader.expect_exact(TokenKind::Newline)?;
 
         Ok(NodeVarDef { name, kind, value })
-    }
-
-    pub fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    pub fn disassemble(self) -> (String, Type, NodeExpr) {
-        (self.name, self.kind, self.value)
     }
 }

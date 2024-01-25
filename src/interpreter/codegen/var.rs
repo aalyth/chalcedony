@@ -1,43 +1,42 @@
 use super::ToBytecode;
 
-use crate::error::ChalError;
-use crate::interpreter::FuncAnnotation;
-use crate::lexer::Type;
-use crate::parser::ast::NodeVarDef;
+use crate::error::{ChalError, RuntimeError};
+use crate::interpreter::Chalcedony;
+use crate::parser::ast::{NodeVarCall, NodeVarDef};
 use crate::utils::Bytecode;
 
-use std::collections::BTreeMap;
-use std::sync::Mutex;
-
-lazy_static! {
-    static ref VAR_ID: Mutex<usize> = Mutex::new(1);
-}
-
-pub fn get_var_id(varname: String, var_symtable: &mut BTreeMap<String, usize>) -> usize {
-    if !var_symtable.contains_key(&varname) {
-        let mut lock = VAR_ID.lock().unwrap();
-        var_symtable.insert(varname.clone(), *lock);
-        *lock += 1;
+impl ToBytecode for NodeVarCall {
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
+        if let Some(current_func) = interpreter.current_func.clone() {
+            let current_func = current_func.borrow();
+            if let Some(var_id) = current_func.locals_symtable.get(&self.name) {
+                return Ok(vec![Bytecode::GetLocal(*var_id)]);
+            }
+            if let Some(var_id) = current_func.get_arg(&self.name) {
+                return Ok(vec![Bytecode::GetArg(var_id)]);
+            }
+        }
+        if let Some(var_id) = interpreter.globals_symtable.get(&self.name) {
+            return Ok(vec![Bytecode::GetGlobal(*var_id)]);
+        }
+        // TODO: make this a runtime error
+        return Err(RuntimeError::unknown_variable(self.name, self.span).into());
     }
-    return var_symtable[&varname];
 }
 
 impl ToBytecode for NodeVarDef {
-    fn to_bytecode(
-        self,
-        bytecode_len: usize,
-        var_symtable: &mut BTreeMap<String, usize>,
-        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-    ) -> Result<Vec<Bytecode>, ChalError> {
-        let (var_name, var_type, rhs) = self.disassemble();
-        let mut result = rhs.to_bytecode(bytecode_len, var_symtable, func_symtable)?;
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
+        let mut result = self.value.to_bytecode(interpreter)?;
 
-        if var_type != Type::Any {
-            result.push(Bytecode::Assert(var_type));
+        // TODO: assert the variable type
+        /*
+        if self.kind != Type::Any {
+            result.push(Bytecode::Assert(self.kind));
         }
+        */
 
-        let var_id = get_var_id(var_name, var_symtable);
-        result.push(Bytecode::CreateVar(var_id));
+        let var_id = interpreter.get_global_id(&self.name);
+        result.push(Bytecode::SetGlobal(var_id));
         Ok(result)
     }
 }

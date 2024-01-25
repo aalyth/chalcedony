@@ -1,37 +1,27 @@
-mod expr;
-mod func;
-mod stmnt;
-mod var;
+pub mod expr;
+pub mod func;
+pub mod stmnt;
+pub mod var;
 
 use crate::error::ChalError;
 use crate::parser::ast::NodeProg;
 use crate::utils::Bytecode;
 
-use std::collections::BTreeMap;
-
-use stmnt::stmnt_to_bytecode;
-
-use super::FuncAnnotation;
+use super::Chalcedony;
 
 pub trait ToBytecode {
-    fn to_bytecode(
-        self,
-        bytecode_len: usize,
-        var_symtable: &mut BTreeMap<String, usize>,
-        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-    ) -> Result<Vec<Bytecode>, ChalError>;
+    fn to_bytecode(self, _: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError>;
 }
 
 impl ToBytecode for NodeProg {
-    fn to_bytecode(
-        self,
-        bytecode_len: usize,
-        var_symtable: &mut BTreeMap<String, usize>,
-        func_symtable: &mut BTreeMap<String, FuncAnnotation>,
-    ) -> Result<Vec<Bytecode>, ChalError> {
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         match self {
-            NodeProg::VarDef(node) => node.to_bytecode(bytecode_len, var_symtable, func_symtable),
-            NodeProg::FuncDef(node) => node.to_bytecode(bytecode_len, var_symtable, func_symtable),
+            NodeProg::VarDef(node) => node.to_bytecode(interpreter),
+            NodeProg::FuncDef(node) => node.to_bytecode(interpreter),
+            NodeProg::FuncCall(node) => node.to_bytecode(interpreter),
+            NodeProg::Assign(node) => node.to_bytecode(interpreter),
+            NodeProg::IfStmnt(node) => node.to_bytecode(interpreter),
+            NodeProg::WhileLoop(node) => node.to_bytecode(interpreter),
         }
     }
 }

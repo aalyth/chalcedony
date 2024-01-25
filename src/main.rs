@@ -7,16 +7,17 @@ pub mod vm;
 
 use crate::interpreter::Chalcedony;
 
-#[macro_use]
-extern crate lazy_static;
+extern crate ahash;
 
 use std::env;
 use std::fs;
 
-// TODO: !!! finish elif and elses
+// TODO: add the __name__ variable
 
-// TODO: add error for empty void function body
-// TODO: add pass feature for empty void function body
+// TODO: add compile time type assertions
+// TODO: assert there are terminals at the end of expressions
+
+// TODO: add type checks for returns
 
 // TODO: add type casts
 
@@ -33,12 +34,7 @@ fn main() {
         eprintln!("Error: could not open the passed script");
         std::process::exit(1);
     };
+
     let mut interpreter = Chalcedony::new();
     interpreter.interpret(&script);
-    /*
-    let mut cvm = vm::CVM::new();
-    let code = utils::fibonacci();
-    // println!("CODE: {:#?}", code);
-    cvm.execute(code.len() - 6, code);
-    */
 }

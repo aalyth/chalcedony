@@ -11,10 +11,34 @@ use crate::lexer::Type;
 
 use crate::utils::{Bytecode, Stack};
 
+use std::rc::Rc;
+
+#[derive(Debug)]
+struct CVMFunctionObject {
+    arg_count: usize,
+    locals_count: usize,
+    code: Rc<Vec<Bytecode>>,
+}
+
+struct CVMCallFrame {
+    args: Vec<CVMObject>,
+    locals: Vec<CVMObject>,
+}
+
+impl From<Rc<CVMFunctionObject>> for CVMCallFrame {
+    fn from(func: Rc<CVMFunctionObject>) -> CVMCallFrame {
+        CVMCallFrame {
+            args: Vec::with_capacity(func.arg_count),
+            locals: vec![CVMObject::default(); func.locals_count],
+        }
+    }
+}
+
 pub struct CVM {
     stack: Stack<CVMObject>,
-    var_heap: Vec<Vec<CVMObject>>,
-    call_stack: Stack<usize>,
+    globals: Vec<CVMObject>,
+    functions: Vec<Rc<CVMFunctionObject>>,
+    call_stack: Stack<CVMCallFrame>,
 }
 
 macro_rules! push_constant {
@@ -28,29 +52,26 @@ impl CVM {
     pub fn new() -> Self {
         CVM {
             stack: Stack::<CVMObject>::with_capacity(100_000),
-            var_heap: Vec::<Vec<CVMObject>>::new(),
-            call_stack: Stack::<usize>::new(),
+            globals: Vec::<CVMObject>::new(),
+            functions: Vec::<Rc<CVMFunctionObject>>::new(),
+            call_stack: Stack::<CVMCallFrame>::with_capacity(50_000),
         }
     }
 
-    pub fn execute(&mut self, start: usize, code: Vec<Bytecode>) -> Result<(), CVMError> {
-        let mut current_idx = start;
+    pub fn execute(&mut self, code: &Vec<Bytecode>) -> Result<(), CVMError> {
+        let mut current_idx = 0;
         while current_idx < code.len() {
             current_idx = self.execute_next(current_idx, &code)?;
         }
         Ok(())
     }
 
-    fn execute_next(
-        &mut self,
-        mut current_idx: usize,
-        code: &Vec<Bytecode>,
-    ) -> Result<usize, CVMError> {
-        let Some(front) = code.get(current_idx) else {
-            panic!("TODO: make this throw a proper error");
-        };
-        current_idx += 1;
-        match front {
+    /* in this case inlining the function speeds up the interpreter */
+    #[inline]
+    fn execute_next(&mut self, curr_idx: usize, code: &Vec<Bytecode>) -> Result<usize, CVMError> {
+        let next_instr = code.get(curr_idx).unwrap();
+        let current_idx = curr_idx + 1;
+        match next_instr {
             Bytecode::ConstI(val) => push_constant!(self, Int, val, current_idx),
             Bytecode::ConstU(val) => push_constant!(self, Uint, val, current_idx),
             Bytecode::ConstF(val) => push_constant!(self, Float, val, current_idx),
@@ -68,26 +89,57 @@ impl CVM {
                 */
                 Ok(current_idx)
             }
-            Bytecode::CreateVar(var_id) => {
-                while self.var_heap.len() <= *var_id as usize {
-                    self.var_heap.push(Vec::<CVMObject>::with_capacity(1_000));
-                }
+            Bytecode::SetGlobal(var_id) => {
                 let var_value = self
                     .stack
                     .pop()
                     .expect("TODO: add proper error handling for missing stack value");
-                let Some(var_bucket) = self.var_heap.get_mut(*var_id as usize) else {
-                    panic!("TODO: add proper error handling for missing variable bucket")
-                };
-                var_bucket.push(var_value);
+                while *var_id >= self.globals.len() {
+                    self.globals.push(CVMObject::Int(0));
+                }
+                *self.globals.get_mut(*var_id).unwrap() = var_value;
+                Ok(current_idx)
+            }
+            Bytecode::GetGlobal(var_id) => {
+                let var_value = self
+                    .globals
+                    .get(*var_id)
+                    .expect("TODO: add proper error checking for invalid variable id")
+                    .clone();
+                self.stack.push(var_value);
                 Ok(current_idx)
             }
 
-            Bytecode::DeleteVar(var_id) => {
-                let Some(var_bucket) = self.var_heap.get_mut(*var_id as usize) else {
-                    panic!("TODO: add proper error handling for missing variable bucket")
-                };
-                var_bucket.pop();
+            Bytecode::GetArg(var_id) => {
+                let frame = self.call_stack.peek().expect("TODO: add proper check");
+                let value = frame.args.get(*var_id).unwrap().clone();
+                self.stack.push(value);
+                Ok(current_idx)
+            }
+
+            Bytecode::SetLocal(var_id) => {
+                let var_value = self
+                    .stack
+                    .pop()
+                    .expect("TODO: add proper error handling for missing stack value");
+                let top_frame = self
+                    .call_stack
+                    .top()
+                    .expect("TODO: check for having a call frame");
+                // SAFETY: the locals should be allocated upon pushing the call frame
+                *top_frame.locals.get_mut(*var_id).unwrap() = var_value;
+                Ok(current_idx)
+            }
+            Bytecode::GetLocal(var_id) => {
+                let var_value = self
+                    .call_stack
+                    .peek()
+                    .expect("TODO: add proper error checking for missing call frame")
+                    .locals
+                    .get(*var_id)
+                    .unwrap()
+                    .clone();
+                self.stack.push(var_value);
                 Ok(current_idx)
             }
 
@@ -109,30 +161,42 @@ impl CVM {
             Bytecode::Neg => neg(self, current_idx),
             Bytecode::Not => not(self, current_idx),
 
-            Bytecode::GetVar(var_id) => {
-                let Some(var_bucket) = self.var_heap.get(*var_id as usize) else {
-                    panic!("TODO: make this throw a proper error");
+            Bytecode::CreateFunc(arg_count, locals_count) => {
+                let func_obj = CVMFunctionObject {
+                    arg_count: *arg_count,
+                    locals_count: *locals_count,
+                    code: Rc::new(code[current_idx..].into()),
                 };
-                if let Some(val) = var_bucket.last() {
-                    self.stack.push(val.clone());
+                self.functions.push(Rc::new(func_obj));
+                Ok(code.len())
+            }
+
+            Bytecode::CallFunc(func_id) => {
+                let func_obj = self
+                    .functions
+                    .get(*func_id)
+                    .expect("TODO: proper error checking for this")
+                    .clone();
+                // println!("FUNCTION OBJECT: {:#?}\n", func_obj);
+                let mut frame = CVMCallFrame::from(func_obj.clone());
+
+                for _ in 0..func_obj.arg_count {
+                    frame
+                        .args
+                        .push(self.stack.pop().expect("TODO: add proper stack checks"));
                 }
+
+                self.call_stack.push(frame);
+                self.execute(&func_obj.code);
                 Ok(current_idx)
             }
 
-            Bytecode::CallFunc(func_pos) => {
-                self.call_stack.push(current_idx);
-                Ok(*func_pos)
-            }
-
             Bytecode::Return => {
-                /* if there are no other call_stacks, we terminate the execution of main */
-                if let Some(prev_idx) = self.call_stack.pop() {
-                    Ok(prev_idx)
-                } else {
-                    Ok(code.len())
-                }
+                self.call_stack.pop();
+                Ok(code.len())
             }
 
+            // TODO: remove the whole operation - check types compile time
             Bytecode::Assert(_type) => {
                 /*
                 let Some(assert_raw) = code.get(current_idx) else {

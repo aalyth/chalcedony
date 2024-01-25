@@ -1,8 +1,6 @@
-use crate::error::span::{Span, Spanning};
+use crate::error::span::Span;
 use crate::error::{ChalError, ParserError};
 use crate::lexer::{Token, TokenKind};
-
-use std::rc::Rc;
 
 pub struct NodeVarCall {
     pub name: String,
@@ -10,7 +8,7 @@ pub struct NodeVarCall {
 }
 
 impl NodeVarCall {
-    pub fn new(token: Token, spanner: Rc<dyn Spanning>) -> Result<Self, ChalError> {
+    pub fn new(token: Token) -> Result<Self, ChalError> {
         let kind = token.kind;
         let TokenKind::Identifier(name) = kind else {
             return Err(ParserError::invalid_token(

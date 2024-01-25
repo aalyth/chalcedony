@@ -3,10 +3,10 @@ mod if_stmnt;
 pub mod return_stmnt;
 mod while_loop;
 
-use assignment::NodeAssign;
+pub use assignment::NodeAssign;
 pub use if_stmnt::{NodeElifStmnt, NodeElseStmnt, NodeIfBranch, NodeIfStmnt};
 pub use return_stmnt::NodeRetStmnt;
-use while_loop::NodeWhileLoop;
+pub use while_loop::NodeWhileLoop;
 
 use super::{NodeFuncCall, NodeVarDef};
 
@@ -72,7 +72,8 @@ pub fn parse_body(mut reader: LineReader) -> Result<Vec<NodeStmnt>, ChalError> {
                 // SAFETY: there is always at least 2 elements in the line (the identifer + newline)
                 if let Some(peek) = line.tokens().get(1) {
                     if peek.kind == TokenKind::Delimiter(Delimiter::OpenPar) {
-                        let node_raw = NodeFuncCall::new(line.into(), reader.spanner());
+                        let node_reader = TokenReader::new(line.into(), reader.spanner());
+                        let node_raw = NodeFuncCall::new(node_reader);
                         let Ok(node) = node_raw else {
                             err_vec.push(node_raw.err().unwrap());
                             continue;

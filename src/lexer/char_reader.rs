@@ -45,6 +45,17 @@ impl CharReader {
         self.src.front()
     }
 
+    pub fn peek_word(&self) -> String {
+        let mut result = String::new();
+        for c in &self.src {
+            if !c.is_alphabetic() {
+                break;
+            }
+            result.push(*c);
+        }
+        result
+    }
+
     pub fn is_empty(&self) -> bool {
         self.src.is_empty()
     }

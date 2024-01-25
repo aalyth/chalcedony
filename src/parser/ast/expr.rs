@@ -1,4 +1,4 @@
-use crate::error::span::{Span, Spanning};
+use crate::error::span::Span;
 use crate::error::{ChalError, ParserError};
 use crate::lexer;
 use crate::lexer::{Delimiter, Token, TokenKind};
@@ -10,7 +10,6 @@ use crate::utils::Stack;
 use crate::parser::TokenReader;
 
 use std::collections::VecDeque;
-use std::rc::Rc;
 
 pub enum NodeExprInner {
     BinOpr(BinOprType),
@@ -168,9 +167,7 @@ macro_rules! push_operator {
 
 impl NodeExpr {
     /* this implementation is based on the Shunting Yard algorithm */
-    pub fn new(tokens: VecDeque<Token>, spanner: Rc<dyn Spanning>) -> Result<NodeExpr, ChalError> {
-        let mut reader = TokenReader::new(tokens, spanner.clone());
-
+    pub fn new(mut reader: TokenReader) -> Result<NodeExpr, ChalError> {
         let mut output = Stack::<NodeExprInner>::new();
         let mut operators = Stack::<Operator>::new();
         let start = reader.current().start;
@@ -225,10 +222,7 @@ impl NodeExpr {
 
                 TokenKind::Identifier(_) => {
                     if reader.peek() == None {
-                        let node = NodeExprInner::VarCall(NodeVarCall::new(
-                            current.clone(),
-                            spanner.clone(),
-                        )?);
+                        let node = NodeExprInner::VarCall(NodeVarCall::new(current.clone())?);
                         push_terminal!(node, output, prev_type, current);
                         continue;
                     };
@@ -251,14 +245,13 @@ impl NodeExpr {
                             buffer.push_back(current);
                         }
                         /* SAFETY: the buffer should always have at least 1 element in it */
-                        let node =
-                            NodeExprInner::FuncCall(NodeFuncCall::new(buffer, spanner.clone())?);
+                        let tmp_reader = TokenReader::new(buffer, reader.spanner());
+                        let node = NodeExprInner::FuncCall(NodeFuncCall::new(tmp_reader)?);
                         push_terminal!(node, output, prev_type, current);
                         continue;
                     }
 
-                    let node =
-                        NodeExprInner::VarCall(NodeVarCall::new(current.clone(), spanner.clone())?);
+                    let node = NodeExprInner::VarCall(NodeVarCall::new(current.clone())?);
                     push_terminal!(node, output, prev_type, current);
                 }
 
@@ -309,13 +302,7 @@ impl NodeExpr {
 
         Ok(NodeExpr {
             expr: output.into(),
-            span: Span::new(start, reader.current().end, spanner.clone()),
+            span: Span::new(start, reader.current().end, reader.spanner()),
         })
     }
-
-    /*
-    pub fn disassemble(self) -> (Vec<NodeExprInner>, Position, Position, Rc<Span>) {
-        (self.expr, self.start, self.end, self.span)
-    }
-    */
 }
