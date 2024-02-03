@@ -1,4 +1,4 @@
-use crate::lexer::Type;
+use crate::common::Type;
 use crate::utils::PtrString;
 
 #[derive(Debug, Clone)]
@@ -25,5 +25,17 @@ impl CVMObject {
 impl Default for CVMObject {
     fn default() -> Self {
         Self::Int(0)
+    }
+}
+
+impl std::fmt::Display for CVMObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CVMObject::Int(val) => write!(f, "{}", val),
+            CVMObject::Uint(val) => write!(f, "{}", val),
+            CVMObject::Float(val) => write!(f, "{}", val),
+            CVMObject::Str(val) => write!(f, "{}", val),
+            CVMObject::Bool(val) => write!(f, "{}", val),
+        }
     }
 }

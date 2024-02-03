@@ -3,33 +3,31 @@ mod error;
 mod object;
 
 use builtins::{add, and, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
-use error::{CVMError, CVMErrorKind};
 use object::CVMObject;
 
-use crate::error::span::Position;
-use crate::lexer::Type;
-
-use crate::utils::{Bytecode, Stack};
+use crate::common::Bytecode;
+use crate::utils::{PtrArray, Stack};
 
 use std::rc::Rc;
 
 #[derive(Debug)]
 struct CVMFunctionObject {
     arg_count: usize,
-    locals_count: usize,
+    local_count: usize,
     code: Rc<Vec<Bytecode>>,
 }
 
+#[derive(Debug)]
 struct CVMCallFrame {
-    args: Vec<CVMObject>,
-    locals: Vec<CVMObject>,
+    arg_count: usize,
+    variables: PtrArray<CVMObject>,
 }
 
 impl From<Rc<CVMFunctionObject>> for CVMCallFrame {
-    fn from(func: Rc<CVMFunctionObject>) -> CVMCallFrame {
+    fn from(func: Rc<CVMFunctionObject>) -> Self {
         CVMCallFrame {
-            args: Vec::with_capacity(func.arg_count),
-            locals: vec![CVMObject::default(); func.locals_count],
+            arg_count: func.arg_count,
+            variables: PtrArray::new(func.arg_count + func.local_count),
         }
     }
 }
@@ -44,7 +42,7 @@ pub struct CVM {
 macro_rules! push_constant {
     ($cvm:ident, $type:ident, $val:ident, $current_idx:ident) => {{
         $cvm.stack.push(CVMObject::$type(*$val));
-        Ok($current_idx)
+        $current_idx
     }};
 }
 
@@ -54,21 +52,19 @@ impl CVM {
             stack: Stack::<CVMObject>::with_capacity(100_000),
             globals: Vec::<CVMObject>::new(),
             functions: Vec::<Rc<CVMFunctionObject>>::new(),
-            call_stack: Stack::<CVMCallFrame>::with_capacity(50_000),
+            call_stack: Stack::<CVMCallFrame>::with_capacity(10_000),
         }
     }
 
-    pub fn execute(&mut self, code: &Vec<Bytecode>) -> Result<(), CVMError> {
+    pub fn execute(&mut self, code: &Vec<Bytecode>) {
         let mut current_idx = 0;
         while current_idx < code.len() {
-            current_idx = self.execute_next(current_idx, &code)?;
+            current_idx = self.execute_next(current_idx, &code);
         }
-        Ok(())
     }
 
-    /* in this case inlining the function speeds up the interpreter */
-    #[inline]
-    fn execute_next(&mut self, curr_idx: usize, code: &Vec<Bytecode>) -> Result<usize, CVMError> {
+    #[inline(always)]
+    fn execute_next(&mut self, curr_idx: usize, code: &Vec<Bytecode>) -> usize {
         let next_instr = code.get(curr_idx).unwrap();
         let current_idx = curr_idx + 1;
         match next_instr {
@@ -77,17 +73,15 @@ impl CVM {
             Bytecode::ConstF(val) => push_constant!(self, Float, val, current_idx),
             Bytecode::ConstS(val) => {
                 self.stack.push(CVMObject::Str(val.clone()));
-                Ok(current_idx)
+                current_idx
             }
             Bytecode::ConstB(val) => push_constant!(self, Bool, val, current_idx),
 
             Bytecode::Debug => {
-                /*
                 println!("CVM_STACK: {:#?}\n", self.stack);
-                println!("CVM_VAR_HEAP: {:#?}\n", self.var_heap);
+                println!("CVM_VAR_HEAP: {:#?}\n", self.functions);
                 println!("CVM_CALL_STACK: {:#?}\n", self.call_stack);
-                */
-                Ok(current_idx)
+                current_idx
             }
             Bytecode::SetGlobal(var_id) => {
                 let var_value = self
@@ -98,7 +92,7 @@ impl CVM {
                     self.globals.push(CVMObject::Int(0));
                 }
                 *self.globals.get_mut(*var_id).unwrap() = var_value;
-                Ok(current_idx)
+                current_idx
             }
             Bytecode::GetGlobal(var_id) => {
                 let var_value = self
@@ -107,14 +101,14 @@ impl CVM {
                     .expect("TODO: add proper error checking for invalid variable id")
                     .clone();
                 self.stack.push(var_value);
-                Ok(current_idx)
+                current_idx
             }
 
             Bytecode::GetArg(var_id) => {
                 let frame = self.call_stack.peek().expect("TODO: add proper check");
-                let value = frame.args.get(*var_id).unwrap().clone();
+                let value = frame.variables.get(*var_id).clone();
                 self.stack.push(value);
-                Ok(current_idx)
+                current_idx
             }
 
             Bytecode::SetLocal(var_id) => {
@@ -127,20 +121,20 @@ impl CVM {
                     .top()
                     .expect("TODO: check for having a call frame");
                 // SAFETY: the locals should be allocated upon pushing the call frame
-                *top_frame.locals.get_mut(*var_id).unwrap() = var_value;
-                Ok(current_idx)
+                /*
+                while var_id <= &top_frame.locals.len() {
+                    top_frame.locals.push(CVMObject::default());
+                }
+                */
+                // *top_frame.locals.get_mut(*var_id).unwrap() = var_value;
+                top_frame.variables.set(*var_id, var_value);
+                current_idx
             }
             Bytecode::GetLocal(var_id) => {
-                let var_value = self
-                    .call_stack
-                    .peek()
-                    .expect("TODO: add proper error checking for missing call frame")
-                    .locals
-                    .get(*var_id)
-                    .unwrap()
-                    .clone();
+                let frame = self.call_stack.peek().expect("missing call frame");
+                let var_value = frame.variables.get(frame.arg_count + *var_id).clone();
                 self.stack.push(var_value);
-                Ok(current_idx)
+                current_idx
             }
 
             Bytecode::Add => add(self, current_idx),
@@ -161,14 +155,14 @@ impl CVM {
             Bytecode::Neg => neg(self, current_idx),
             Bytecode::Not => not(self, current_idx),
 
-            Bytecode::CreateFunc(arg_count, locals_count) => {
+            Bytecode::CreateFunc(arg_count, local_count) => {
                 let func_obj = CVMFunctionObject {
                     arg_count: *arg_count,
-                    locals_count: *locals_count,
+                    local_count: *local_count,
                     code: Rc::new(code[current_idx..].into()),
                 };
                 self.functions.push(Rc::new(func_obj));
-                Ok(code.len())
+                code.len()
             }
 
             Bytecode::CallFunc(func_id) => {
@@ -177,85 +171,52 @@ impl CVM {
                     .get(*func_id)
                     .expect("TODO: proper error checking for this")
                     .clone();
-                // println!("FUNCTION OBJECT: {:#?}\n", func_obj);
-                let mut frame = CVMCallFrame::from(func_obj.clone());
+                let frame = CVMCallFrame::from(func_obj.clone());
 
-                for _ in 0..func_obj.arg_count {
-                    frame
-                        .args
-                        .push(self.stack.pop().expect("TODO: add proper stack checks"));
+                for i in 0..frame.arg_count {
+                    frame.variables.set(
+                        i,
+                        self.stack.pop().expect("expected an object on the stack"),
+                    )
                 }
 
                 self.call_stack.push(frame);
                 self.execute(&func_obj.code);
-                Ok(current_idx)
+                current_idx
             }
 
             Bytecode::Return => {
                 self.call_stack.pop();
-                Ok(code.len())
-            }
-
-            // TODO: remove the whole operation - check types compile time
-            Bytecode::Assert(_type) => {
-                /*
-                let Some(assert_raw) = code.get(current_idx) else {
-                    return Err(self.error(CVMErrorKind::InvalidInstruction));
-                };
-                let assert_raw: Bytecode = unsafe { std::mem::transmute(*assert_raw) };
-                let Ok(assert) = assert_raw.try_into() else {
-                    return Err(self.error(CVMErrorKind::InvalidInstruction));
-                };
-
-                let Some(peek_raw) = self.stack.peek() else {
-                    return Err(self.error(CVMErrorKind::ExpectedObject));
-                };
-                let peek_type = peek_raw.as_type();
-
-                if assert != peek_type {
-                    return Err(self.error(CVMErrorKind::TypeAssertionFail(assert, peek_type)));
-                }
-                */
-                Ok(current_idx)
+                code.len()
             }
 
             Bytecode::If(jmp) => {
-                let Some(cond_raw) = self.stack.pop() else {
-                    return Err(self.error(CVMErrorKind::ExpectedObject));
-                };
+                let cond_raw = self.stack.pop().expect("expected an object on the stack");
                 let CVMObject::Bool(cond) = cond_raw else {
-                    return Err(
-                        self.error(CVMErrorKind::InvalidType(Type::Bool, cond_raw.as_type()))
-                    );
+                    panic!("expected a bool when checking if statements")
                 };
 
                 if !cond {
-                    return Ok(current_idx + jmp);
+                    return current_idx + jmp;
                 }
                 /* execute the body if the condition is true */
-                Ok(current_idx)
+                current_idx
             }
 
-            Bytecode::Jmp(dist) => Ok((current_idx as isize + dist) as usize),
+            Bytecode::Jmp(dist) => (current_idx as isize + dist) as usize,
 
             Bytecode::Print => {
-                let Some(output_obj) = self.stack.pop() else {
-                    return Err(self.error(CVMErrorKind::ExpectedObject));
-                };
-                let CVMObject::Str(output) = output_obj else {
-                    return Err(
-                        self.error(CVMErrorKind::InvalidType(Type::Str, output_obj.as_type()))
-                    );
-                };
-                println!("{}", output);
-                Ok(current_idx)
+                let obj = self.stack.pop().expect("expected an object on the stack");
+                println!("{}", obj);
+                current_idx
             }
 
-            _ => Err(self.error(CVMErrorKind::UnknownInstruction)),
+            _ => panic!("unknown bytecode instruction"),
         }
     }
 
-    pub fn error(&self, kind: CVMErrorKind) -> CVMError {
-        CVMError::new(kind, Position::new(1, 1), Position::new(1, 1), 0)
+    #[inline(always)]
+    fn push(&mut self, val: CVMObject) {
+        self.stack.push(val)
     }
 }

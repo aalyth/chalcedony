@@ -294,7 +294,7 @@ impl Lexer {
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
-        if current.is_alphanumeric() {
+        if current.is_alphanumeric() || current == '_' {
             let src = String::from(current)
                 + &self
                     .reader

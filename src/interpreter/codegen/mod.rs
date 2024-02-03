@@ -3,9 +3,9 @@ pub mod func;
 pub mod stmnt;
 pub mod var;
 
+use crate::common::Bytecode;
 use crate::error::ChalError;
 use crate::parser::ast::NodeProg;
-use crate::utils::Bytecode;
 
 use super::Chalcedony;
 

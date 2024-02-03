@@ -1,6 +1,8 @@
 use crate::error::span::Span;
 use crate::error::{ChalError, InternalError, LexerError};
 
+use crate::common::Type;
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum Keyword {
     Let,
@@ -10,17 +12,6 @@ pub enum Keyword {
     Elif,
     Else,
     While,
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum Type {
-    Int,
-    Uint,
-    Float,
-    Str,
-    Bool,
-    Any,
-    Void,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -198,12 +189,6 @@ impl TokenKind {
 
             _ => (),
         };
-
-        /* TODO: check if this is ok
-        if let Ok(kind) = src.parse::<u64>() {
-            return Ok(TokenKind::Uint(kind));
-        }
-        */
 
         if let Ok(val) = src.parse::<i64>() {
             return Ok(TokenKind::Int(val));

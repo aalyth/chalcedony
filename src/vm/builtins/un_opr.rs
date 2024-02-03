@@ -1,32 +1,31 @@
-use crate::vm::{CVMError, CVMErrorKind, CVMObject, CVM};
+use crate::vm::{CVMObject, CVM};
 
-pub fn neg(cvm: &mut CVM, current_idx: usize) -> Result<usize, CVMError> {
-    let Some(operand) = cvm.stack.pop() else {
-        return Err(cvm.error(CVMErrorKind::ExpectedObject));
-    };
+pub fn neg(cvm: &mut CVM, current_idx: usize) -> usize {
+    let operand = cvm.stack.pop().expect("expected an object on the stack");
 
     match operand {
-        CVMObject::Int(val) => cvm.stack.push(CVMObject::Int(-val)),
-        CVMObject::Uint(val) => cvm.stack.push(CVMObject::Int(-(val as i64))),
-        CVMObject::Float(val) => cvm.stack.push(CVMObject::Float(-val)),
-        _ => return Err(cvm.error(CVMErrorKind::InvalidUnOperation(operand.as_type()))),
+        CVMObject::Int(val) => cvm.push(CVMObject::Int(-val)),
+        CVMObject::Uint(val) => cvm.push(CVMObject::Int(-(val as i64))),
+        CVMObject::Float(val) => cvm.push(CVMObject::Float(-val)),
+        _ => panic!(
+            "unchecked invalid unary negation on {:?}",
+            operand.as_type()
+        ),
     }
 
-    Ok(current_idx)
+    current_idx
 }
 
-pub fn not(cvm: &mut CVM, current_idx: usize) -> Result<usize, CVMError> {
-    let Some(operand) = cvm.stack.pop() else {
-        return Err(cvm.error(CVMErrorKind::ExpectedObject));
-    };
+pub fn not(cvm: &mut CVM, current_idx: usize) -> usize {
+    let operand = cvm.stack.pop().expect("expected an object on the stack");
 
     match operand {
-        CVMObject::Int(val) => cvm.stack.push(CVMObject::Bool(val == 0)),
-        CVMObject::Uint(val) => cvm.stack.push(CVMObject::Bool(val == 0)),
-        CVMObject::Float(val) => cvm.stack.push(CVMObject::Bool(val == 0.0)),
-        CVMObject::Bool(val) => cvm.stack.push(CVMObject::Bool(!val)),
-        _ => return Err(cvm.error(CVMErrorKind::InvalidUnOperation(operand.as_type()))),
+        CVMObject::Int(val) => cvm.push(CVMObject::Bool(val == 0)),
+        CVMObject::Uint(val) => cvm.push(CVMObject::Bool(val == 0)),
+        CVMObject::Float(val) => cvm.push(CVMObject::Bool(val == 0.0)),
+        CVMObject::Bool(val) => cvm.push(CVMObject::Bool(!val)),
+        _ => panic!("unchecked invalid unary not on {:?}", operand.as_type()),
     }
 
-    Ok(current_idx)
+    current_idx
 }

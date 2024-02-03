@@ -1,6 +1,6 @@
 use crate::error::ChalError;
 use crate::lexer::{Keyword, Special, TokenKind};
-use crate::parser::ast::{parse_body, NodeExpr, NodeStmnt};
+use crate::parser::ast::{NodeExpr, NodeStmnt};
 use crate::parser::{LineReader, TokenReader};
 
 pub struct NodeWhileLoop {
@@ -27,7 +27,7 @@ impl NodeWhileLoop {
 
         Ok(NodeWhileLoop {
             condition: cond,
-            body: parse_body(reader)?,
+            body: reader.try_into()?,
         })
     }
 }

@@ -1,19 +1,10 @@
+/*
 use crate::error::span::Span;
 use crate::lexer::Type;
 
 use super::display_err;
 
 enum RuntimeErrorKind {
-    UnknownVariable(String),
-    UnknownFunction(String),
-    InvalidOperation(Type, Type), /* lhs, rhs */
-    InvalidType(Type, Type),      /* exp, recv */
-    InvalidUnOperation(Type),
-    TooManyArguments(usize, usize), /* exp, recv */
-    TooFewArguments(usize, usize),  /* exp, recv*/
-    NonVoidFunctionStmnt(Type),
-    VoidFunctionExpr,
-    NoDefaultReturnStmnt,
 }
 
 pub struct RuntimeError {
@@ -129,3 +120,4 @@ impl std::fmt::Display for RuntimeError {
         }
     }
 }
+*/

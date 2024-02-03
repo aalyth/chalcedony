@@ -1,9 +1,10 @@
-pub mod error;
-pub mod interpreter;
-pub mod lexer;
-pub mod parser;
-pub mod utils;
-pub mod vm;
+mod common;
+mod error;
+mod interpreter;
+mod lexer;
+mod parser;
+mod utils;
+mod vm;
 
 use crate::interpreter::Chalcedony;
 
@@ -12,8 +13,6 @@ extern crate ahash;
 use std::env;
 use std::fs;
 
-// TODO: add the __name__ variable
-
 // TODO: add compile time type assertions
 // TODO: assert there are terminals at the end of expressions
 
@@ -21,7 +20,10 @@ use std::fs;
 
 // TODO: add type casts
 
+// TODO: add 'continue' and 'break' statements
 // TODO: add short circuit logic operators
+
+// TODO: add div by zero checks
 
 fn main() {
     let args: Vec<String> = env::args().collect();

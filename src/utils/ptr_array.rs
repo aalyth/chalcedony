@@ -5,7 +5,6 @@ use std::ptr;
 #[derive(Debug)]
 pub struct PtrArray<T: Clone>(*const T);
 
-// TODO: make this not leak memory
 impl<T: Clone> PtrArray<T> {
     pub fn new(len: usize) -> Self {
         let layout = Layout::array::<*const u8>(std::mem::size_of::<T>() * len + 8)
@@ -15,10 +14,12 @@ impl<T: Clone> PtrArray<T> {
         PtrArray((unsafe { data.add(1) }) as *const T)
     }
 
+    #[inline(always)]
     pub fn get(&self, idx: usize) -> T {
         unsafe { ptr::read(self.0.add(idx)).clone() }
     }
 
+    #[inline(always)]
     pub fn set(&self, idx: usize, val: T) {
         unsafe { ptr::write(self.0.add(idx) as *mut T, val) }
     }

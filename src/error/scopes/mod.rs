@@ -1,16 +1,15 @@
-pub mod compile;
-pub mod internal;
-pub mod lexer;
-pub mod parser;
-pub mod runtime;
+mod compile;
+mod internal;
+mod lexer;
+mod parser;
+mod runtime;
 
 pub use compile::CompileError;
 pub use internal::InternalError;
 pub use lexer::LexerError;
 pub use parser::ParserError;
-pub use runtime::RuntimeError;
 
-use super::format::err;
+use super::err;
 
 use super::span::Span;
 

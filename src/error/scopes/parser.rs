@@ -1,5 +1,5 @@
 use crate::error::span::Span;
-use crate::lexer::tokens::TokenKind;
+use crate::lexer::TokenKind;
 
 use super::display_err;
 
@@ -11,6 +11,7 @@ enum ParserErrorKind {
     RepeatedExprTerminal,
     RepeatedExprOperator,
     InvalidStatement,
+    InvalidExprEnd,
 }
 
 pub struct ParserError {
@@ -50,6 +51,10 @@ impl ParserError {
     pub fn invalid_statement(span: Span) -> Self {
         ParserError::new(ParserErrorKind::InvalidStatement, span)
     }
+
+    pub fn invalid_expr_end(span: Span) -> Self {
+        ParserError::new(ParserErrorKind::InvalidExprEnd, span)
+    }
 }
 
 impl std::fmt::Display for ParserError {
@@ -86,6 +91,9 @@ impl std::fmt::Display for ParserError {
             }
 
             ParserErrorKind::InvalidStatement => display_err(&self.span, f, "invalid statement"),
+            ParserErrorKind::InvalidExprEnd => {
+                display_err(&self.span, f, "expressions must end with a terminal")
+            }
         }
     }
 }

@@ -1,7 +1,9 @@
 use crate::error::{ChalError, ParserError};
 use crate::lexer::{Operator, Token, TokenKind};
-use crate::parser::ast::{operators::AssignOprType, NodeExpr, NodeVarCall};
+use crate::parser::ast::{NodeExpr, NodeVarCall};
 use crate::parser::TokenReader;
+
+use crate::common::operators::AssignOprType;
 
 pub struct NodeAssign {
     pub lhs: NodeVarCall,

@@ -1,5 +1,4 @@
-use crate::error::format::{color, Colors};
-use crate::error::span::pos::Position;
+use crate::error::{color, span::Position, Colors};
 
 use super::Spanning;
 

@@ -1,8 +1,10 @@
 use crate::error::span::Span;
 use crate::error::{ChalError, InternalError, LexerError};
-use crate::lexer::{Delimiter, Keyword, Special, TokenKind, Type};
-use crate::parser::ast::{parse_body, NodeStmnt};
+use crate::lexer::{Delimiter, Keyword, Special, TokenKind};
+use crate::parser::ast::NodeStmnt;
 use crate::parser::{LineReader, TokenReader};
+
+use crate::common::Type;
 
 pub struct NodeFuncDef {
     pub name: String,
@@ -89,12 +91,8 @@ impl NodeFuncDef {
             name,
             args,
             ret_type,
-            body: parse_body(reader)?,
+            body: reader.try_into()?,
             span,
         })
-    }
-
-    pub fn name(&self) -> String {
-        self.name.clone()
     }
 }

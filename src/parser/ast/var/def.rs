@@ -1,11 +1,14 @@
-use crate::error::ChalError;
-use crate::lexer::{Keyword, Operator, Special, TokenKind, Type};
+use crate::error::{span::Span, ChalError};
+use crate::lexer::{Keyword, Operator, Special, TokenKind};
 use crate::parser::{ast::NodeExpr, TokenReader};
 
+use crate::common::Type;
+
 pub struct NodeVarDef {
-    pub kind: Type,
+    pub ty: Type,
     pub name: String,
     pub value: NodeExpr,
+    pub span: Span,
 }
 
 impl NodeVarDef {
@@ -14,11 +17,13 @@ impl NodeVarDef {
         /* let b: usize = 3 */
         reader.expect_exact(TokenKind::Keyword(Keyword::Let))?;
 
-        let name = reader.expect_ident()?;
+        let lhs_tok = reader.expect(TokenKind::Identifier("".to_string()))?;
+        let name = lhs_tok.src;
+        let span = lhs_tok.span;
 
-        let mut kind = Type::Any;
+        let mut ty = Type::Any;
         if let Ok(_) = reader.expect_exact(TokenKind::Special(Special::Colon)) {
-            kind = reader.expect_type()?;
+            ty = reader.expect_type()?;
 
             reader.expect_exact(TokenKind::Operator(Operator::Eq))?;
         } else {
@@ -30,6 +35,11 @@ impl NodeVarDef {
         let value = NodeExpr::new(rhs_reader)?;
         reader.expect_exact(TokenKind::Newline)?;
 
-        Ok(NodeVarDef { name, kind, value })
+        Ok(NodeVarDef {
+            name,
+            ty,
+            value,
+            span,
+        })
     }
 }

@@ -1,10 +1,9 @@
-use crate::error::scopes::{CompileError, InternalError, LexerError, ParserError, RuntimeError};
+use crate::error::scopes::{CompileError, InternalError, LexerError, ParserError};
 
 pub enum ChalError {
     LexerErr(LexerError),
     ParserErr(ParserError),
     CompileErr(CompileError),
-    RuntimeErr(RuntimeError),
     InternalErr(InternalError),
     ErrorChunk(Vec<ChalError>),
 }
@@ -27,9 +26,9 @@ impl From<ParserError> for ChalError {
     }
 }
 
-impl From<RuntimeError> for ChalError {
-    fn from(err: RuntimeError) -> Self {
-        ChalError::RuntimeErr(err)
+impl From<CompileError> for ChalError {
+    fn from(err: CompileError) -> Self {
+        ChalError::CompileErr(err)
     }
 }
 
@@ -52,8 +51,7 @@ impl std::fmt::Display for ChalError {
 
             ChalError::LexerErr(err) => write!(f, "{}", err),
             ChalError::ParserErr(err) => write!(f, "{}", err),
-            ChalError::CompileErr(_) => todo!(), // TODO
-            ChalError::RuntimeErr(err) => write!(f, "{}", err),
+            ChalError::CompileErr(err) => write!(f, "{}", err),
             ChalError::InternalErr(err) => write!(f, "{}", err),
         }
     }

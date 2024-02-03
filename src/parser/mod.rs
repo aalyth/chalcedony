@@ -1,6 +1,6 @@
 pub mod ast;
 mod line_reader;
-pub mod parser;
+mod parser;
 mod token_reader;
 
 use line_reader::LineReader;

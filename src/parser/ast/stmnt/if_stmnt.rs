@@ -4,8 +4,6 @@ use crate::parser::ast::{NodeExpr, NodeStmnt};
 
 use crate::parser::{LineReader, TokenReader};
 
-use super::parse_body;
-
 pub struct NodeIfStmnt {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
@@ -67,7 +65,7 @@ impl NodeIfStmnt {
         Ok(NodeIfStmnt {
             condition,
             branches,
-            body: parse_body(LineReader::new(body, reader.spanner()))?,
+            body: LineReader::new(body, reader.spanner()).try_into()?,
         })
     }
 }
@@ -106,7 +104,7 @@ impl NodeElifStmnt {
         let cond = NodeExpr::new(cond_reader)?;
         Ok(NodeElifStmnt {
             condition: cond,
-            body: parse_body(reader)?,
+            body: reader.try_into()?,
         })
     }
 }
@@ -119,7 +117,7 @@ impl NodeElseStmnt {
         header.expect_exact(TokenKind::Newline)?;
 
         Ok(NodeElseStmnt {
-            body: parse_body(reader)?,
+            body: reader.try_into()?,
         })
     }
 }

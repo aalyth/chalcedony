@@ -1,5 +1,5 @@
-pub mod pos;
-pub mod span;
+mod pos;
+mod span;
 
 pub use pos::Position;
 pub use span::InlineSpanner;

@@ -1,6 +1,8 @@
 use crate::error::span::{Position, Span, Spanning};
 use crate::error::{ChalError, InternalError, ParserError};
-use crate::lexer::{Token, TokenKind, Type};
+use crate::lexer::{Token, TokenKind};
+
+use crate::common::Type;
 
 use std::collections::VecDeque;
 use std::rc::Rc;

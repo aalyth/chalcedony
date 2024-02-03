@@ -1,6 +1,4 @@
-use crate::lexer::Type;
-
-use super::PtrString;
+use crate::utils::PtrString;
 
 #[derive(Debug, Clone)]
 pub enum Bytecode {
@@ -27,6 +25,12 @@ pub enum Bytecode {
     Neg,
     Not,
 
+    CastInt,
+    CastUint,
+    CastFloat,
+    CastStr,
+    CastBool,
+
     SetGlobal(usize),
     GetGlobal(usize),
     // SetArg(usize),
@@ -42,9 +46,7 @@ pub enum Bytecode {
     If(usize), // how much to jump over if the top of the stack is false
     Jmp(isize),
 
-    Assert(Type),
     Print,
-    Cast(Type),
 
     Debug,
 }

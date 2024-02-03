@@ -1,25 +1,25 @@
 use super::ToBytecode;
 
-use crate::error::{ChalError, RuntimeError};
-use crate::interpreter::Chalcedony;
-use crate::lexer::Type;
+use crate::common::Bytecode;
+use crate::error::{ChalError, CompileError};
+use crate::interpreter::{Chalcedony, VarAnnotation};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
-use crate::utils::Bytecode;
 
-use std::collections::HashSet;
+use crate::common::Type;
+
+use ahash::AHashMap;
 
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         /* compile the bytecode for all body statements */
         let mut body = Vec::<Bytecode>::new();
-        let mut var_lookup = HashSet::<String>::new();
-        for arg in &self.args {
-            var_lookup.insert(arg.0.clone());
-            /* this asserts the variable is in the var symtable */
-            // let _ = get_var_id(arg.0.clone(), intevar_symtable);
+
+        let mut args_lookup = AHashMap::<String, VarAnnotation>::new();
+        for (idx, arg) in self.args.iter().enumerate() {
+            args_lookup.insert(arg.0.clone(), VarAnnotation::new(idx, arg.1));
         }
 
-        interpreter.create_function(self.name.clone(), self.args, self.ret_type.clone());
+        interpreter.create_function(self.name.clone(), args_lookup, self.ret_type.clone());
 
         let mut returned = false;
         for stmnt in self.body {
@@ -35,17 +35,17 @@ impl ToBytecode for NodeFuncDef {
 
         match self.ret_type {
             Type::Void if body.len() == 0 && !returned => {
-                return Err(RuntimeError::no_default_return_stmnt(self.span).into())
+                return Err(CompileError::no_default_return_stmnt(self.span).into())
             }
             Type::Void if !returned => {
                 body.push(Bytecode::Return);
             }
-            _ if !returned => return Err(RuntimeError::no_default_return_stmnt(self.span).into()),
+            _ if !returned => return Err(CompileError::no_default_return_stmnt(self.span).into()),
             _ => {}
         }
 
         let Some(annotation) = interpreter.current_func.clone() else {
-            panic!("TODO: check if this is ok");
+            panic!("CVM::create_function() did not set the annotation properly");
         };
         let annotation = annotation.borrow();
         let mut result = Vec::<Bytecode>::with_capacity(body.len() + 1);
@@ -63,21 +63,21 @@ impl ToBytecode for NodeFuncDef {
 impl ToBytecode for NodeFuncCall {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let Some(annotation) = interpreter.func_symtable.get(&self.name).cloned() else {
-            return Err(RuntimeError::unknown_function(self.name, self.span).into());
+            return Err(CompileError::unknown_function(self.name, self.span).into());
         };
         let annotation = annotation.borrow();
 
         /* Checking for mismatching number of arguments */
         if annotation.args.len() != self.args.len() {
             if annotation.args.len() < self.args.len() {
-                return Err(RuntimeError::too_many_arguments(
+                return Err(CompileError::too_many_arguments(
                     annotation.args.len(),
                     self.args.len(),
                     self.span,
                 )
                 .into());
             } else {
-                return Err(RuntimeError::too_few_arguments(
+                return Err(CompileError::too_few_arguments(
                     annotation.args.len(),
                     self.args.len(),
                     self.span,

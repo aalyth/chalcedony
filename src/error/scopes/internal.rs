@@ -1,6 +1,6 @@
-use crate::error::format::internal;
+use crate::error::internal;
 
-/* indicates something is wrong with the interpreter itself*/
+/* indicates something is wrong with the interpreter itself */
 pub struct InternalError {
     msg: String,
 }

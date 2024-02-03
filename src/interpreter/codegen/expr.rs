@@ -1,18 +1,20 @@
 use super::ToBytecode;
 
-use crate::error::{ChalError, RuntimeError};
+use crate::error::ChalError;
 use crate::interpreter::Chalcedony;
-use crate::lexer::Type;
-use crate::parser::ast::operators::{BinOprType, UnaryOprType};
 use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue};
-use crate::utils::Bytecode;
+
+use crate::common::operators::{BinOprType, UnaryOprType};
+use crate::common::Bytecode;
 
 impl ToBytecode for NodeExpr {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let mut result = Vec::<Bytecode>::new();
+        interpreter.is_expr_scope = true;
         for e in self.expr {
             result.append(&mut e.to_bytecode(interpreter)?)
         }
+        interpreter.is_expr_scope = false;
         Ok(result)
     }
 }
@@ -55,18 +57,7 @@ impl ToBytecode for NodeExprInner {
 
             NodeExprInner::VarCall(node) => node.to_bytecode(interpreter),
 
-            NodeExprInner::FuncCall(node) => {
-                let Some(annotation) = interpreter.func_symtable.get(&node.name).cloned() else {
-                    return Err(RuntimeError::unknown_function(node.name, node.span).into());
-                };
-
-                let fn_ty = &annotation.borrow().ret_type;
-                if *fn_ty == Type::Void {
-                    return Err(RuntimeError::void_func_expr(node.span).into());
-                }
-
-                node.to_bytecode(interpreter)
-            }
+            NodeExprInner::FuncCall(node) => node.to_bytecode(interpreter),
         }
     }
 }

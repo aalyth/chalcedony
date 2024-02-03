@@ -2,9 +2,9 @@ use crate::error::span::Span;
 use crate::error::{ChalError, ParserError};
 use crate::lexer;
 use crate::lexer::{Delimiter, Token, TokenKind};
-use crate::parser::ast::operators::{BinOprType, UnaryOprType};
 use crate::parser::ast::{NodeFuncCall, NodeValue, NodeVarCall};
 
+use crate::common::operators::{BinOprType, UnaryOprType};
 use crate::utils::Stack;
 
 use crate::parser::TokenReader;
@@ -300,9 +300,14 @@ impl NodeExpr {
             output.push(operators.pop().unwrap().try_into().unwrap());
         }
 
+        let span = Span::new(start, reader.current().end, reader.spanner());
+        if !output.is_empty() && prev_type != PrevType::Terminal {
+            return Err(ParserError::invalid_expr_end(span).into());
+        }
+
         Ok(NodeExpr {
+            span,
             expr: output.into(),
-            span: Span::new(start, reader.current().end, reader.spanner()),
         })
     }
 }

@@ -84,7 +84,7 @@ impl NodeProg {
                     | TokenKind::Operator(Operator::MulEq)
                     | TokenKind::Operator(Operator::DivEq)
                     | TokenKind::Operator(Operator::ModEq) => {
-                        single_line_stmnt!(FuncCall, NodeFuncCall, chunk, spanner)
+                        single_line_stmnt!(Assign, NodeAssign, chunk, spanner)
                     }
                     recv_kind @ _ => Err(ParserError::invalid_token(
                         TokenKind::Delimiter(Delimiter::OpenPar),

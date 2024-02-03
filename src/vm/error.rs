@@ -1,3 +1,4 @@
+/*
 use crate::error::span::{Position, Span, Spanning};
 use crate::error::{ChalError, InternalError, RuntimeError};
 use crate::lexer::Type;
@@ -94,3 +95,4 @@ impl CVMError {
         }
     }
 }
+*/

@@ -1,5 +1,5 @@
 
-fn main() -> void:
+fn __main__() -> void:
     if 2 > 3:
         print('one')
     elif 2 > 3:
@@ -32,3 +32,4 @@ fn main() -> void:
         print('four')
     else:
         print('five')
+__main__()

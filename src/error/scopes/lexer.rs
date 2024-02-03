@@ -1,11 +1,10 @@
-use crate::error::format::err;
+use crate::error::err;
 use crate::error::span::Span;
-use crate::lexer::tokens::TokenKind;
+use crate::lexer::TokenKind;
 
 use super::display_err;
 
 /* the possible errorous token kinds */
-#[derive(PartialEq, Debug, Clone)]
 enum LexerErrorKind {
     InvalidIdentifier,
     InvalidIndentation,

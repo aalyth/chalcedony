@@ -12,4 +12,3 @@ ahash = "0.8.7"
 [profile.release]
 debug = true
 opt-level = 3
-

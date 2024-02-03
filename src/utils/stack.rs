@@ -28,6 +28,10 @@ impl<T> Stack<T> {
         self.values.last_mut()
     }
 
+    pub fn get(&mut self, idx: usize) -> Option<&T> {
+        self.values.get(idx)
+    }
+
     pub fn peek(&self) -> Option<&T> {
         self.values.last()
     }
@@ -36,8 +40,8 @@ impl<T> Stack<T> {
         self.values.is_empty()
     }
 
-    pub fn iter(&self) -> std::iter::Rev<std::slice::Iter<'_, T>> {
-        self.values.iter().rev()
+    pub fn len(&self) -> usize {
+        self.values.len()
     }
 }
 

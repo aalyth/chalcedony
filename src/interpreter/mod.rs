@@ -1,13 +1,14 @@
 mod codegen;
-use codegen::*;
+use codegen::ToBytecode;
+
+mod type_eval;
 
 use crate::error::{span::Spanning, ChalError};
-use crate::lexer::Type;
-use crate::parser::ast::NodeProg;
+use crate::parser::ast::{NodeProg, NodeVarDef};
 use crate::parser::Parser;
 use crate::vm::CVM;
 
-use crate::utils::Bytecode;
+use crate::common::{Bytecode, Type};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -16,10 +17,22 @@ use std::rc::Rc;
 use ahash::AHashMap;
 
 #[derive(Debug, Clone)]
+struct VarAnnotation {
+    id: usize,
+    ty: Type,
+}
+
+impl VarAnnotation {
+    fn new(id: usize, ty: Type) -> Self {
+        VarAnnotation { id, ty }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct FuncAnnotation {
     id: usize,
-    args: Vec<(String, Type)>,
-    locals_symtable: AHashMap<String, usize>,
+    args: AHashMap<String, VarAnnotation>,
+    locals: AHashMap<String, VarAnnotation>,
     locals_id_counter: usize,
     ret_type: Type,
 }
@@ -27,28 +40,17 @@ pub struct FuncAnnotation {
 impl FuncAnnotation {
     fn new(
         id: usize,
-        args: Vec<(String, Type)>,
+        args: AHashMap<String, VarAnnotation>,
         ret_type: Type,
-        locals: AHashMap<String, usize>,
+        locals: AHashMap<String, VarAnnotation>,
     ) -> Self {
         FuncAnnotation {
             id,
             args,
             locals_id_counter: locals.len(),
-            locals_symtable: locals,
+            locals,
             ret_type,
         }
-    }
-
-    fn get_arg(&self, arg_name: &String) -> Option<usize> {
-        let mut id = 0 as usize;
-        for arg in &self.args {
-            if &arg.0 == arg_name {
-                return Some(id);
-            }
-            id += 1;
-        }
-        None
     }
 }
 
@@ -58,13 +60,15 @@ trait InterpreterVisitor {
 
 pub struct Chalcedony {
     vm: CVM,
-    globals_symtable: AHashMap<String, usize>,
+    globals: AHashMap<String, VarAnnotation>,
     func_symtable: AHashMap<String, Rc<RefCell<FuncAnnotation>>>,
 
     // these members are used to track state between the node parsings into bytecode
     current_func: Option<Rc<RefCell<FuncAnnotation>>>,
     globals_id_counter: usize,
     func_id_counter: usize,
+
+    is_expr_scope: bool,
 }
 
 impl InterpreterVisitor for Chalcedony {
@@ -78,28 +82,30 @@ impl InterpreterVisitor for Chalcedony {
 
 impl Chalcedony {
     pub fn new() -> Self {
+        let mut print_args = AHashMap::new();
+        print_args.insert("output".to_string(), VarAnnotation::new(0, Type::Str));
+
         let mut func_symtable = AHashMap::<String, Rc<RefCell<FuncAnnotation>>>::new();
         func_symtable.insert(
             "print".to_string(),
             Rc::new(RefCell::new(FuncAnnotation::new(
-                0,
-                vec![(String::from("output"), Type::Str)],
+                1,
+                print_args,
                 Type::Void,
                 AHashMap::new(),
             ))),
         );
 
-        let mut globals_symtable = AHashMap::<String, usize>::new();
-        globals_symtable.insert("__name__".to_string(), 0);
-
         Chalcedony {
             vm: CVM::new(),
-            globals_symtable,
+            globals: AHashMap::new(),
             func_symtable,
 
             current_func: None,
-            globals_id_counter: 1,
-            func_id_counter: 1,
+            globals_id_counter: 0,
+            func_id_counter: 2,
+
+            is_expr_scope: false,
         }
     }
 
@@ -119,15 +125,20 @@ impl Chalcedony {
         ];
         self.vm.execute(&bytecode);
 
+        let mut failed = false;
         while !parser.is_empty() {
             match parser.advance() {
-                Ok(node) => {
+                Ok(node) if !failed => {
                     if let Err(err) = self.interpret_node(node) {
                         eprint!("{}", err);
                         return;
                     }
                 }
-                Err(err) => errors.push(err),
+                Ok(_) => {}
+                Err(err) => {
+                    failed = true;
+                    errors.push(err);
+                }
             }
         }
 
@@ -138,7 +149,7 @@ impl Chalcedony {
         }
     }
 
-    fn create_function(&mut self, name: String, args: Vec<(String, Type)>, ret: Type) {
+    fn create_function(&mut self, name: String, args: AHashMap<String, VarAnnotation>, ret: Type) {
         let result = Rc::new(RefCell::new(FuncAnnotation::new(
             self.func_id_counter,
             args,
@@ -150,29 +161,35 @@ impl Chalcedony {
         self.current_func = Some(result);
     }
 
-    fn get_global_id(&mut self, var_name: &String) -> usize {
-        if let Some(id) = self.globals_symtable.get(var_name) {
-            return *id;
+    fn get_global_id(&mut self, node: &NodeVarDef) -> usize {
+        if let Some(var) = self.globals.get(&node.name) {
+            return var.id;
         }
-        self.globals_symtable
-            .insert(var_name.clone(), self.globals_id_counter);
+        self.globals.insert(
+            node.name.clone(),
+            VarAnnotation::new(self.globals_id_counter, node.ty),
+        );
         self.globals_id_counter += 1;
         self.globals_id_counter - 1
     }
 
     // NOTE: must only be called inside function context
-    fn get_local_id(&mut self, var_name: &String) -> usize {
-        let Some(current_func) = self.current_func.clone() else {
-            panic!("TOOD: check if this is ok");
-        };
+    fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
+        let current_func = self
+            .current_func
+            .clone()
+            .expect("getting a local variable id is only allowed inside function scope");
+
         let mut current_func = current_func.borrow_mut();
-        if let Some(id) = current_func.locals_symtable.get(var_name) {
-            return *id;
+        if let Some(var) = current_func.locals.get(&node.name) {
+            return var.id;
         }
+
         let id_counter = current_func.locals_id_counter;
         current_func
-            .locals_symtable
-            .insert(var_name.clone(), id_counter);
+            .locals
+            .insert(node.name.clone(), VarAnnotation::new(id_counter, node.ty));
+
         current_func.locals_id_counter += 1;
         current_func.locals_id_counter - 1
     }
