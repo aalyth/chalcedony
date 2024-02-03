@@ -59,6 +59,10 @@ impl ToBytecode for NodeStmnt {
                     .into());
                 }
 
+                if return_type == Type::Void {
+                    return Ok(vec![Bytecode::ReturnVoid]);
+                }
+
                 let mut result = Vec::<Bytecode>::new();
                 result.append(&mut expr.to_bytecode(interpreter)?);
                 // TODO: check whether the return is a single function call optimize for TAIL_CALL

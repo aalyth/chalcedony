@@ -24,12 +24,22 @@ impl<T> Stack<T> {
         self.values.pop()
     }
 
+    /*
     pub fn top(&mut self) -> Option<&mut T> {
         self.values.last_mut()
     }
+    */
 
     pub fn get(&mut self, idx: usize) -> Option<&T> {
         self.values.get(idx)
+    }
+
+    pub fn get_mut(&mut self, idx: usize) -> Option<&mut T> {
+        self.values.get_mut(idx)
+    }
+
+    pub fn truncate(&mut self, len: usize) {
+        self.values.truncate(len)
     }
 
     pub fn peek(&self) -> Option<&T> {

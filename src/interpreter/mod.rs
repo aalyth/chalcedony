@@ -83,13 +83,13 @@ impl InterpreterVisitor for Chalcedony {
 impl Chalcedony {
     pub fn new() -> Self {
         let mut print_args = AHashMap::new();
-        print_args.insert("output".to_string(), VarAnnotation::new(0, Type::Str));
+        print_args.insert("output".to_string(), VarAnnotation::new(0, Type::Any));
 
         let mut func_symtable = AHashMap::<String, Rc<RefCell<FuncAnnotation>>>::new();
         func_symtable.insert(
             "print".to_string(),
             Rc::new(RefCell::new(FuncAnnotation::new(
-                1,
+                0,
                 print_args,
                 Type::Void,
                 AHashMap::new(),
@@ -103,7 +103,7 @@ impl Chalcedony {
 
             current_func: None,
             globals_id_counter: 0,
-            func_id_counter: 2,
+            func_id_counter: 1,
 
             is_expr_scope: false,
         }
@@ -121,7 +121,7 @@ impl Chalcedony {
             Bytecode::CreateFunc(1, 0),
             Bytecode::GetArg(0),
             Bytecode::Print,
-            Bytecode::Return,
+            Bytecode::ReturnVoid,
         ];
         self.vm.execute(&bytecode);
 
@@ -140,6 +140,8 @@ impl Chalcedony {
                     errors.push(err);
                 }
             }
+
+            // self.vm.execute(&vec![Bytecode::Debug])
         }
 
         if !errors.is_empty() {

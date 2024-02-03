@@ -38,19 +38,11 @@ macro_rules! apply_bin_operator {
 pub fn add(cvm: &mut CVM, current_idx: usize) -> usize {
     fn add_str(cvm: &mut CVM, lval: PtrString, right: CVMObject) {
         match right {
-            CVMObject::Int(rval) => cvm
-                .stack
-                .push(CVMObject::Str(lval + rval.to_string().into())),
-            CVMObject::Uint(rval) => cvm
-                .stack
-                .push(CVMObject::Str(lval + rval.to_string().into())),
-            CVMObject::Float(rval) => cvm
-                .stack
-                .push(CVMObject::Str(lval + rval.to_string().into())),
-            CVMObject::Str(rval) => cvm.stack.push(CVMObject::Str(lval + rval)),
-            CVMObject::Bool(rval) => cvm
-                .stack
-                .push(CVMObject::Str(lval + rval.to_string().into())),
+            CVMObject::Int(rval) => cvm.push(CVMObject::Str(lval + rval.to_string().into())),
+            CVMObject::Uint(rval) => cvm.push(CVMObject::Str(lval + rval.to_string().into())),
+            CVMObject::Float(rval) => cvm.push(CVMObject::Str(lval + rval.to_string().into())),
+            CVMObject::Str(rval) => cvm.push(CVMObject::Str(lval + rval)),
+            CVMObject::Bool(rval) => cvm.push(CVMObject::Str(lval + rval.to_string().into())),
         }
     }
     apply_bin_operator!(cvm, current_idx, +, add_str)
@@ -238,10 +230,10 @@ fn cmp_bool(_: &mut CVM, _: bool, right: CVMObject) {
 
 fn eq_bool(cvm: &mut CVM, lval: bool, right: CVMObject) {
     match right {
-        CVMObject::Int(rval) => cvm.stack.push(CVMObject::Bool(lval == (rval == 0))),
-        CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Bool(lval == (rval == 0))),
-        CVMObject::Float(rval) => cvm.stack.push(CVMObject::Bool(lval == (rval == 0.0))),
-        CVMObject::Bool(rval) => cvm.stack.push(CVMObject::Bool(lval == rval)),
+        CVMObject::Int(rval) => cvm.push(CVMObject::Bool(lval == (rval == 0))),
+        CVMObject::Uint(rval) => cvm.push(CVMObject::Bool(lval == (rval == 0))),
+        CVMObject::Float(rval) => cvm.push(CVMObject::Bool(lval == (rval == 0.0))),
+        CVMObject::Bool(rval) => cvm.push(CVMObject::Bool(lval == rval)),
         _ => panic!("unchecked invalid equality operation - comparing string == bool"),
     }
 }

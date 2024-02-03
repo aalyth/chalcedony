@@ -38,7 +38,7 @@ impl ToBytecode for NodeFuncDef {
                 return Err(CompileError::no_default_return_stmnt(self.span).into())
             }
             Type::Void if !returned => {
-                body.push(Bytecode::Return);
+                body.push(Bytecode::ReturnVoid);
             }
             _ if !returned => return Err(CompileError::no_default_return_stmnt(self.span).into()),
             _ => {}

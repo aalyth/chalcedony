@@ -42,6 +42,7 @@ pub enum Bytecode {
     CreateFunc(usize, usize),
     CallFunc(usize),
     Return,
+    ReturnVoid,
     // TODO: add a TailCallReturn operation
     If(usize), // how much to jump over if the top of the stack is false
     Jmp(isize),
