@@ -6,9 +6,14 @@ use crate::parser::{LineReader, TokenReader};
 
 use crate::common::Type;
 
+pub struct Arg {
+    pub name: String,
+    pub ty: Type,
+}
+
 pub struct NodeFuncDef {
     pub name: String,
-    pub args: Vec<(String, Type)>,
+    pub args: Vec<Arg>,
     pub ret_type: Type,
     pub body: Vec<NodeStmnt>,
 
@@ -42,7 +47,6 @@ impl NodeFuncDef {
             .into());
         }
 
-        /* NOTE: remove this if nested function definitions become allowed */
         if header_src.indent() != 0 {
             let front_tok = header_src.tokens().front().unwrap();
             return Err(LexerError::invalid_indentation(front_tok.span.clone()).into());
@@ -57,18 +61,18 @@ impl NodeFuncDef {
 
         header.expect_exact(TokenKind::Delimiter(Delimiter::OpenPar))?;
 
-        let mut args = Vec::<(String, Type)>::new();
+        let mut args = Vec::<Arg>::new();
         let mut first_iter = true;
         while !header.peek_is_exact(TokenKind::Delimiter(Delimiter::ClosePar)) {
             if !first_iter {
                 header.expect_exact(TokenKind::Special(Special::Comma))?;
             }
 
-            let argname = header.expect_ident()?;
+            let name = header.expect_ident()?;
             header.expect_exact(TokenKind::Special(Special::Colon))?;
-            let argkind = header.expect_type()?;
+            let ty = header.expect_type()?;
 
-            args.push((argname, argkind));
+            args.push(Arg { name, ty });
 
             first_iter = false;
         }

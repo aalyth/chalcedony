@@ -1,38 +1,51 @@
+use std::cell::RefCell;
+
 use super::ToBytecode;
 
-use crate::common::Bytecode;
 use crate::error::{ChalError, CompileError};
-use crate::interpreter::{Chalcedony, VarAnnotation};
+use crate::interpreter::{ArgAnnotation, Chalcedony};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 
-use crate::common::Type;
+use crate::common::{Bytecode, Type};
 
 use ahash::AHashMap;
 
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        /* compile the bytecode for all body statements */
-        let mut body = Vec::<Bytecode>::new();
-
-        let mut args_lookup = AHashMap::<String, VarAnnotation>::new();
-        for (idx, arg) in self.args.iter().enumerate() {
-            args_lookup.insert(arg.0.clone(), VarAnnotation::new(idx, arg.1));
+        if let Some(_) = interpreter.func_symtable.get(&self.name) {
+            return Err(CompileError::overloaded_function(self.span).into());
         }
 
-        interpreter.create_function(self.name.clone(), args_lookup, self.ret_type.clone());
+        let mut body = Vec::<Bytecode>::new();
 
+        /* enumerate over the function's arguments */
+        let mut args = Vec::<ArgAnnotation>::new();
+        for (idx, arg) in self.args.iter().enumerate() {
+            if arg.ty == Type::Void {
+                return Err(CompileError::void_argument(self.span).into());
+            }
+            args.push(ArgAnnotation::new(idx, arg.name.clone(), arg.ty));
+        }
+
+        interpreter.create_function(self.name.clone(), args, self.ret_type.clone());
+
+        /* compile the bytecode for each statement in the body */
         let mut returned = false;
         for stmnt in self.body {
             if let NodeStmnt::RetStmnt(_) = stmnt {
                 returned = true;
             }
             body.append(&mut stmnt.to_bytecode(interpreter)?);
-            // if we have a return statement, there's no need to waste time on unreachable code
+
+            /* if a return statement is reached, there is no point in
+             * parsing the rest of the body's code */
             if returned {
                 break;
             }
         }
 
+        /* check whether the function has returned, and if it is a void function, append
+         * a ReturnVoid at the end if there isn't one */
         match self.ret_type {
             Type::Void if body.len() == 0 && !returned => {
                 return Err(CompileError::no_default_return_stmnt(self.span).into())
@@ -48,14 +61,13 @@ impl ToBytecode for NodeFuncDef {
             panic!("CVM::create_function() did not set the annotation properly");
         };
         let annotation = annotation.borrow();
+
         let mut result = Vec::<Bytecode>::with_capacity(body.len() + 1);
-        result.push(Bytecode::CreateFunc(
-            annotation.args.len(),
-            annotation.locals_id_counter,
-        ));
+        result.push(Bytecode::CreateFunc(annotation.args.len()));
         result.append(&mut body);
 
         interpreter.current_func = None;
+        interpreter.locals = RefCell::new(AHashMap::new());
         Ok(result)
     }
 }
@@ -67,7 +79,7 @@ impl ToBytecode for NodeFuncCall {
         };
         let annotation = annotation.borrow();
 
-        /* Checking for mismatching number of arguments */
+        /* check for mismatching number of arguments */
         if annotation.args.len() != self.args.len() {
             if annotation.args.len() < self.args.len() {
                 return Err(CompileError::too_many_arguments(
@@ -86,22 +98,31 @@ impl ToBytecode for NodeFuncCall {
             }
         }
 
-        /* set up the function arguments as local variables inside the function scope */
+        /* push on the stack each of the argument's expression value */
         let mut result = Vec::<Bytecode>::new();
-        let arg_iter = self.args.into_iter();
-        // let mut annotation_iter = annotation.args.clone().into_iter();
+        for (idx, arg_expr) in self.args.into_iter().enumerate() {
+            let exp_type = annotation
+                .args
+                .get(idx)
+                .expect("the argument bounds should have already been checked")
+                .ty;
+            if exp_type != Type::Any {
+                let recv_type = arg_expr.as_type(&interpreter)?;
 
-        for arg in arg_iter {
-            /* push the argument value */
-            result.append(&mut arg.to_bytecode(interpreter)?);
+                if exp_type != recv_type {
+                    return Err(CompileError::invalid_type(
+                        exp_type,
+                        recv_type,
+                        arg_expr.span.clone(),
+                    )
+                    .into());
+                }
+            }
 
-            // let ann = annotation_iter.next().unwrap();
-
-            // TODO: check the type
+            result.append(&mut arg_expr.to_bytecode(interpreter)?);
         }
 
         /* complete the function call instruction */
-        // TODO: convert to using usize
         result.push(Bytecode::CallFunc(annotation.id));
 
         Ok(result)

@@ -13,6 +13,7 @@ pub use stmnt::{
 };
 pub use var::{NodeVarCall, NodeVarDef};
 
+#[derive(Clone)]
 pub enum NodeValue {
     Int(i64),
     Uint(u64),

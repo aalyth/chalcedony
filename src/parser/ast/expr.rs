@@ -11,6 +11,7 @@ use crate::parser::TokenReader;
 
 use std::collections::VecDeque;
 
+#[derive(Clone)]
 pub enum NodeExprInner {
     BinOpr(BinOprType),
     UnaryOpr(UnaryOprType),
@@ -19,6 +20,7 @@ pub enum NodeExprInner {
     FuncCall(NodeFuncCall),
 }
 
+#[derive(Clone)]
 pub struct NodeExpr {
     pub expr: Vec<NodeExprInner>,
     pub span: Span,

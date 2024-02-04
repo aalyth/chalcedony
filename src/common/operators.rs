@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum BinOprType {
     Add, // +
     Sub, // -
@@ -17,13 +17,13 @@ pub enum BinOprType {
     BangEq, // !=
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum UnaryOprType {
     Neg,  // - (negative)
     Bang, // !
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum AssignOprType {
     Eq,    // =
     AddEq, // +=

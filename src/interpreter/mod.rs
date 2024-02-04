@@ -3,7 +3,7 @@ use codegen::ToBytecode;
 
 mod type_eval;
 
-use crate::error::{span::Spanning, ChalError};
+use crate::error::ChalError;
 use crate::parser::ast::{NodeProg, NodeVarDef};
 use crate::parser::Parser;
 use crate::vm::CVM;
@@ -15,6 +15,19 @@ use std::rc::Rc;
 
 // ahash is the fastest hashing algorithm in terms of hashing strings (faster than fxhash)
 use ahash::AHashMap;
+
+#[derive(Debug, Clone)]
+struct ArgAnnotation {
+    id: usize,
+    ty: Type,
+    name: String,
+}
+
+impl ArgAnnotation {
+    fn new(id: usize, name: String, ty: Type) -> Self {
+        ArgAnnotation { id, ty, name }
+    }
+}
 
 #[derive(Debug, Clone)]
 struct VarAnnotation {
@@ -31,24 +44,21 @@ impl VarAnnotation {
 #[derive(Debug, Clone)]
 pub struct FuncAnnotation {
     id: usize,
-    args: AHashMap<String, VarAnnotation>,
-    locals: AHashMap<String, VarAnnotation>,
-    locals_id_counter: usize,
+    args: Vec<ArgAnnotation>,
+    arg_lookup: AHashMap<String, ArgAnnotation>,
     ret_type: Type,
 }
 
 impl FuncAnnotation {
-    fn new(
-        id: usize,
-        args: AHashMap<String, VarAnnotation>,
-        ret_type: Type,
-        locals: AHashMap<String, VarAnnotation>,
-    ) -> Self {
+    fn new(id: usize, args: Vec<ArgAnnotation>, ret_type: Type) -> Self {
+        let mut arg_lookup = AHashMap::<String, ArgAnnotation>::new();
+        for arg in args.clone() {
+            arg_lookup.insert(arg.name.clone(), arg);
+        }
         FuncAnnotation {
             id,
             args,
-            locals_id_counter: locals.len(),
-            locals,
+            arg_lookup,
             ret_type,
         }
     }
@@ -59,53 +69,83 @@ trait InterpreterVisitor {
 }
 
 pub struct Chalcedony {
+    /* The virtual machine used to execute the resulting bytecode*/
     vm: CVM,
+
+    /* Used to keep track of the globally declared variables */
     globals: AHashMap<String, VarAnnotation>,
+
+    /* Used to keep track of the functions inside the program */
     func_symtable: AHashMap<String, Rc<RefCell<FuncAnnotation>>>,
 
-    // these members are used to track state between the node parsings into bytecode
+    /* Contains the necessary function information used while parsing statements
+     * inside a function's scope */
     current_func: Option<Rc<RefCell<FuncAnnotation>>>,
-    globals_id_counter: usize,
-    func_id_counter: usize,
 
-    is_expr_scope: bool,
+    /* Keeps track of the current scope's local variables */
+    locals: RefCell<AHashMap<String, VarAnnotation>>,
 }
 
 impl InterpreterVisitor for Chalcedony {
     fn interpret_node(&mut self, node: NodeProg) -> Result<(), ChalError> {
         let bytecode = node.to_bytecode(self)?;
-        // println!("BYTECODE: {:#?}\n", bytecode);
-        self.vm.execute(&bytecode);
+        self.vm.execute(bytecode);
         Ok(())
     }
 }
 
 impl Chalcedony {
     pub fn new() -> Self {
-        let mut print_args = AHashMap::new();
-        print_args.insert("output".to_string(), VarAnnotation::new(0, Type::Any));
+        let mut print_args = Vec::new();
+        print_args.push(ArgAnnotation::new(0, "output".to_string(), Type::Any));
+
+        let mut assert_args = Vec::new();
+        assert_args.push(ArgAnnotation::new(0, "exp".to_string(), Type::Any));
+        assert_args.push(ArgAnnotation::new(1, "recv".to_string(), Type::Any));
 
         let mut func_symtable = AHashMap::<String, Rc<RefCell<FuncAnnotation>>>::new();
         func_symtable.insert(
             "print".to_string(),
+            Rc::new(RefCell::new(FuncAnnotation::new(0, print_args, Type::Void))),
+        );
+
+        func_symtable.insert(
+            "assert".to_string(),
             Rc::new(RefCell::new(FuncAnnotation::new(
-                0,
-                print_args,
+                1,
+                assert_args,
                 Type::Void,
-                AHashMap::new(),
             ))),
         );
 
+        let mut vm = CVM::new();
+
+        /* TODO: integrate builtins directly into the vm */
+        let mut builtins = Vec::<Vec<Bytecode>>::new();
+        let print = vec![
+            Bytecode::CreateFunc(1),
+            Bytecode::GetArg(0),
+            Bytecode::Print,
+            Bytecode::ReturnVoid,
+        ];
+        let assert = vec![
+            Bytecode::CreateFunc(2),
+            Bytecode::Assert,
+            Bytecode::ReturnVoid,
+        ];
+
+        builtins.push(print);
+        builtins.push(assert);
+        for builtin in builtins {
+            vm.execute(builtin);
+        }
+
         Chalcedony {
-            vm: CVM::new(),
+            vm,
             globals: AHashMap::new(),
             func_symtable,
-
             current_func: None,
-            globals_id_counter: 0,
-            func_id_counter: 1,
-
-            is_expr_scope: false,
+            locals: RefCell::new(AHashMap::default()),
         }
     }
 
@@ -113,17 +153,6 @@ impl Chalcedony {
         let mut parser = Parser::new(code);
 
         let mut errors = Vec::<ChalError>::new();
-
-        let mut span_lookup = AHashMap::<u16, Rc<dyn Spanning>>::new();
-        span_lookup.insert(0, parser.spanner());
-
-        let bytecode = vec![
-            Bytecode::CreateFunc(1, 0),
-            Bytecode::GetArg(0),
-            Bytecode::Print,
-            Bytecode::ReturnVoid,
-        ];
-        self.vm.execute(&bytecode);
 
         let mut failed = false;
         while !parser.is_empty() {
@@ -140,8 +169,6 @@ impl Chalcedony {
                     errors.push(err);
                 }
             }
-
-            // self.vm.execute(&vec![Bytecode::Debug])
         }
 
         if !errors.is_empty() {
@@ -151,16 +178,15 @@ impl Chalcedony {
         }
     }
 
-    fn create_function(&mut self, name: String, args: AHashMap<String, VarAnnotation>, ret: Type) {
+    fn create_function(&mut self, name: String, args: Vec<ArgAnnotation>, ret: Type) {
         let result = Rc::new(RefCell::new(FuncAnnotation::new(
-            self.func_id_counter,
+            self.func_symtable.len(),
             args,
             ret,
-            AHashMap::new(),
         )));
-        self.func_id_counter += 1;
         self.func_symtable.insert(name, result.clone());
         self.current_func = Some(result);
+        self.locals = RefCell::new(AHashMap::new());
     }
 
     fn get_global_id(&mut self, node: &NodeVarDef) -> usize {
@@ -169,30 +195,20 @@ impl Chalcedony {
         }
         self.globals.insert(
             node.name.clone(),
-            VarAnnotation::new(self.globals_id_counter, node.ty),
+            VarAnnotation::new(self.globals.len(), node.ty),
         );
-        self.globals_id_counter += 1;
-        self.globals_id_counter - 1
+        self.globals.len() - 1
     }
 
-    // NOTE: must only be called inside function context
     fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
-        let current_func = self
-            .current_func
-            .clone()
-            .expect("getting a local variable id is only allowed inside function scope");
-
-        let mut current_func = current_func.borrow_mut();
-        if let Some(var) = current_func.locals.get(&node.name) {
+        if let Some(var) = self.locals.borrow().get(&node.name) {
             return var.id;
         }
 
-        let id_counter = current_func.locals_id_counter;
-        current_func
-            .locals
-            .insert(node.name.clone(), VarAnnotation::new(id_counter, node.ty));
-
-        current_func.locals_id_counter += 1;
-        current_func.locals_id_counter - 1
+        let next_id = self.locals.borrow().len();
+        self.locals
+            .borrow_mut()
+            .insert(node.name.clone(), VarAnnotation::new(next_id, node.ty));
+        next_id
     }
 }

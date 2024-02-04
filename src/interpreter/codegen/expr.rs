@@ -10,11 +10,9 @@ use crate::common::Bytecode;
 impl ToBytecode for NodeExpr {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let mut result = Vec::<Bytecode>::new();
-        interpreter.is_expr_scope = true;
         for e in self.expr {
             result.append(&mut e.to_bytecode(interpreter)?)
         }
-        interpreter.is_expr_scope = false;
         Ok(result)
     }
 }

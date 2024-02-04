@@ -2,7 +2,6 @@ mod compile;
 mod internal;
 mod lexer;
 mod parser;
-mod runtime;
 
 pub use compile::CompileError;
 pub use internal::InternalError;

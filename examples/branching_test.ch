@@ -32,4 +32,5 @@ fn __main__() -> void:
         print('four')
     else:
         print('five')
+
 __main__()

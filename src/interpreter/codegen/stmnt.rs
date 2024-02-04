@@ -12,16 +12,20 @@ use crate::common::{operators::AssignOprType, Bytecode, Type};
 impl ToBytecode for NodeStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         match self {
-            NodeStmnt::VarDef(node) => {
-                // check whether we're redefining a function's argument
+            NodeStmnt::VarDef(mut node) => {
+                if interpreter.locals.borrow().contains_key(&node.name) {
+                    return Err(CompileError::redefining_variable(node.span.clone()).into());
+                }
+
+                /* check whether the variable exists as a function's argument */
                 if let Some(func) = interpreter.current_func.clone() {
-                    if let Some(_) = func.borrow().args.get(&node.name) {
+                    if let Some(_) = func.borrow().arg_lookup.get(&node.name) {
                         return Err(CompileError::redefining_function_arg(node.span).into());
                     }
                 }
 
+                let value_type = node.value.as_type(&interpreter)?;
                 if node.ty != Type::Any {
-                    let value_type = node.value.as_type(&interpreter)?;
                     if node.ty != value_type {
                         return Err(CompileError::invalid_type(
                             node.ty,
@@ -30,12 +34,15 @@ impl ToBytecode for NodeStmnt {
                         )
                         .into());
                     }
+                } else {
+                    node.ty = value_type;
                 }
 
-                let var_id = interpreter.get_local_id(&node);
-
                 let mut result = Vec::<Bytecode>::new();
-                result.append(&mut node.value.to_bytecode(interpreter)?);
+                result.append(&mut node.value.clone().to_bytecode(interpreter)?);
+
+                /* this implicitly adds the variable to the locals symtable */
+                let var_id = interpreter.get_local_id(&node);
                 result.push(Bytecode::SetLocal(var_id));
 
                 Ok(result)
@@ -136,11 +143,11 @@ impl ToBytecode for NodeIfStmnt {
         let mut cond = self.condition.to_bytecode(interpreter)?;
         let mut body = self.body.to_bytecode(interpreter)?;
 
-        let mut branch_bytecodes: Vec<Vec<Bytecode>> = Vec::new();
+        let mut branches: Vec<Vec<Bytecode>> = Vec::new();
         let mut err_vec: Vec<ChalError> = Vec::new();
         for branch in self.branches {
             match branch.to_bytecode(interpreter) {
-                Ok(body) => branch_bytecodes.push(body),
+                Ok(bytecode) => branches.push(bytecode),
                 Err(err) => err_vec.push(err),
             }
         }
@@ -149,36 +156,43 @@ impl ToBytecode for NodeIfStmnt {
             return Err(err_vec.into());
         }
 
-        let mut bodies_len: usize = branch_bytecodes.iter().map(|el| el.len()).sum();
-        let body_len = body.len() + 1;
-        bodies_len += branch_bytecodes.len() - 1; // we add one space for each jump to the end of the
-                                                  // condition
-
-        let mut result = Vec::<Bytecode>::with_capacity(cond.len() + 1 + body.len() + bodies_len);
-        let mut leftover_branch_len: isize = bodies_len as isize;
+        let mut result = Vec::<Bytecode>::new();
         result.append(&mut cond);
-        result.push(Bytecode::If(body_len));
-        result.append(&mut body);
-        result.push(Bytecode::Jmp(leftover_branch_len));
 
-        if branch_bytecodes.len() == 0 {
-            return Ok(result);
-        }
+        /* a single if statement */
+        if branches.len() == 0 {
+            result.push(Bytecode::If(body.len()));
+            result.append(&mut body);
 
-        if branch_bytecodes.len() == 1 {
-            result.append(branch_bytecodes.get_mut(0).unwrap());
-            return Ok(result);
-        }
+        /* if statement with a single branch */
+        } else if branches.len() == 0 {
+            result.push(Bytecode::If(body.len() + 1));
+            result.append(&mut body);
 
-        for i in 0..branch_bytecodes.len() - 1 {
-            let mut branch = branch_bytecodes.get_mut(i).unwrap();
-            leftover_branch_len = leftover_branch_len - (branch.len() + 1) as isize;
-            result.append(&mut branch);
+            let branch = branches.first_mut().unwrap();
+            result.push(Bytecode::Jmp(branch.len() as isize));
+            result.append(branch);
+
+        /* if statement with more branches */
+        } else {
+            let mut branches_len: usize = branches.iter().map(|el| el.len()).sum();
+            branches_len += branches.len() - 1;
+
+            let mut leftover_branch_len: isize = branches_len as isize;
+
+            result.push(Bytecode::If(body.len() + 1));
+            result.append(&mut body);
             result.push(Bytecode::Jmp(leftover_branch_len));
-        }
 
-        let mut last = branch_bytecodes.last_mut().unwrap();
-        result.append(&mut last);
+            let branches_count = branches.len() - 1;
+            for (idx, mut branch) in branches.into_iter().enumerate() {
+                leftover_branch_len = leftover_branch_len - (branch.len() + 1) as isize;
+                result.append(&mut branch);
+                if idx < branches_count {
+                    result.push(Bytecode::Jmp(leftover_branch_len));
+                }
+            }
+        }
 
         Ok(result)
     }
@@ -206,24 +220,39 @@ impl ToBytecode for NodeWhileLoop {
     }
 }
 
+enum VarScope {
+    Arg,
+    Local,
+    Global,
+}
+
 impl ToBytecode for NodeAssign {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let var_id: usize;
-        let mut scope_is_global = true;
+        let mut scope = VarScope::Global;
 
-        if let Some(func) = interpreter.current_func.clone() {
+        if let Some(var) = interpreter.locals.borrow().get(&self.lhs.name) {
+            var_id = var.id;
+            scope = VarScope::Local;
+
+        /* check whether the interpreter is compiling inside a function scope */
+        } else if let Some(func) = interpreter.current_func.clone() {
             let func = func.borrow();
-            if let Some(var) = func.args.get(&self.lhs.name) {
+
+            /* check whether the variable is an argument */
+            if let Some(var) = func.arg_lookup.get(&self.lhs.name) {
                 var_id = var.id;
-            } else if let Some(var) = func.locals.get(&self.lhs.name) {
-                var_id = var.id;
+                scope = VarScope::Arg;
+
+            /* check whether the variable is a local variable */
             } else {
-                return Err(CompileError::stateful_function(self.lhs.span).into());
+                return Err(CompileError::mutating_external_state(self.lhs.span).into());
             }
+
+        /* the interpreter is in the global scope*/
         } else {
             if let Some(var) = interpreter.globals.get(&self.lhs.name) {
                 var_id = var.id;
-                scope_is_global = true;
             } else {
                 return Err(CompileError::unknown_variable(self.lhs.name, self.lhs.span).into());
             }
@@ -231,10 +260,10 @@ impl ToBytecode for NodeAssign {
 
         let mut result = Vec::<Bytecode>::new();
         if self.opr != AssignOprType::Eq {
-            if scope_is_global {
-                result.push(Bytecode::GetGlobal(var_id));
-            } else {
-                result.push(Bytecode::GetLocal(var_id));
+            match scope {
+                VarScope::Arg => result.push(Bytecode::GetArg(var_id)),
+                VarScope::Local => result.push(Bytecode::GetLocal(var_id)),
+                VarScope::Global => result.push(Bytecode::GetGlobal(var_id)),
             }
         }
 
@@ -249,10 +278,10 @@ impl ToBytecode for NodeAssign {
             _ => {}
         }
 
-        if scope_is_global {
-            result.push(Bytecode::SetGlobal(var_id));
-        } else {
-            result.push(Bytecode::SetLocal(var_id));
+        match scope {
+            VarScope::Arg => result.push(Bytecode::SetArg(var_id)),
+            VarScope::Local => result.push(Bytecode::SetLocal(var_id)),
+            VarScope::Global => result.push(Bytecode::SetGlobal(var_id)),
         }
 
         Ok(result)

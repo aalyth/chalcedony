@@ -1,7 +1,7 @@
 use crate::common::Type;
 use crate::utils::PtrString;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CVMObject {
     Int(i64),
     Uint(u64),

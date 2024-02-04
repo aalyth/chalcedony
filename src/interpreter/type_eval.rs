@@ -1,5 +1,5 @@
 use super::Chalcedony;
-use crate::error::{ChalError, CompileError};
+use crate::error::{span::Span, ChalError, CompileError};
 use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue};
 
 use crate::common::operators::{BinOprType, UnaryOprType};
@@ -26,7 +26,7 @@ fn get_eval_args(eval_stack: &mut Stack<Type>) -> (Type, Type) {
 
 // works with the resulting type of the 3 basic operations: add, sub, mul
 macro_rules! basic_bin_opr {
-    ($stack:ident, $str_handler:ident) => {{
+    ($stack:ident, $str_handler:ident, $opr_name:expr, $span:ident) => {{
         let (left, right) = get_eval_args($stack);
         match (left, right) {
             (Type::Int, Type::Int) => Ok(Type::Int),
@@ -41,40 +41,46 @@ macro_rules! basic_bin_opr {
             (Type::Float, Type::Uint) => Ok(Type::Float),
             (Type::Float, Type::Float) => Ok(Type::Float),
 
-            (Type::Str, right @ _) => $str_handler(right),
-            _ => panic!("TODO: implement spanning for the operation and return a proper error"),
+            (Type::Str, right @ _) => $str_handler(right, $span),
+            (left @ _, right @ _) => Err(CompileError::invalid_bin_opr(
+                $opr_name.to_string(),
+                left,
+                right,
+                $span.clone(),
+            )
+            .into()),
         }
     }};
 }
 
-fn opr_add(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
+fn opr_add(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
     // anything added to a string returns a string
-    fn add(_: Type) -> Result<Type, ChalError> {
+    fn add(_: Type, _: &Span) -> Result<Type, ChalError> {
         Ok(Type::Str)
     }
-    basic_bin_opr!(eval_stack, add)
+    basic_bin_opr!(eval_stack, add, "+", span)
 }
 
-fn opr_sub(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
+fn opr_sub(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
     // anything added to a string returns a string
-    fn sub(_: Type) -> Result<Type, ChalError> {
-        panic!("TODO: throw proper invalid operation error")
+    fn sub(right: Type, span: &Span) -> Result<Type, ChalError> {
+        Err(CompileError::invalid_bin_opr("sub".to_string(), Type::Str, right, span.clone()).into())
     }
-    basic_bin_opr!(eval_stack, sub)
+    basic_bin_opr!(eval_stack, sub, "-", span)
 }
 
-fn opr_mul(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
+fn opr_mul(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
     // anything added to a string returns a string
-    fn mul(right: Type) -> Result<Type, ChalError> {
+    fn mul(right: Type, span: &Span) -> Result<Type, ChalError> {
         if right == Type::Uint {
             return Ok(Type::Str);
         }
-        panic!("TODO: throw proper invalid operation error")
+        Err(CompileError::invalid_bin_opr("mul".to_string(), Type::Str, right, span.clone()).into())
     }
-    basic_bin_opr!(eval_stack, mul)
+    basic_bin_opr!(eval_stack, mul, "*", span)
 }
 
-fn opr_div(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
+fn opr_div(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
     let (left, right) = get_eval_args(eval_stack);
     match (left, right) {
         (Type::Int, Type::Int)
@@ -87,19 +93,21 @@ fn opr_div(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
         | (Type::Float, Type::Uint)
         | (Type::Float, Type::Float) => Ok(Type::Float),
 
-        _ => panic!("TODO: implement spanning for the operation and return a proper error"),
+        (left @ _, right @ _) => {
+            Err(CompileError::invalid_bin_opr("/".to_string(), left, right, span.clone()).into())
+        }
     }
 }
 
-fn opr_mod(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
-    fn _mod(_: Type) -> Result<Type, ChalError> {
-        panic!("TODO: throw proper invalid operation error")
+fn opr_mod(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
+    fn _mod(right: Type, span: &Span) -> Result<Type, ChalError> {
+        Err(CompileError::invalid_bin_opr("mod".to_string(), Type::Str, right, span.clone()).into())
     }
-    basic_bin_opr!(eval_stack, _mod)
+    basic_bin_opr!(eval_stack, _mod, "%", span)
 }
 
 // logical || or &&
-fn opr_logical(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
+fn opr_logical(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, ChalError> {
     let right = eval_stack.pop().expect("expected a type on the eval stack");
     let left = eval_stack.pop().expect("expected a type on the eval stack");
 
@@ -121,12 +129,14 @@ fn opr_logical(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
         | (Type::Bool, Type::Uint)
         | (Type::Bool, Type::Float)
         | (Type::Bool, Type::Bool) => Ok(Type::Bool),
-        _ => panic!("TODO: throw poeper invalid operation error"),
+        (left @ _, right @ _) => {
+            Err(CompileError::invalid_bin_opr(opr.to_string(), left, right, span.clone()).into())
+        }
     }
 }
 
 macro_rules! opr_cmp_internal {
-    ($stack:ident, $cmp_func:ident) => {{
+    ($stack:ident, $cmp_func:ident, $opr_name:expr, $span:ident) => {{
         let right = $stack.pop().expect("expected a type on the eval stack");
         let left = $stack.pop().expect("expected a type on the eval stack");
 
@@ -134,85 +144,101 @@ macro_rules! opr_cmp_internal {
             (Type::Int, Type::Int) => Ok(Type::Bool),
             (Type::Int, Type::Uint) => Ok(Type::Bool),
             (Type::Int, Type::Float) => Ok(Type::Bool),
-            (Type::Int, Type::Bool) => $cmp_func(left),
+            (Type::Int, Type::Bool) => $cmp_func(left, $span),
 
             (Type::Uint, Type::Int) => Ok(Type::Bool),
             (Type::Uint, Type::Uint) => Ok(Type::Bool),
             (Type::Uint, Type::Float) => Ok(Type::Bool),
-            (Type::Uint, Type::Bool) => $cmp_func(left),
+            (Type::Uint, Type::Bool) => $cmp_func(left, $span),
 
             (Type::Float, Type::Int) => Ok(Type::Bool),
             (Type::Float, Type::Uint) => Ok(Type::Bool),
             (Type::Float, Type::Float) => Ok(Type::Bool),
-            (Type::Float, Type::Bool) => $cmp_func(left),
+            (Type::Float, Type::Bool) => $cmp_func(left, $span),
 
             (Type::Str, Type::Str) => Ok(Type::Bool),
-            (Type::Bool, _) => $cmp_func(right),
-            _ => panic!("TODO: make this return a proper error"),
+            (Type::Bool, _) => $cmp_func(right, $span),
+            (left @ _, right @ _) => Err(CompileError::invalid_bin_opr(
+                $opr_name.to_string(),
+                left,
+                right,
+                $span.clone(),
+            )
+            .into()),
         }
     }};
 }
 
-fn opr_eq(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
-    fn cmp_eq(val: Type) -> Result<Type, ChalError> {
+// matches != and ==
+fn opr_eq(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, ChalError> {
+    let cmp_eq = |val: Type, span: &Span| -> Result<Type, ChalError> {
         match val {
             Type::Int | Type::Uint | Type::Float | Type::Bool => Ok(Type::Bool),
-            _ => panic!("TODO: make this return a proper error"),
+            ty @ _ => {
+                Err(
+                    CompileError::invalid_bin_opr(opr.to_string(), Type::Bool, ty, span.clone())
+                        .into(),
+                )
+            }
         }
-    }
-    opr_cmp_internal!(eval_stack, cmp_eq)
+    };
+    opr_cmp_internal!(eval_stack, cmp_eq, opr, span)
 }
 
 // matches lt, gt, le, ge
-fn opr_cmp(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
-    fn cmp_operator(_: Type) -> Result<Type, ChalError> {
-        panic!("TODO: make this return a proper error")
-    }
-    opr_cmp_internal!(eval_stack, cmp_operator)
+fn opr_cmp(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, ChalError> {
+    let cmp_operator = |right: Type, span: &Span| -> Result<Type, ChalError> {
+        Err(CompileError::invalid_bin_opr(opr.to_string(), Type::Bool, right, span.clone()).into())
+    };
+    opr_cmp_internal!(eval_stack, cmp_operator, opr, span)
 }
 
 impl BinOprType {
-    fn as_type(&self, eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
+    fn as_type(&self, eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
         match self {
-            BinOprType::Add => opr_add(eval_stack),
-            BinOprType::Sub => opr_sub(eval_stack),
-            BinOprType::Mul => opr_mul(eval_stack),
-            BinOprType::Div => opr_div(eval_stack),
-            BinOprType::Mod => opr_mod(eval_stack),
+            BinOprType::Add => opr_add(eval_stack, span),
+            BinOprType::Sub => opr_sub(eval_stack, span),
+            BinOprType::Mul => opr_mul(eval_stack, span),
+            BinOprType::Div => opr_div(eval_stack, span),
+            BinOprType::Mod => opr_mod(eval_stack, span),
 
-            BinOprType::And | BinOprType::Or => opr_logical(eval_stack),
+            BinOprType::And => opr_logical(eval_stack, "&&", span),
+            BinOprType::Or => opr_logical(eval_stack, "||", span),
 
-            BinOprType::EqEq | BinOprType::BangEq => opr_eq(eval_stack),
-            BinOprType::Lt | BinOprType::Gt | BinOprType::LtEq | BinOprType::GtEq => {
-                opr_cmp(eval_stack)
-            }
+            BinOprType::EqEq => opr_eq(eval_stack, "==", span),
+            BinOprType::BangEq => opr_eq(eval_stack, "!=", span),
+
+            BinOprType::Lt => opr_cmp(eval_stack, "<", span),
+            BinOprType::Gt => opr_cmp(eval_stack, ">", span),
+            BinOprType::LtEq => opr_cmp(eval_stack, "<=", span),
+            BinOprType::GtEq => opr_cmp(eval_stack, ">=", span),
         }
     }
 }
 
-fn opr_neg(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
+fn opr_neg(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
     let val = eval_stack.pop().expect("expected a value on the stack");
     match val {
         Type::Int => Ok(Type::Int),
         Type::Uint => Ok(Type::Int),
         Type::Float => Ok(Type::Float),
-        _ => panic!("TODO: make this return a proper error"),
+        ty @ _ => Err(CompileError::invalid_unary_opr("-".to_string(), ty, span.clone()).into()),
     }
 }
 
-fn opr_not(eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
+fn opr_not(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
     let val = eval_stack.pop().expect("expected a value on the stack");
     match val {
         Type::Int | Type::Uint | Type::Float | Type::Bool => Ok(Type::Bool),
-        _ => panic!("TODO: make this return a proper error"),
+        ty @ _ => Err(CompileError::invalid_unary_opr("!".to_string(), ty, span.clone()).into()),
     }
 }
 
 impl UnaryOprType {
-    fn as_type(&self, eval_stack: &mut Stack<Type>) -> Result<Type, ChalError> {
+    fn as_type(&self, eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
         match self {
-            UnaryOprType::Neg => opr_neg(eval_stack),
-            UnaryOprType::Bang => opr_not(eval_stack),
+            UnaryOprType::Neg => opr_neg(eval_stack, span),
+            UnaryOprType::Bang => opr_not(eval_stack, span),
         }
     }
 }
@@ -220,6 +246,7 @@ impl UnaryOprType {
 impl NodeExprInner {
     fn as_type(
         &self,
+        span: &Span,
         eval_stack: &mut Stack<Type>,
         interpreter: &Chalcedony,
     ) -> Result<Type, ChalError> {
@@ -227,13 +254,13 @@ impl NodeExprInner {
             NodeExprInner::Value(node) => Ok(node.as_type()),
             NodeExprInner::VarCall(node) => {
                 if let Some(func) = interpreter.current_func.clone() {
-                    if let Some(var) = func.borrow().args.get(&node.name) {
+                    if let Some(var) = func.borrow().arg_lookup.get(&node.name) {
                         return Ok(var.ty);
                     }
+                }
 
-                    if let Some(var) = func.borrow().locals.get(&node.name) {
-                        return Ok(var.ty);
-                    }
+                if let Some(var) = interpreter.locals.borrow().get(&node.name) {
+                    return Ok(var.ty);
                 }
 
                 if let Some(var) = interpreter.globals.get(&node.name) {
@@ -254,8 +281,8 @@ impl NodeExprInner {
                 Err(CompileError::unknown_function(node.name.clone(), node.span.clone()).into())
             }
 
-            NodeExprInner::BinOpr(opr) => opr.as_type(eval_stack),
-            NodeExprInner::UnaryOpr(opr) => opr.as_type(eval_stack),
+            NodeExprInner::BinOpr(opr) => opr.as_type(eval_stack, span),
+            NodeExprInner::UnaryOpr(opr) => opr.as_type(eval_stack, span),
         }
     }
 }
@@ -268,7 +295,7 @@ impl NodeExpr {
 
         let mut eval_stack = Stack::<Type>::new();
         for el in &self.expr {
-            let val = el.as_type(&mut eval_stack, interpreter)?;
+            let val = el.as_type(&self.span, &mut eval_stack, interpreter)?;
             eval_stack.push(val);
         }
         if eval_stack.len() != 1 {

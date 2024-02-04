@@ -1,6 +1,5 @@
 
 fn is_prime(n: int) -> bool:
-    print('n: ' + n)
     if n == 0:
         return false 
 
@@ -12,15 +11,13 @@ fn is_prime(n: int) -> bool:
 
     return true 
 
-fn main() -> void:
+fn __main__() -> void:
     let i = 0
     let sum = 0
-    print('i: ' + i)
-    print('' + is_prime(15))
-    # while i < 1:
-    #     if is_prime(i):
-    #         sum += i
-    #     i += 1
-    # print('' + sum)
+    while i < 10000:
+        if is_prime(i):
+            sum += i
+        i += 1
+    print(sum)
 
-is_prime(12)
+__main__()

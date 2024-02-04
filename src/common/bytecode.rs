@@ -25,29 +25,23 @@ pub enum Bytecode {
     Neg,
     Not,
 
-    CastInt,
-    CastUint,
-    CastFloat,
-    CastStr,
-    CastBool,
-
     SetGlobal(usize),
     GetGlobal(usize),
-    // SetArg(usize),
+    SetArg(usize),
     GetArg(usize),
     SetLocal(usize),
     GetLocal(usize),
 
-    // arg count, locals count
-    CreateFunc(usize, usize),
+    CreateFunc(usize), // arg count
     CallFunc(usize),
     Return,
     ReturnVoid,
-    // TODO: add a TailCallReturn operation
+
     If(usize), // how much to jump over if the top of the stack is false
     Jmp(isize),
 
     Print,
+    Assert, // asserts the top 2 values on the stack are equal
 
     Debug,
 }

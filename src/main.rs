@@ -14,16 +14,17 @@ use std::env;
 use std::fs;
 
 // TODO: add compile time type assertions
-// TODO: assert there are terminals at the end of expressions
 
-// TODO: add type checks for returns
-
-// TODO: add type casts
+// TODO: add itou function
 
 // TODO: add 'continue' and 'break' statements
 // TODO: add short circuit logic operators
 
 // TODO: add div by zero checks
+
+/* Future improvements
+   - short cuircuit logic operators
+*/
 
 fn main() {
     let args: Vec<String> = env::args().collect();

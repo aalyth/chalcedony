@@ -7,6 +7,7 @@ use crate::parser::TokenReader;
 
 use std::collections::VecDeque;
 
+#[derive(Clone)]
 pub struct NodeFuncCall {
     pub name: String,
     pub args: Vec<NodeExpr>,

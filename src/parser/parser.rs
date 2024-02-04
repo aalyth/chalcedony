@@ -28,8 +28,4 @@ impl Parser {
     pub fn is_empty(&self) -> bool {
         self.lexer.is_empty()
     }
-
-    pub fn spanner(&self) -> Rc<dyn Spanning> {
-        self.spanner.clone()
-    }
 }

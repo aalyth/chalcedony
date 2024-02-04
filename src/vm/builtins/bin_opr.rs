@@ -1,12 +1,7 @@
 use crate::utils::PtrString;
 use crate::vm::{CVMObject, CVM};
 
-#[inline(always)]
-fn get_operands(cvm: &mut CVM) -> (CVMObject, CVMObject) {
-    let right = cvm.stack.pop().expect("expected an object on the stack");
-    let left = cvm.stack.pop().expect("expected an object on the stack");
-    (left, right)
-}
+use super::get_operands;
 
 macro_rules! apply_bin_operator {
     ( $cvm:ident, $current_idx:ident, $opr:tt, $str_opr_handler:ident ) => {{

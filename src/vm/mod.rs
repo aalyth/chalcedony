@@ -1,8 +1,7 @@
 mod builtins;
-mod error;
 mod object;
 
-use builtins::{add, and, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
+use builtins::{add, and, assert, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
 use object::CVMObject;
 
 use crate::common::Bytecode;
@@ -33,9 +32,9 @@ pub struct CVM {
 }
 
 macro_rules! push_constant {
-    ($cvm:ident, $type:ident, $val:ident, $current_idx:ident) => {{
+    ($cvm:ident, $type:ident, $val:ident, $next_idx:ident) => {{
         $cvm.stack.push(CVMObject::$type(*$val));
-        $current_idx
+        $next_idx
     }};
 }
 
@@ -49,60 +48,67 @@ impl CVM {
         }
     }
 
-    pub fn execute(&mut self, code: &Vec<Bytecode>) {
+    pub fn execute(&mut self, code: Vec<Bytecode>) {
         let mut current_idx = 0;
         while !self.call_stack.is_empty() || current_idx < code.len() {
             current_idx = self.execute_next(current_idx, &code);
         }
+        /* remove any leftover local variables inside the global scope */
+        self.stack.truncate(0);
     }
 
     #[inline(always)]
-    fn execute_next(&mut self, curr_idx: usize, code: &Vec<Bytecode>) -> usize {
+    fn execute_next(&mut self, current_idx: usize, code: &Vec<Bytecode>) -> usize {
         // let next_instr = code.get(curr_idx).unwrap();
         let next_instr: &Bytecode;
         if let Some(frame) = self.call_stack.peek() {
-            next_instr = frame.code.get(curr_idx).unwrap();
-            // println!("NEXT INSTR IS {:?} from frame {:#?}\n", next_instr, frame);
+            next_instr = frame.code.get(current_idx).expect("invalid current idx");
         } else {
-            next_instr = code.get(curr_idx).unwrap();
-            // println!("NEXT INSTR IS {:?} from code {:#?}\n", next_instr, code);
+            next_instr = code.get(current_idx).expect("invalid current idx");
         }
-        let current_idx = curr_idx + 1;
+        let next_idx = current_idx + 1;
         match next_instr {
-            Bytecode::ConstI(val) => push_constant!(self, Int, val, current_idx),
-            Bytecode::ConstU(val) => push_constant!(self, Uint, val, current_idx),
-            Bytecode::ConstF(val) => push_constant!(self, Float, val, current_idx),
+            Bytecode::ConstI(val) => push_constant!(self, Int, val, next_idx),
+            Bytecode::ConstU(val) => push_constant!(self, Uint, val, next_idx),
+            Bytecode::ConstF(val) => push_constant!(self, Float, val, next_idx),
             Bytecode::ConstS(val) => {
                 self.stack.push(CVMObject::Str(val.clone()));
-                current_idx
+                next_idx
             }
-            Bytecode::ConstB(val) => push_constant!(self, Bool, val, current_idx),
+            Bytecode::ConstB(val) => push_constant!(self, Bool, val, next_idx),
 
             Bytecode::Debug => {
                 println!("CVM STACK: {:#?}\n", self.stack);
                 println!("CVM FUNCTIONS: {:#?}\n", self.functions);
                 println!("CVM CALL STACK: {:#?}\n", self.call_stack);
-                current_idx
+                next_idx
             }
             Bytecode::SetGlobal(var_id) => {
-                let var_value = self
-                    .stack
-                    .pop()
-                    .expect("TODO: add proper error handling for missing stack value");
+                let var_value = self.stack.pop().expect("expected a value on the stack");
                 while *var_id >= self.globals.len() {
                     self.globals.push(CVMObject::Int(0));
                 }
                 *self.globals.get_mut(*var_id).unwrap() = var_value;
-                current_idx
+                next_idx
             }
             Bytecode::GetGlobal(var_id) => {
                 let var_value = self
                     .globals
                     .get(*var_id)
-                    .expect("TODO: add proper error checking for invalid variable id")
+                    .expect("expected a valid variable id")
                     .clone();
                 self.stack.push(var_value);
-                current_idx
+                next_idx
+            }
+
+            Bytecode::SetArg(arg_id) => {
+                let frame = self.call_stack.peek().expect("expected a stack frame");
+                let value = self.stack.pop().expect("expected a value on the stack");
+                *self
+                    .stack
+                    .get_mut(frame.stack_len as usize + *arg_id)
+                    .unwrap() = value;
+                next_idx
             }
 
             Bytecode::GetArg(arg_id) => {
@@ -113,62 +119,56 @@ impl CVM {
                     .unwrap()
                     .clone();
                 self.stack.push(value);
-                current_idx
+                next_idx
             }
 
-            Bytecode::SetLocal(var_id) => {
-                let value = self
-                    .stack
-                    .pop()
-                    .expect("TODO: add proper error handling for missing stack value");
-                let frame = self
-                    .call_stack
-                    .peek()
-                    .expect("TODO: check for having a call frame");
+            Bytecode::SetLocal(mut var_id) => {
+                let value = self.stack.pop().expect("expected a value on the stack");
 
-                if let Some(var) = self
-                    .stack
-                    .get_mut(frame.stack_len as usize + frame.args_len as usize + var_id)
-                {
+                /* since local variables can exist outside of a function scope, a check is
+                 * performed whether there is a call frame */
+                if let Some(frame) = self.call_stack.peek() {
+                    var_id = frame.stack_len as usize + frame.args_len as usize + var_id;
+                }
+
+                if let Some(var) = self.stack.get_mut(var_id) {
                     *var = value;
                 } else {
                     self.stack.push(value);
                 }
-                current_idx
+                next_idx
             }
-            Bytecode::GetLocal(var_id) => {
-                let frame = self.call_stack.peek().expect("missing call frame");
-                let value = self
-                    .stack
-                    .get(frame.stack_len as usize + frame.args_len as usize + var_id)
-                    .unwrap()
-                    .clone();
+            Bytecode::GetLocal(mut var_id) => {
+                if let Some(frame) = self.call_stack.peek() {
+                    var_id = frame.stack_len as usize + frame.args_len as usize + var_id;
+                }
+                let value = self.stack.get(var_id).unwrap().clone();
                 self.stack.push(value);
-                current_idx
+                next_idx
             }
 
-            Bytecode::Add => add(self, current_idx),
-            Bytecode::Sub => sub(self, current_idx),
-            Bytecode::Mul => mul(self, current_idx),
-            Bytecode::Div => div(self, current_idx),
-            Bytecode::Mod => modulo(self, current_idx),
+            Bytecode::Add => add(self, next_idx),
+            Bytecode::Sub => sub(self, next_idx),
+            Bytecode::Mul => mul(self, next_idx),
+            Bytecode::Div => div(self, next_idx),
+            Bytecode::Mod => modulo(self, next_idx),
 
-            Bytecode::And => and(self, current_idx),
-            Bytecode::Or => or(self, current_idx),
+            Bytecode::And => and(self, next_idx),
+            Bytecode::Or => or(self, next_idx),
 
-            Bytecode::Lt => lt(self, current_idx),
-            Bytecode::Gt => gt(self, current_idx),
-            Bytecode::LtEq => lt_eq(self, current_idx),
-            Bytecode::GtEq => gt_eq(self, current_idx),
+            Bytecode::Lt => lt(self, next_idx),
+            Bytecode::Gt => gt(self, next_idx),
+            Bytecode::LtEq => lt_eq(self, next_idx),
+            Bytecode::GtEq => gt_eq(self, next_idx),
 
-            Bytecode::Eq => eq(self, current_idx),
-            Bytecode::Neg => neg(self, current_idx),
-            Bytecode::Not => not(self, current_idx),
+            Bytecode::Eq => eq(self, next_idx),
+            Bytecode::Neg => neg(self, next_idx),
+            Bytecode::Not => not(self, next_idx),
 
-            Bytecode::CreateFunc(arg_count, _) => {
+            Bytecode::CreateFunc(arg_count) => {
                 let func_obj = CVMFunctionObject {
                     arg_count: *arg_count,
-                    code: Rc::new(code[current_idx..].into()),
+                    code: Rc::new(code[next_idx..].into()),
                 };
                 self.functions.push(Rc::new(func_obj));
                 code.len()
@@ -178,14 +178,14 @@ impl CVM {
                 let func_obj = self
                     .functions
                     .get(*func_id)
-                    .expect("TODO: proper error checking for this")
+                    .expect("expected a valid function id")
                     .clone();
 
                 // NOTE: the arguments to the function call are already in place
                 // and local variables are automatically handled
 
                 let frame = CVMCallFrame {
-                    prev_idx: current_idx as u32,
+                    prev_idx: next_idx as u32,
                     stack_len: (self.stack.len() - func_obj.arg_count) as u32,
                     args_len: func_obj.arg_count as u16,
                     code: func_obj.code.clone(),
@@ -216,21 +216,21 @@ impl CVM {
                 };
 
                 if !cond {
-                    return current_idx + jmp;
+                    return next_idx + jmp;
                 }
                 /* execute the body if the condition is true */
-                current_idx
+                next_idx
             }
 
-            Bytecode::Jmp(dist) => (current_idx as isize + dist) as usize,
+            Bytecode::Jmp(dist) => (next_idx as isize + dist) as usize,
 
             Bytecode::Print => {
                 let obj = self.stack.pop().expect("expected an object on the stack");
                 println!("{}", obj);
-                current_idx
+                next_idx
             }
 
-            _ => panic!("unknown bytecode instruction"),
+            Bytecode::Assert => assert(self, next_idx),
         }
     }
 

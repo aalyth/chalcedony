@@ -6,16 +6,20 @@ use crate::common::Type;
 enum CompileErrorKind {
     UnknownVariable(String),
     UnknownFunction(String),
-    InvalidOperation(Type, Type), /* lhs, rhs */
-    InvalidType(Type, Type),      /* exp, recv */
+    InvalidBinOpr(String, Type, Type), /* opr_name, lhs, rhs */
+    InvalidUnaryOpr(String, Type),     /* opr_name, val*/
+    InvalidType(Type, Type),           /* exp, recv */
     InvalidUnOperation(Type),
     TooManyArguments(usize, usize), /* exp, recv */
     TooFewArguments(usize, usize),  /* exp, recv */
     NonVoidFunctionStmnt(Type),
     VoidFunctionExpr,
     NoDefaultReturnStmnt,
-    StatefulFunction,
+    MutatingExternalState,
     RedefiningFunctionArg,
+    VoidArgument,
+    OverloadedFunction,
+    RedefiningVariable,
 }
 
 pub struct CompileError {
@@ -36,8 +40,12 @@ impl CompileError {
         CompileError::new(CompileErrorKind::UnknownFunction(func), span)
     }
 
-    pub fn invalid_operation(lhs: Type, rhs: Type, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::InvalidOperation(lhs, rhs), span)
+    pub fn invalid_bin_opr(opr_name: String, lhs: Type, rhs: Type, span: Span) -> Self {
+        CompileError::new(CompileErrorKind::InvalidBinOpr(opr_name, lhs, rhs), span)
+    }
+
+    pub fn invalid_unary_opr(opr_name: String, val: Type, span: Span) -> Self {
+        CompileError::new(CompileErrorKind::InvalidUnaryOpr(opr_name, val), span)
     }
 
     pub fn invalid_type(exp: Type, recv: Type, span: Span) -> Self {
@@ -68,12 +76,24 @@ impl CompileError {
         CompileError::new(CompileErrorKind::NoDefaultReturnStmnt, span)
     }
 
-    pub fn stateful_function(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::StatefulFunction, span)
+    pub fn mutating_external_state(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::MutatingExternalState, span)
     }
 
     pub fn redefining_function_arg(span: Span) -> Self {
         CompileError::new(CompileErrorKind::RedefiningFunctionArg, span)
+    }
+
+    pub fn void_argument(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::VoidArgument, span)
+    }
+
+    pub fn overloaded_function(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::OverloadedFunction, span)
+    }
+
+    pub fn redefining_variable(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::RedefiningVariable, span)
     }
 }
 
@@ -90,8 +110,16 @@ impl std::fmt::Display for CompileError {
                 display_err(&self.span, f, msg)
             }
 
-            CompileErrorKind::InvalidOperation(lhs, rhs) => {
-                let msg = &format!("invalid operation between {:?} and {:?}", lhs, rhs);
+            CompileErrorKind::InvalidBinOpr(opr_name, lhs, rhs) => {
+                let msg = &format!(
+                    "invalid binary operation `{}` between {:?} and {:?}",
+                    opr_name, lhs, rhs
+                );
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::InvalidUnaryOpr(opr_name, val) => {
+                let msg = &format!("invalid unary operation `{}` on {:?}", opr_name, val);
                 display_err(&self.span, f, msg)
             }
 
@@ -137,14 +165,28 @@ impl std::fmt::Display for CompileError {
                 display_err(&self.span, f, "no default return statement inside function")
             }
 
-            CompileErrorKind::StatefulFunction => display_err(
+            CompileErrorKind::MutatingExternalState => display_err(
                 &self.span,
                 f,
-                "functions with external state are not allowed",
+                "functions are not allowed to mutate any external state",
             ),
 
             CompileErrorKind::RedefiningFunctionArg => {
                 display_err(&self.span, f, "redefining the function's argument")
+            }
+
+            CompileErrorKind::VoidArgument => {
+                display_err(&self.span, f, "function arguments must be non-void")
+            }
+
+            CompileErrorKind::OverloadedFunction => display_err(
+                &self.span,
+                f,
+                "function overloading is currently not supported",
+            ),
+
+            CompileErrorKind::RedefiningVariable => {
+                display_err(&self.span, f, "redefining variable")
             }
         }
     }
