@@ -29,7 +29,9 @@ impl NodeIfStmnt {
         let mut header = reader.advance_reader()?;
         header.expect_exact(TokenKind::Keyword(Keyword::If))?;
 
-        let cond_raw = header.advance_until(|tk| *tk == TokenKind::Special(Special::Colon))?;
+        let cond_raw = header.advance_until(|tk| {
+            *tk == TokenKind::Special(Special::Colon) || *tk == TokenKind::Newline
+        })?;
         let cond_reader = TokenReader::new(cond_raw, reader.spanner());
         let condition = NodeExpr::new(cond_reader)?;
 
@@ -96,7 +98,9 @@ impl NodeElifStmnt {
         let mut header = reader.advance_reader()?;
         header.expect_exact(TokenKind::Keyword(Keyword::Elif))?;
 
-        let cond_raw = header.advance_until(|tk| *tk == TokenKind::Special(Special::Colon))?;
+        let cond_raw = header.advance_until(|tk| {
+            *tk == TokenKind::Special(Special::Colon) || *tk == TokenKind::Newline
+        })?;
         header.expect_exact(TokenKind::Special(Special::Colon))?;
         header.expect_exact(TokenKind::Newline)?;
 

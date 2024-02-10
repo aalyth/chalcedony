@@ -77,12 +77,6 @@ impl CVM {
             }
             Bytecode::ConstB(val) => push_constant!(self, Bool, val, next_idx),
 
-            Bytecode::Debug => {
-                println!("CVM STACK: {:#?}\n", self.stack);
-                println!("CVM FUNCTIONS: {:#?}\n", self.functions);
-                println!("CVM CALL STACK: {:#?}\n", self.call_stack);
-                next_idx
-            }
             Bytecode::SetGlobal(var_id) => {
                 let var_value = self.stack.pop().expect("expected a value on the stack");
                 while *var_id >= self.globals.len() {
@@ -134,6 +128,9 @@ impl CVM {
                 if let Some(var) = self.stack.get_mut(var_id) {
                     *var = value;
                 } else {
+                    while self.stack.len() <= var_id {
+                        self.stack.push(CVMObject::default());
+                    }
                     self.stack.push(value);
                 }
                 next_idx

@@ -13,16 +13,15 @@ extern crate ahash;
 use std::env;
 use std::fs;
 
-// TODO: add compile time type assertions
-
 // TODO: add itou function
 
 // TODO: add 'continue' and 'break' statements
-// TODO: add short circuit logic operators
 
 // TODO: add div by zero checks
 
 /* Future improvements
+   - `continue` and `break` statements
+   - itou() function
    - short cuircuit logic operators
 */
 

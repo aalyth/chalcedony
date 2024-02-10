@@ -1,5 +1,4 @@
-use crate::error::span::{Span, Spanning};
-use crate::error::{ChalError, InternalError, LexerError};
+use crate::error::{span::Spanning, ChalError, InternalError};
 use crate::lexer::{Keyword, Line, Token, TokenKind};
 
 use std::collections::VecDeque;
@@ -42,7 +41,6 @@ impl LineReader {
         cond: impl Fn(&Line) -> bool,
     ) -> Result<VecDeque<Line>, ChalError> {
         let mut result = VecDeque::<Line>::new();
-        let mut prev_indent;
 
         /* we advance at least the first line */
         let Some(front_ln) = self.advance() else {
@@ -51,23 +49,12 @@ impl LineReader {
             )
             .into());
         };
-        prev_indent = front_ln.indent();
         result.push_back(front_ln);
 
         while let Some(front) = self.src.front() {
             if cond(front) {
                 break;
             }
-
-            if front.indent().abs_diff(prev_indent) > 4 {
-                return Err(LexerError::invalid_indentation(Span::new(
-                    front.tokens().front().unwrap().span.start,
-                    front.tokens().front().unwrap().span.end,
-                    self.spanner.clone(),
-                ))
-                .into());
-            }
-            prev_indent = front.indent();
 
             result.push_back(self.advance().unwrap());
         }

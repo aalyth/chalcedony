@@ -1,6 +1,6 @@
 mod assignment;
 mod if_stmnt;
-pub mod return_stmnt;
+mod return_stmnt;
 mod while_loop;
 
 pub use assignment::NodeAssign;
@@ -10,7 +10,7 @@ pub use while_loop::NodeWhileLoop;
 
 use super::{NodeFuncCall, NodeVarDef};
 
-use crate::error::{ChalError, InternalError, ParserError};
+use crate::error::{span::Span, ChalError, InternalError, ParserError};
 use crate::lexer::{Delimiter, Keyword, TokenKind};
 use crate::parser::{LineReader, TokenReader};
 
@@ -21,47 +21,69 @@ pub enum NodeStmnt {
     IfStmnt(NodeIfStmnt),
     WhileLoop(NodeWhileLoop),
     RetStmnt(NodeRetStmnt),
+    ContStmnt(NodeContStmnt),
+    BreakStmnt(NodeBreakStmnt),
+}
+
+macro_rules! single_line_statement {
+    ($reader:ident, $result:ident, $errors:ident, $node_type:ident, $stmnt_type:ident) => {{
+        let tok_reader_raw = $reader.advance_reader();
+        let Ok(tok_reader) = tok_reader_raw else {
+            $errors.push(tok_reader_raw.err().unwrap());
+            continue;
+        };
+
+        let node_raw = $node_type::new(tok_reader);
+        let Ok(node) = node_raw else {
+            $errors.push(node_raw.err().unwrap());
+            continue;
+        };
+
+        $result.push(NodeStmnt::$stmnt_type(node));
+    }};
+}
+
+macro_rules! multi_line_statement {
+    ($reader:ident, $result:ident, $errors:ident, $node_type:ident, $stmnt_type:ident) => {{
+        let line_reader_raw = $reader.advance_chunk();
+        let Ok(line_reader) = line_reader_raw else {
+            $errors.push(line_reader_raw.err().unwrap());
+            continue;
+        };
+
+        let node_raw = $node_type::new(line_reader);
+        let Ok(node) = node_raw else {
+            $errors.push(node_raw.err().unwrap());
+            continue;
+        };
+
+        $result.push(NodeStmnt::$stmnt_type(node));
+    }};
 }
 
 impl TryFrom<LineReader> for Vec<NodeStmnt> {
     type Error = ChalError;
 
     fn try_from(mut reader: LineReader) -> Result<Self, Self::Error> {
-        let mut res = Vec::<NodeStmnt>::new();
-        let mut err_vec = Vec::<ChalError>::new();
+        let mut result = Vec::<NodeStmnt>::new();
+        let mut errors = Vec::<ChalError>::new();
 
         while let Some(front) = reader.peek_tok() {
             match front.kind {
                 TokenKind::Keyword(Keyword::Let) => {
-                    let tok_reader_raw = reader.advance_reader();
-                    let Ok(tok_reader) = tok_reader_raw else {
-                        err_vec.push(tok_reader_raw.err().unwrap());
-                        continue;
-                    };
-
-                    let node_raw = NodeVarDef::new(tok_reader);
-                    let Ok(node) = node_raw else {
-                        err_vec.push(node_raw.err().unwrap());
-                        continue;
-                    };
-
-                    res.push(NodeStmnt::VarDef(node));
+                    single_line_statement!(reader, result, errors, NodeVarDef, VarDef);
                 }
 
                 TokenKind::Keyword(Keyword::Return) => {
-                    let tok_reader_raw = reader.advance_reader();
-                    let Ok(tok_reader) = tok_reader_raw else {
-                        err_vec.push(tok_reader_raw.err().unwrap());
-                        continue;
-                    };
+                    single_line_statement!(reader, result, errors, NodeRetStmnt, RetStmnt);
+                }
 
-                    let node_raw = NodeRetStmnt::new(tok_reader);
-                    let Ok(node) = node_raw else {
-                        err_vec.push(node_raw.err().unwrap());
-                        continue;
-                    };
+                TokenKind::Keyword(Keyword::Continue) => {
+                    single_line_statement!(reader, result, errors, NodeContStmnt, ContStmnt);
+                }
 
-                    res.push(NodeStmnt::RetStmnt(node));
+                TokenKind::Keyword(Keyword::Break) => {
+                    single_line_statement!(reader, result, errors, NodeBreakStmnt, BreakStmnt);
                 }
 
                 TokenKind::Identifier(_) => {
@@ -78,10 +100,10 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                             let node_reader = TokenReader::new(line.into(), reader.spanner());
                             let node_raw = NodeFuncCall::new(node_reader);
                             let Ok(node) = node_raw else {
-                                err_vec.push(node_raw.err().unwrap());
+                                errors.push(node_raw.err().unwrap());
                                 continue;
                             };
-                            res.push(NodeStmnt::FuncCall(node));
+                            result.push(NodeStmnt::FuncCall(node));
                             continue;
                         }
                     }
@@ -89,56 +111,60 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                     let token_reader = TokenReader::new(line.into(), reader.spanner().clone());
                     let node_raw = NodeAssign::new(token_reader);
                     let Ok(node) = node_raw else {
-                        err_vec.push(node_raw.err().unwrap());
+                        errors.push(node_raw.err().unwrap());
                         continue;
                     };
 
-                    res.push(NodeStmnt::Assign(node));
+                    result.push(NodeStmnt::Assign(node));
                 }
 
                 TokenKind::Keyword(Keyword::If) => {
-                    let line_reader_raw = reader.advance_chunk();
-                    let Ok(line_reader) = line_reader_raw else {
-                        err_vec.push(line_reader_raw.err().unwrap());
-                        continue;
-                    };
-
-                    let node_raw = NodeIfStmnt::new(line_reader);
-                    let Ok(node) = node_raw else {
-                        err_vec.push(node_raw.err().unwrap());
-                        continue;
-                    };
-
-                    res.push(NodeStmnt::IfStmnt(node));
+                    multi_line_statement!(reader, result, errors, NodeIfStmnt, IfStmnt);
                 }
 
                 TokenKind::Keyword(Keyword::While) => {
-                    let line_reader_raw = reader.advance_chunk();
-                    let Ok(line_reader) = line_reader_raw else {
-                        err_vec.push(line_reader_raw.err().unwrap());
-                        continue;
-                    };
-
-                    let node_raw = NodeWhileLoop::new(line_reader);
-                    let Ok(node) = node_raw else {
-                        err_vec.push(node_raw.err().unwrap());
-                        continue;
-                    };
-
-                    res.push(NodeStmnt::WhileLoop(node));
+                    multi_line_statement!(reader, result, errors, NodeWhileLoop, WhileLoop);
                 }
 
                 _ => {
                     let front = front.clone();
                     reader.advance();
-                    err_vec.push(ParserError::invalid_statement(front.span).into())
+                    errors.push(ParserError::invalid_statement(front.span).into())
                 }
             }
         }
 
-        if !err_vec.is_empty() {
-            return Err(err_vec.into());
+        if !errors.is_empty() {
+            return Err(errors.into());
         }
-        Ok(res)
+        Ok(result)
+    }
+}
+
+pub struct NodeContStmnt {
+    pub span: Span,
+}
+
+impl NodeContStmnt {
+    fn new(mut reader: TokenReader) -> Result<Self, ChalError> {
+        reader.expect_exact(TokenKind::Keyword(Keyword::Continue))?;
+        let span = reader.current();
+        reader.expect_exact(TokenKind::Newline)?;
+
+        Ok(NodeContStmnt { span })
+    }
+}
+
+pub struct NodeBreakStmnt {
+    pub span: Span,
+}
+
+impl NodeBreakStmnt {
+    fn new(mut reader: TokenReader) -> Result<Self, ChalError> {
+        reader.expect_exact(TokenKind::Keyword(Keyword::Break))?;
+        let span = reader.current();
+        reader.expect_exact(TokenKind::Newline)?;
+
+        Ok(NodeBreakStmnt { span })
     }
 }

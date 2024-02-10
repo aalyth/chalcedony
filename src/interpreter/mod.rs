@@ -64,6 +64,12 @@ impl FuncAnnotation {
     }
 }
 
+#[derive(Default, Clone, Debug)]
+pub struct WhileScope {
+    current_length: usize,
+    unfinished_breaks: Vec<usize>,
+}
+
 trait InterpreterVisitor {
     fn interpret_node(&mut self, _: NodeProg) -> Result<(), ChalError>;
 }
@@ -81,6 +87,9 @@ pub struct Chalcedony {
     /* Contains the necessary function information used while parsing statements
      * inside a function's scope */
     current_func: Option<Rc<RefCell<FuncAnnotation>>>,
+
+    /* Contains the necessary information in order to implement control flow logic in while loops */
+    current_while: Option<WhileScope>,
 
     /* Keeps track of the current scope's local variables */
     locals: RefCell<AHashMap<String, VarAnnotation>>,
@@ -145,6 +154,7 @@ impl Chalcedony {
             globals: AHashMap::new(),
             func_symtable,
             current_func: None,
+            current_while: None,
             locals: RefCell::new(AHashMap::default()),
         }
     }

@@ -42,6 +42,4 @@ pub enum Bytecode {
 
     Print,
     Assert, // asserts the top 2 values on the stack are equal
-
-    Debug,
 }

@@ -20,6 +20,8 @@ enum CompileErrorKind {
     VoidArgument,
     OverloadedFunction,
     RedefiningVariable,
+    ReturnOutsideFunc,
+    CtrlFlowOutsideWhile,
 }
 
 pub struct CompileError {
@@ -94,6 +96,14 @@ impl CompileError {
 
     pub fn redefining_variable(span: Span) -> Self {
         CompileError::new(CompileErrorKind::RedefiningVariable, span)
+    }
+
+    pub fn return_outside_func(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::ReturnOutsideFunc, span)
+    }
+
+    pub fn control_flow_outside_while(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::CtrlFlowOutsideWhile, span)
     }
 }
 
@@ -187,6 +197,14 @@ impl std::fmt::Display for CompileError {
 
             CompileErrorKind::RedefiningVariable => {
                 display_err(&self.span, f, "redefining variable")
+            }
+
+            CompileErrorKind::ReturnOutsideFunc => {
+                display_err(&self.span, f, "return statement outside a function scope")
+            }
+
+            CompileErrorKind::CtrlFlowOutsideWhile => {
+                display_err(&self.span, f, "control flow outside a while scope")
             }
         }
     }

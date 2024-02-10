@@ -12,6 +12,8 @@ pub enum Keyword {
     Elif,
     Else,
     While,
+    Continue,
+    Break,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -138,6 +140,8 @@ impl TokenKind {
             "else" => return Ok(TokenKind::Keyword(Keyword::Else)),
             "elif" => return Ok(TokenKind::Keyword(Keyword::Elif)),
             "while" => return Ok(TokenKind::Keyword(Keyword::While)),
+            "continue" => return Ok(TokenKind::Keyword(Keyword::Continue)),
+            "break" => return Ok(TokenKind::Keyword(Keyword::Break)),
 
             /* DELIMITERS */
             "(" => return Ok(TokenKind::Delimiter(Delimiter::OpenPar)),
