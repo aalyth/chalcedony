@@ -86,7 +86,7 @@ impl NodeProg {
                     | TokenKind::Operator(Operator::ModEq) => {
                         single_line_stmnt!(Assign, NodeAssign, chunk, spanner)
                     }
-                    recv_kind @ _ => Err(ParserError::invalid_token(
+                    recv_kind => Err(ParserError::invalid_token(
                         TokenKind::Delimiter(Delimiter::OpenPar),
                         recv_kind.clone(),
                         peek_2nd.span.clone(),
@@ -95,13 +95,11 @@ impl NodeProg {
                 }
             }
 
-            _ => {
-                return Err(InternalError::new(&format!(
-                    "NodeProg::new(): invalid chunk front - {:?}",
-                    front_tok.kind
-                ))
-                .into())
-            }
+            _ => Err(InternalError::new(&format!(
+                "NodeProg::new(): invalid chunk front - {:?}",
+                front_tok.kind
+            ))
+            .into()),
         }
     }
 }

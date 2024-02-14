@@ -1,6 +1,6 @@
 
-fn is_prime(n: int) -> bool:
-    if n == 0:
+fn is_prime(n: uint) -> bool:
+    if n <= 1:
         return false 
 
     let i = 2 
@@ -11,13 +11,16 @@ fn is_prime(n: int) -> bool:
 
     return true 
 
-fn __main__() -> void:
-    let i = 0
-    let sum = 0
-    while i < 10000:
-        if is_prime(i):
-            sum += i
-        i += 1
-    print(sum)
+fn __test__() -> void:
+    assert(true, is_prime(2))
+    assert(true, is_prime(3))
+    assert(true, is_prime(17))
+    assert(false, is_prime(42))
 
-__main__()
+let i = 0
+while i < 100:
+    if is_prime(i):
+        print("" + i + " is prime")
+    i += 1
+
+__test__()

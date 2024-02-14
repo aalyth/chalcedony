@@ -1,13 +1,14 @@
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError};
-use crate::interpreter::{Chalcedony, WhileScope};
+use crate::interpreter::{Chalcedony, VarAnnotation, WhileScope};
 use crate::parser::ast::{
-    NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeIfBranch,
-    NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeWhileLoop,
+    NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExprInner,
+    NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeWhileLoop,
 };
 
-use crate::common::{operators::AssignOprType, Bytecode, Type};
+use crate::common::operators::{AssignOprType, BinOprType};
+use crate::common::{Bytecode, Type};
 
 fn increment_while_scope(interpreter: &mut Chalcedony, val: usize) {
     if let Some(while_scope) = interpreter.current_while.as_mut() {
@@ -31,12 +32,13 @@ impl ToBytecode for NodeStmnt {
 
                 /* check whether the variable exists as a function's argument */
                 if let Some(func) = interpreter.current_func.clone() {
-                    if let Some(_) = func.borrow().arg_lookup.get(&node.name) {
+                    if func.borrow().arg_lookup.get(&node.name).is_some() {
                         return Err(CompileError::redefining_function_arg(node.span).into());
                     }
                 }
 
-                let value_type = node.value.as_type(&interpreter)?;
+                let value_type = node.value.as_type(interpreter)?;
+                /* here we don't use Type::verify() since the user explicitly wanted the type */
                 if node.ty != Type::Any {
                     if node.ty != value_type {
                         return Err(CompileError::invalid_type(
@@ -138,7 +140,7 @@ impl ToBytecode for NodeIfStmnt {
             .unwrap_or(&WhileScope::default())
             .current_length;
 
-        // condition + Bytecode::If
+        /* condition + Bytecode::If */
         increment_while_scope(interpreter, cond.len() + 1);
         let body = self.body.to_bytecode(interpreter)?;
 
@@ -164,7 +166,7 @@ impl ToBytecode for NodeIfStmnt {
         result.extend(cond);
 
         /* a single if statement */
-        if branches.len() == 0 {
+        if branches.is_empty() {
             result.push(Bytecode::If(body.len()));
             result.extend(body);
 
@@ -180,7 +182,7 @@ impl ToBytecode for NodeIfStmnt {
             result.push(Bytecode::Jmp(leftover_branch_len));
 
             for branch in branches.into_iter() {
-                leftover_branch_len = leftover_branch_len - (branch.len() + 1) as isize;
+                leftover_branch_len -= (branch.len() + 1) as isize;
                 result.extend(branch);
                 result.push(Bytecode::Jmp(leftover_branch_len));
             }
@@ -240,12 +242,13 @@ enum VarScope {
 }
 
 impl ToBytecode for NodeAssign {
-    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let var_id: usize;
+    fn to_bytecode(mut self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
+        /* the annotation of the mutated variable */
+        let annotation: VarAnnotation;
         let mut scope = VarScope::Global;
 
         if let Some(var) = interpreter.locals.borrow().get(&self.lhs.name) {
-            var_id = var.id;
+            annotation = *var;
             scope = VarScope::Local;
 
         /* check whether the interpreter is compiling inside a function scope */
@@ -253,8 +256,8 @@ impl ToBytecode for NodeAssign {
             let func = func.borrow();
 
             /* check whether the variable is an argument */
-            if let Some(var) = func.arg_lookup.get(&self.lhs.name) {
-                var_id = var.id;
+            if let Some(arg) = func.arg_lookup.get(&self.lhs.name) {
+                annotation = VarAnnotation::new(arg.id, arg.ty);
                 scope = VarScope::Arg;
 
             /* check whether the variable is a local variable */
@@ -263,38 +266,49 @@ impl ToBytecode for NodeAssign {
             }
 
         /* the interpreter is in the global scope*/
+        } else if let Some(var) = interpreter.globals.get(&self.lhs.name) {
+            annotation = *var;
         } else {
-            if let Some(var) = interpreter.globals.get(&self.lhs.name) {
-                var_id = var.id;
-            } else {
-                return Err(CompileError::unknown_variable(self.lhs.name, self.lhs.span).into());
-            }
+            return Err(CompileError::unknown_variable(self.lhs.name, self.lhs.span).into());
         }
 
         let mut result = Vec::<Bytecode>::new();
         if self.opr != AssignOprType::Eq {
             match scope {
-                VarScope::Arg => result.push(Bytecode::GetArg(var_id)),
-                VarScope::Local => result.push(Bytecode::GetLocal(var_id)),
-                VarScope::Global => result.push(Bytecode::GetGlobal(var_id)),
+                VarScope::Arg => result.push(Bytecode::GetArg(annotation.id)),
+                VarScope::Local => result.push(Bytecode::GetLocal(annotation.id)),
+                VarScope::Global => result.push(Bytecode::GetGlobal(annotation.id)),
+            }
+
+            self.rhs
+                .expr
+                .push_front(NodeExprInner::VarCall(self.lhs.clone()));
+
+            macro_rules! push_bin_opr {
+                ($expr:expr, $type:ident) => {{
+                    $expr.push_back(NodeExprInner::BinOpr(BinOprType::$type))
+                }};
+            }
+
+            match self.opr {
+                AssignOprType::AddEq => push_bin_opr!(self.rhs.expr, Add),
+                AssignOprType::SubEq => push_bin_opr!(self.rhs.expr, Sub),
+                AssignOprType::MulEq => push_bin_opr!(self.rhs.expr, Mul),
+                AssignOprType::DivEq => push_bin_opr!(self.rhs.expr, Div),
+                AssignOprType::ModEq => push_bin_opr!(self.rhs.expr, Mod),
+                _ => unreachable!(),
             }
         }
 
-        result.extend(self.rhs.to_bytecode(interpreter)?);
+        result.extend(self.rhs.clone().to_bytecode(interpreter)?);
 
-        match self.opr {
-            AssignOprType::AddEq => result.push(Bytecode::Add),
-            AssignOprType::SubEq => result.push(Bytecode::Sub),
-            AssignOprType::MulEq => result.push(Bytecode::Mul),
-            AssignOprType::DivEq => result.push(Bytecode::Div),
-            AssignOprType::ModEq => result.push(Bytecode::Mod),
-            _ => {}
-        }
+        let rhs_ty = self.rhs.as_type(interpreter)?;
+        Type::verify(annotation.ty, rhs_ty, &mut result, self.rhs.span)?;
 
         match scope {
-            VarScope::Arg => result.push(Bytecode::SetArg(var_id)),
-            VarScope::Local => result.push(Bytecode::SetLocal(var_id)),
-            VarScope::Global => result.push(Bytecode::SetGlobal(var_id)),
+            VarScope::Arg => result.push(Bytecode::SetArg(annotation.id)),
+            VarScope::Local => result.push(Bytecode::SetLocal(annotation.id)),
+            VarScope::Global => result.push(Bytecode::SetGlobal(annotation.id)),
         }
 
         Ok(result)
@@ -307,22 +321,18 @@ impl ToBytecode for NodeRetStmnt {
             return Err(CompileError::return_outside_func(self.span.clone()).into());
         };
 
-        let return_type = self.value.as_type(&interpreter)?;
-        if func.borrow().ret_type != return_type {
-            return Err(CompileError::invalid_type(
-                func.borrow().ret_type,
-                return_type,
-                self.value.span.clone(),
-            )
-            .into());
-        }
+        let recv_type = self.value.as_type(interpreter)?;
+        let exp_type = func.borrow().ret_type;
 
-        if return_type == Type::Void {
+        if exp_type == Type::Void && recv_type == Type::Void {
             return Ok(vec![Bytecode::ReturnVoid]);
         }
 
         let mut result = Vec::<Bytecode>::new();
-        result.extend(self.value.to_bytecode(interpreter)?);
+        result.extend(self.value.clone().to_bytecode(interpreter)?);
+
+        Type::verify(exp_type, recv_type, &mut result, self.value.span)?;
+
         result.push(Bytecode::Return);
         Ok(result)
     }

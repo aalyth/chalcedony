@@ -6,7 +6,7 @@ mod type_eval;
 use crate::error::ChalError;
 use crate::parser::ast::{NodeProg, NodeVarDef};
 use crate::parser::Parser;
-use crate::vm::CVM;
+use crate::vm::Cvm;
 
 use crate::common::{Bytecode, Type};
 
@@ -29,7 +29,7 @@ impl ArgAnnotation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct VarAnnotation {
     id: usize,
     ty: Type,
@@ -74,9 +74,10 @@ trait InterpreterVisitor {
     fn interpret_node(&mut self, _: NodeProg) -> Result<(), ChalError>;
 }
 
+#[derive(Default)]
 pub struct Chalcedony {
     /* The virtual machine used to execute the resulting bytecode*/
-    vm: CVM,
+    vm: Cvm,
 
     /* Used to keep track of the globally declared variables */
     globals: AHashMap<String, VarAnnotation>,
@@ -105,12 +106,12 @@ impl InterpreterVisitor for Chalcedony {
 
 impl Chalcedony {
     pub fn new() -> Self {
-        let mut print_args = Vec::new();
-        print_args.push(ArgAnnotation::new(0, "output".to_string(), Type::Any));
+        let print_args = vec![ArgAnnotation::new(0, "output".to_string(), Type::Any)];
 
-        let mut assert_args = Vec::new();
-        assert_args.push(ArgAnnotation::new(0, "exp".to_string(), Type::Any));
-        assert_args.push(ArgAnnotation::new(1, "recv".to_string(), Type::Any));
+        let assert_args = vec![
+            ArgAnnotation::new(0, "exp".to_string(), Type::Any),
+            ArgAnnotation::new(1, "recv".to_string(), Type::Any),
+        ];
 
         let mut func_symtable = AHashMap::<String, Rc<RefCell<FuncAnnotation>>>::new();
         func_symtable.insert(
@@ -127,7 +128,7 @@ impl Chalcedony {
             ))),
         );
 
-        let mut vm = CVM::new();
+        let mut vm = Cvm::new();
 
         /* TODO: integrate builtins directly into the vm */
         let mut builtins = Vec::<Vec<Bytecode>>::new();

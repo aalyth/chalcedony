@@ -6,18 +6,22 @@ fn fib_rec(n: int) -> int:
     return 1
 
 fn fib(n: int) -> int:
-    let a = 1
+    let a = 0
     let b = 1
-    while n >= 0:
+    while n >= 2:
         let c = a + b
         a = b
         b = c
         n -= 1
     return b
 
-let i: int = 10 
-let res = fib(i)
-let res_rec = fib_rec(i)
-print('Fib (' + i + '): ' + res + '; exp: ' + res_rec)
 
-assert(fib(i), fib_rec(i))
+let n = 1
+while n <= 15:
+    let res = fib(n)
+    let res_rec = fib_rec(n)
+
+    print('Fib (' + n + '): ' + res + '; exp: ' + res_rec)
+    assert(res, res_rec)
+
+    n += 1

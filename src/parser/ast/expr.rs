@@ -22,7 +22,7 @@ pub enum NodeExprInner {
 
 #[derive(Clone)]
 pub struct NodeExpr {
-    pub expr: Vec<NodeExprInner>,
+    pub expr: VecDeque<NodeExprInner>,
     pub span: Span,
 }
 
@@ -80,7 +80,7 @@ impl Operator {
 impl TryInto<NodeExprInner> for Operator {
     type Error = ();
     fn try_into(self) -> Result<NodeExprInner, ()> {
-        return match self {
+        match self {
             Operator::Add => Ok(NodeExprInner::BinOpr(BinOprType::Add)),
             Operator::Sub => Ok(NodeExprInner::BinOpr(BinOprType::Sub)),
             Operator::Mul => Ok(NodeExprInner::BinOpr(BinOprType::Mul)),
@@ -100,7 +100,7 @@ impl TryInto<NodeExprInner> for Operator {
             Operator::Bang => Ok(NodeExprInner::UnaryOpr(UnaryOprType::Bang)),
             Operator::Neg => Ok(NodeExprInner::UnaryOpr(UnaryOprType::Neg)),
             _ => Err(()),
-        };
+        }
     }
 }
 
@@ -108,7 +108,7 @@ impl TryFrom<&lexer::Operator> for Operator {
     type Error = ();
 
     fn try_from(val: &lexer::Operator) -> Result<Operator, ()> {
-        return match val {
+        match val {
             lexer::Operator::Add => Ok(Operator::Add),
             lexer::Operator::Sub => Ok(Operator::Sub),
             lexer::Operator::Mul => Ok(Operator::Mul),
@@ -128,7 +128,7 @@ impl TryFrom<&lexer::Operator> for Operator {
             lexer::Operator::Bang => Ok(Operator::Bang),
             lexer::Operator::Neg => Ok(Operator::Neg),
             _ => Err(()),
-        };
+        }
     }
 }
 
@@ -223,7 +223,7 @@ impl NodeExpr {
                 }
 
                 TokenKind::Identifier(_) => {
-                    if reader.peek() == None {
+                    if reader.peek().is_none() {
                         let node = NodeExprInner::VarCall(NodeVarCall::new(current.clone())?);
                         push_terminal!(node, output, prev_type, current);
                         continue;

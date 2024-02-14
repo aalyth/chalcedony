@@ -82,6 +82,8 @@ impl Delimiter {
     }
 }
 
+/* if an matches!() macro is used the formatting becomes very bad */
+#[allow(clippy::match_like_matches_macro)]
 pub fn is_special(c: &char) -> bool {
     match *c {
         '(' | ')' | '[' | ']' | '{' | '}' | ':' | ';' | '+' | '-' | '*' | '/' | '%' | '=' | '<'
@@ -91,10 +93,10 @@ pub fn is_special(c: &char) -> bool {
 }
 
 pub fn is_operator(c: &char) -> bool {
-    match *c {
-        '+' | '-' | '*' | '/' | '%' | '=' | '<' | '>' | '!' | ':' | '&' | '|' => true,
-        _ => false,
-    }
+    matches!(
+        *c,
+        '+' | '-' | '*' | '/' | '%' | '=' | '<' | '>' | '!' | ':' | '&' | '|'
+    )
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -116,7 +118,7 @@ pub enum TokenKind {
 
 impl TokenKind {
     fn new(src: &str, span: &Span) -> Result<TokenKind, ChalError> {
-        if src == "" {
+        if src.is_empty() {
             return Err(InternalError::new("TokenKind::new(): lexing an empty string").into());
         }
         if src == "\n" {
@@ -194,6 +196,10 @@ impl TokenKind {
             _ => (),
         };
 
+        if let Ok(val) = src.parse::<u64>() {
+            return Ok(TokenKind::Uint(val));
+        }
+
         if let Ok(val) = src.parse::<i64>() {
             return Ok(TokenKind::Int(val));
         }
@@ -206,7 +212,8 @@ impl TokenKind {
             || (src.chars().nth(0) == Some('\'') && src.chars().nth(src.len() - 1) == Some('\''))
         {
             return Ok(TokenKind::Str(src[1..src.len() - 1].to_string()));
-        } else if src.chars().nth(0) == Some('"') {
+        }
+        if src.chars().nth(0) == Some('"') {
             return Err(LexerError::unclosed_string(span.clone()).into());
         }
 
@@ -218,19 +225,18 @@ impl TokenKind {
             return Err(LexerError::invalid_identifier(span.clone()).into());
         }
 
-        return Ok(TokenKind::Identifier(src.to_string()));
+        Ok(TokenKind::Identifier(src.to_string()))
     }
 
     pub fn is_terminal(&self) -> bool {
-        match *self {
+        matches!(
+            *self,
             TokenKind::Int(_)
-            | TokenKind::Uint(_)
-            | TokenKind::Float(_)
-            | TokenKind::Str(_)
-            | TokenKind::Identifier(_) => true,
-
-            _ => false,
-        }
+                | TokenKind::Uint(_)
+                | TokenKind::Float(_)
+                | TokenKind::Str(_)
+                | TokenKind::Identifier(_)
+        )
     }
 }
 

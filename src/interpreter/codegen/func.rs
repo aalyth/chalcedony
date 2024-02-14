@@ -12,7 +12,7 @@ use ahash::AHashMap;
 
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        if let Some(_) = interpreter.func_symtable.get(&self.name) {
+        if interpreter.func_symtable.get(&self.name).is_some() {
             return Err(CompileError::overloaded_function(self.span).into());
         }
 
@@ -27,7 +27,7 @@ impl ToBytecode for NodeFuncDef {
             args.push(ArgAnnotation::new(idx, arg.name.clone(), arg.ty));
         }
 
-        interpreter.create_function(self.name.clone(), args, self.ret_type.clone());
+        interpreter.create_function(self.name.clone(), args, self.ret_type);
 
         /* compile the bytecode for each statement in the body */
         let mut returned = false;
@@ -47,7 +47,7 @@ impl ToBytecode for NodeFuncDef {
         /* check whether the function has returned, and if it is a void function, append
          * a ReturnVoid at the end if there isn't one */
         match self.ret_type {
-            Type::Void if body.len() == 0 && !returned => {
+            Type::Void if body.is_empty() && !returned => {
                 return Err(CompileError::no_default_return_stmnt(self.span).into())
             }
             Type::Void if !returned => {
@@ -88,14 +88,13 @@ impl ToBytecode for NodeFuncCall {
                     self.span,
                 )
                 .into());
-            } else {
-                return Err(CompileError::too_few_arguments(
-                    annotation.args.len(),
-                    self.args.len(),
-                    self.span,
-                )
-                .into());
             }
+            return Err(CompileError::too_few_arguments(
+                annotation.args.len(),
+                self.args.len(),
+                self.span,
+            )
+            .into());
         }
 
         /* push on the stack each of the argument's expression value */
@@ -106,20 +105,10 @@ impl ToBytecode for NodeFuncCall {
                 .get(idx)
                 .expect("the argument bounds should have already been checked")
                 .ty;
-            if exp_type != Type::Any {
-                let recv_type = arg_expr.as_type(&interpreter)?;
 
-                if exp_type != recv_type {
-                    return Err(CompileError::invalid_type(
-                        exp_type,
-                        recv_type,
-                        arg_expr.span.clone(),
-                    )
-                    .into());
-                }
-            }
-
-            result.append(&mut arg_expr.to_bytecode(interpreter)?);
+            result.extend(arg_expr.clone().to_bytecode(interpreter)?);
+            let recv_type = arg_expr.as_type(interpreter)?;
+            Type::verify(exp_type, recv_type, &mut result, arg_expr.span)?;
         }
 
         /* complete the function call instruction */

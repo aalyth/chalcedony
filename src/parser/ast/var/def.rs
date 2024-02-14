@@ -22,7 +22,10 @@ impl NodeVarDef {
         let span = lhs_tok.span;
 
         let mut ty = Type::Any;
-        if let Ok(_) = reader.expect_exact(TokenKind::Special(Special::Colon)) {
+        if reader
+            .expect_exact(TokenKind::Special(Special::Colon))
+            .is_ok()
+        {
             ty = reader.expect_type()?;
 
             reader.expect_exact(TokenKind::Operator(Operator::Eq))?;

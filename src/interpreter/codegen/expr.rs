@@ -13,7 +13,6 @@ impl ToBytecode for NodeExpr {
         for inner in self.expr {
             result.extend(inner.to_bytecode(interpreter)?);
         }
-
         Ok(result)
     }
 }

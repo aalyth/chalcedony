@@ -1,4 +1,6 @@
-.PHONY: release syntax clean
+.PHONY: release syntax test clean
+
+executable = './target/release/chalcedony'
 
 release: ./src/main.rs
 	if [ -z $(shell which cargo) ]; then \
@@ -23,6 +25,13 @@ syntax: ./utils/syntax/chal.vim
 	# for nvim:
 	mkdir -p ~/.config/nvim/syntax 
 	cp ./utils/syntax/chal.vim ~/.config/nvim/syntax/ch.vim
+
+test:
+	if [ ! -f  ${executable} ]; then \
+		echo "Error: the ${executable} does not exist"; \
+		exit 1; \
+	fi
+	find ./examples/* -type f -exec ${executable} '{}' ';' 1> /dev/null
 
 clean:
 	cargo clean

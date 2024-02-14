@@ -25,8 +25,8 @@ impl Line {
     }
 }
 
-impl Into<VecDeque<Token>> for Line {
-    fn into(self) -> VecDeque<Token> {
-        self.tokens
+impl From<Line> for VecDeque<Token> {
+    fn from(value: Line) -> Self {
+        value.tokens
     }
 }

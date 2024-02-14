@@ -2,7 +2,7 @@ use crate::common::Type;
 use crate::utils::PtrString;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum CVMObject {
+pub enum CvmObject {
     Int(i64),
     Uint(u64),
     Float(f64),
@@ -10,32 +10,32 @@ pub enum CVMObject {
     Bool(bool),
 }
 
-impl CVMObject {
+impl CvmObject {
     pub fn as_type(&self) -> Type {
         match self {
-            CVMObject::Int(_) => Type::Int,
-            CVMObject::Uint(_) => Type::Uint,
-            CVMObject::Float(_) => Type::Float,
-            CVMObject::Str(_) => Type::Str,
-            CVMObject::Bool(_) => Type::Bool,
+            CvmObject::Int(_) => Type::Int,
+            CvmObject::Uint(_) => Type::Uint,
+            CvmObject::Float(_) => Type::Float,
+            CvmObject::Str(_) => Type::Str,
+            CvmObject::Bool(_) => Type::Bool,
         }
     }
 }
 
-impl Default for CVMObject {
+impl Default for CvmObject {
     fn default() -> Self {
         Self::Int(0)
     }
 }
 
-impl std::fmt::Display for CVMObject {
+impl std::fmt::Display for CvmObject {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            CVMObject::Int(val) => write!(f, "{}", val),
-            CVMObject::Uint(val) => write!(f, "{}", val),
-            CVMObject::Float(val) => write!(f, "{}", val),
-            CVMObject::Str(val) => write!(f, "{}", val),
-            CVMObject::Bool(val) => write!(f, "{}", val),
+            CvmObject::Int(val) => write!(f, "{}", val),
+            CvmObject::Uint(val) => write!(f, "{}", val),
+            CvmObject::Float(val) => write!(f, "{}", val),
+            CvmObject::Str(val) => write!(f, "{}", val),
+            CvmObject::Bool(val) => write!(f, "{}", val),
         }
     }
 }

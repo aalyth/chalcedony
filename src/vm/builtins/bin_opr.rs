@@ -1,5 +1,5 @@
 use crate::utils::PtrString;
-use crate::vm::{CVMObject, CVM};
+use crate::vm::{Cvm, CvmObject};
 
 use super::get_operands;
 
@@ -7,20 +7,20 @@ macro_rules! apply_bin_operator {
     ( $cvm:ident, $current_idx:ident, $opr:tt, $str_opr_handler:ident ) => {{
         let (left, right) = get_operands($cvm);
         match (left, right) {
-            (CVMObject::Int(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Int(lval $opr rval)),
-            (CVMObject::Int(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Int(lval $opr (rval as i64))),
-            (CVMObject::Int(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Float((lval as f64) $opr rval)),
+            (CvmObject::Int(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Int(lval $opr rval)),
+            (CvmObject::Int(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Int(lval $opr (rval as i64))),
+            (CvmObject::Int(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Int(lval $opr (rval as i64))),
 
-            (CVMObject::Uint(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Int((lval as i64) $opr rval)),
-            (CVMObject::Uint(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Uint(lval $opr rval)),
-            (CVMObject::Uint(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Float((lval as f64) $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Int((lval as i64) $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Uint(lval $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Int((lval as i64) $opr (rval as i64))),
 
-            (CVMObject::Float(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Float(lval $opr (rval as f64))),
-            (CVMObject::Float(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Float(lval $opr (rval as f64))),
-            (CVMObject::Float(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Float(lval $opr rval)),
+            (CvmObject::Float(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Float(lval $opr (rval as f64))),
+            (CvmObject::Float(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Float(lval $opr (rval as f64))),
+            (CvmObject::Float(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Float(lval $opr rval)),
 
-            (CVMObject::Str(lval), right @ _) => $str_opr_handler($cvm, lval.clone(), right),
-            (left @ _, right @ _) => panic!(
+            (CvmObject::Str(lval), right) => $str_opr_handler($cvm, lval.clone(), right),
+            (left, right) => panic!(
                 "unchecked invalid binary operation - {:?} and {:?}",
                 left.as_type(),
                 right.as_type()
@@ -30,143 +30,75 @@ macro_rules! apply_bin_operator {
     }};
 }
 
-pub fn add(cvm: &mut CVM, current_idx: usize) -> usize {
-    fn add_str(cvm: &mut CVM, lval: PtrString, right: CVMObject) {
+pub fn add(cvm: &mut Cvm, current_idx: usize) -> usize {
+    fn add_str(cvm: &mut Cvm, lval: PtrString, right: CvmObject) {
         match right {
-            CVMObject::Int(rval) => cvm.push(CVMObject::Str(lval + rval.to_string().into())),
-            CVMObject::Uint(rval) => cvm.push(CVMObject::Str(lval + rval.to_string().into())),
-            CVMObject::Float(rval) => cvm.push(CVMObject::Str(lval + rval.to_string().into())),
-            CVMObject::Str(rval) => cvm.push(CVMObject::Str(lval + rval)),
-            CVMObject::Bool(rval) => cvm.push(CVMObject::Str(lval + rval.to_string().into())),
+            CvmObject::Int(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
+            CvmObject::Uint(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
+            CvmObject::Float(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
+            CvmObject::Str(rval) => cvm.push(CvmObject::Str(lval + rval)),
+            CvmObject::Bool(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
         }
     }
     apply_bin_operator!(cvm, current_idx, +, add_str)
 }
 
-pub fn sub(cvm: &mut CVM, current_idx: usize) -> usize {
-    fn sub_str(_: &mut CVM, _: PtrString, _: CVMObject) {
+pub fn sub(cvm: &mut Cvm, current_idx: usize) -> usize {
+    fn sub_str(_: &mut Cvm, _: PtrString, _: CvmObject) {
         panic!("unchecked invalid string operation - string substitution")
     }
     apply_bin_operator!(cvm, current_idx, -, sub_str)
 }
 
-pub fn mul(cvm: &mut CVM, current_idx: usize) -> usize {
-    fn mul_str(cvm: &mut CVM, lval: PtrString, right: CVMObject) {
+pub fn mul(cvm: &mut Cvm, current_idx: usize) -> usize {
+    fn mul_str(cvm: &mut Cvm, lval: PtrString, right: CvmObject) {
         match right {
-            CVMObject::Uint(rval) => cvm.stack.push(CVMObject::Str(lval * (rval as usize))),
+            CvmObject::Uint(rval) => cvm.stack.push(CvmObject::Str(lval * (rval as usize))),
             _ => panic!("unchecked invalid string operation - string multiplication with non-uint"),
         }
     }
     apply_bin_operator!(cvm, current_idx, *, mul_str)
 }
 
-pub fn div(cvm: &mut CVM, current_idx: usize) -> usize {
-    let (left, right) = get_operands(cvm);
-    match (left, right) {
-        (CVMObject::Int(lval), CVMObject::Int(rval)) => {
-            cvm.push(CVMObject::Float((lval as f64) / (rval as f64)))
-        }
-        (CVMObject::Int(lval), CVMObject::Uint(rval)) => {
-            cvm.push(CVMObject::Float((lval as f64) / (rval as f64)))
-        }
-        (CVMObject::Int(lval), CVMObject::Float(rval)) => {
-            cvm.push(CVMObject::Float((lval as f64) / rval))
-        }
-
-        (CVMObject::Uint(lval), CVMObject::Int(rval)) => {
-            cvm.push(CVMObject::Float((lval as f64) / (rval as f64)))
-        }
-        (CVMObject::Uint(lval), CVMObject::Uint(rval)) => {
-            cvm.push(CVMObject::Float((lval as f64) / (rval as f64)))
-        }
-        (CVMObject::Uint(lval), CVMObject::Float(rval)) => {
-            cvm.push(CVMObject::Float((lval as f64) / rval))
-        }
-
-        (CVMObject::Float(lval), CVMObject::Int(rval)) => {
-            cvm.push(CVMObject::Float(lval / (rval as f64)))
-        }
-        (CVMObject::Float(lval), CVMObject::Uint(rval)) => {
-            cvm.push(CVMObject::Float(lval / (rval as f64)))
-        }
-        (CVMObject::Float(lval), CVMObject::Float(rval)) => cvm.push(CVMObject::Float(lval / rval)),
-
-        (left @ _, right @ _) => panic!(
-            "unchecked invalid division - {:?} and {:?}",
-            left.as_type(),
-            right.as_type()
-        ),
+pub fn div(cvm: &mut Cvm, current_idx: usize) -> usize {
+    fn div_str(_: &mut Cvm, _: PtrString, _: CvmObject) {
+        panic!("unchecked invalid string operation - string division")
     }
-    current_idx
+    apply_bin_operator!(cvm, current_idx, /, div_str)
 }
 
-pub fn modulo(cvm: &mut CVM, current_idx: usize) -> usize {
-    fn mod_str(_: &mut CVM, _: PtrString, _: CVMObject) {
+pub fn modulo(cvm: &mut Cvm, current_idx: usize) -> usize {
+    fn mod_str(_: &mut Cvm, _: PtrString, _: CvmObject) {
         panic!("unchecked invalid string operation - string substitution")
     }
     apply_bin_operator!(cvm, current_idx, %, mod_str)
-    /*
-    let (left, right) = get_operands(cvm);
-    match (left, right) {
-        (CVMObject::Int(lval), CVMObject::Int(rval)) => cvm.push(CVMObject::Int(lval % rval)),
-        (CVMObject::Int(lval), CVMObject::Uint(rval)) => {
-            cvm.push(CVMObject::Int(lval % (rval as i64)))
-        }
-        (CVMObject::Int(lval), CVMObject::Float(rval)) => {
-            cvm.push(CVMObject::Float((lval as f64) % rval))
-        }
-
-        (CVMObject::Uint(lval), CVMObject::Int(rval)) => {
-            cvm.push(CVMObject::Int((lval as i64) % rval))
-        }
-        (CVMObject::Uint(lval), CVMObject::Uint(rval)) => cvm.push(CVMObject::Uint(lval % rval)),
-        (CVMObject::Uint(lval), CVMObject::Float(rval)) => {
-            cvm.push(CVMObject::Float((lval as f64) % rval))
-        }
-
-        (CVMObject::Float(lval), CVMObject::Int(rval)) => {
-            cvm.push(CVMObject::Float(lval % (rval as f64)))
-        }
-        (CVMObject::Float(lval), CVMObject::Uint(rval)) => {
-            cvm.push(CVMObject::Float(lval % (rval as f64)))
-        }
-        (CVMObject::Float(lval), CVMObject::Float(rval)) => cvm.push(CVMObject::Float(lval % rval)),
-
-        (left @ _, right @ _) => panic!(
-            "unchecked invalid modulo operation - {:?} and {:?}",
-            left.as_type(),
-            right.as_type()
-        ),
-    }
-    current_idx
-    */
 }
 
 macro_rules! apply_logic_operator {
     ( $cvm:ident, $current_idx:ident, $opr:tt ) => {{
         let (left, right) = get_operands($cvm);
         match (left, right) {
-            (CVMObject::Int(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Bool((lval != 0) $opr (rval != 0))),
-            (CVMObject::Int(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Bool((lval != 0) $opr (rval != 0))),
-            (CVMObject::Int(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Bool((lval != 0) $opr (rval != 0.0))),
-            (CVMObject::Int(lval), CVMObject::Bool(rval)) => $cvm.push(CVMObject::Bool((lval != 0) $opr rval)),
+            (CvmObject::Int(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
+            (CvmObject::Int(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
+            (CvmObject::Int(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0.0))),
+            (CvmObject::Int(lval), CvmObject::Bool(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr rval)),
 
-            (CVMObject::Uint(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Bool((lval != 0) $opr (rval != 0))),
-            (CVMObject::Uint(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Bool((lval != 0) $opr (rval != 0))),
-            (CVMObject::Uint(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Bool((lval != 0) $opr (rval != 0.0))),
-            (CVMObject::Uint(lval), CVMObject::Bool(rval)) => $cvm.push(CVMObject::Bool((lval != 0) $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
+            (CvmObject::Uint(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
+            (CvmObject::Uint(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0.0))),
+            (CvmObject::Uint(lval), CvmObject::Bool(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr rval)),
 
-            (CVMObject::Float(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Bool((lval != 0.0) $opr (rval != 0))),
-            (CVMObject::Float(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Bool((lval != 0.0) $opr (rval != 0))),
-            (CVMObject::Float(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Bool((lval != 0.0) $opr (rval != 0.0))),
-            (CVMObject::Float(lval), CVMObject::Bool(rval)) => $cvm.push(CVMObject::Bool((lval != 0.0) $opr rval)),
+            (CvmObject::Float(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval != 0.0) $opr (rval != 0))),
+            (CvmObject::Float(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool((lval != 0.0) $opr (rval != 0))),
+            (CvmObject::Float(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval != 0.0) $opr (rval != 0.0))),
+            (CvmObject::Float(lval), CvmObject::Bool(rval)) => $cvm.push(CvmObject::Bool((lval != 0.0) $opr rval)),
 
-            (CVMObject::Bool(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Bool(lval $opr (rval != 0))),
-            (CVMObject::Bool(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Bool(lval $opr (rval != 0))),
-            (CVMObject::Bool(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Bool(lval $opr (rval != 0.0))),
-            (CVMObject::Bool(lval), CVMObject::Bool(rval)) => $cvm.push(CVMObject::Bool(lval $opr rval)),
+            (CvmObject::Bool(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval != 0))),
+            (CvmObject::Bool(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval != 0))),
+            (CvmObject::Bool(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval != 0.0))),
+            (CvmObject::Bool(lval), CvmObject::Bool(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
 
-            (left @ _, right @ _) => panic!(
+            (left, right) => panic!(
                 "unchecked invalid logic operation - {:?} and {:?}",
                 left.as_type(),
                 right.as_type()
@@ -180,25 +112,25 @@ macro_rules! apply_comp_operator {
     ( $cvm:ident, $current_idx:ident, $opr:tt, $bool_opr_handler:ident ) => {{
         let (left, right) = get_operands($cvm);
         match (left, right) {
-            (CVMObject::Int(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Bool(lval $opr rval)),
-            (CVMObject::Int(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Bool((lval as u64) $opr rval)),
-            (CVMObject::Int(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Bool((lval as f64) $opr rval)),
-            (left @ CVMObject::Int(_), CVMObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
+            (CvmObject::Int(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
+            (CvmObject::Int(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval as i64))),
+            (CvmObject::Int(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval as i64))),
+            (left @ CvmObject::Int(_), CvmObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
 
-            (CVMObject::Uint(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Bool(lval $opr (rval as u64))),
-            (CVMObject::Uint(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Bool(lval $opr rval)),
-            (CVMObject::Uint(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Bool((lval as f64) $opr rval)),
-            (left @ CVMObject::Uint(_), CVMObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
+            (CvmObject::Uint(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval as i64) $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool(lval  $opr (rval as u64))),
+            (left @ CvmObject::Uint(_), CvmObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
 
-            (CVMObject::Float(lval), CVMObject::Int(rval)) => $cvm.push(CVMObject::Bool(lval $opr (rval as f64))),
-            (CVMObject::Float(lval), CVMObject::Uint(rval)) => $cvm.push(CVMObject::Bool(lval $opr (rval as f64))),
-            (CVMObject::Float(lval), CVMObject::Float(rval)) => $cvm.push(CVMObject::Bool(lval $opr rval)),
-            (left @ CVMObject::Float(_), CVMObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
+            (CvmObject::Float(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval as i64) $opr rval)),
+            (CvmObject::Float(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool((lval as u64) $opr rval)),
+            (CvmObject::Float(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
+            (left @ CvmObject::Float(_), CvmObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
 
-            (CVMObject::Str(lval), CVMObject::Str(rval)) => $cvm.push(CVMObject::Bool(lval $opr rval)),
-            (CVMObject::Bool(lval), right @ _) => $bool_opr_handler($cvm, lval, right),
+            (CvmObject::Str(lval), CvmObject::Str(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
+            (CvmObject::Bool(lval), right) => $bool_opr_handler($cvm, lval, right),
 
-            (left @ _, right @ _) => panic!(
+            (left, right) => panic!(
                 "unchecked invalid comparison operation - {:?} and {:?}",
                 left.as_type(),
                 right.as_type()
@@ -208,47 +140,47 @@ macro_rules! apply_comp_operator {
     }};
 }
 
-pub fn and(cvm: &mut CVM, current_idx: usize) -> usize {
+pub fn and(cvm: &mut Cvm, current_idx: usize) -> usize {
     apply_logic_operator!(cvm, current_idx, &&)
 }
 
-pub fn or(cvm: &mut CVM, current_idx: usize) -> usize {
+pub fn or(cvm: &mut Cvm, current_idx: usize) -> usize {
     apply_logic_operator!(cvm, current_idx, ||)
 }
 
-fn cmp_bool(_: &mut CVM, _: bool, right: CVMObject) {
+fn cmp_bool(_: &mut Cvm, _: bool, right: CvmObject) {
     panic!(
         "unchecked invalid comparison operation - bool and {:?}",
         right.as_type()
     )
 }
 
-fn eq_bool(cvm: &mut CVM, lval: bool, right: CVMObject) {
+fn eq_bool(cvm: &mut Cvm, lval: bool, right: CvmObject) {
     match right {
-        CVMObject::Int(rval) => cvm.push(CVMObject::Bool(lval == (rval == 0))),
-        CVMObject::Uint(rval) => cvm.push(CVMObject::Bool(lval == (rval == 0))),
-        CVMObject::Float(rval) => cvm.push(CVMObject::Bool(lval == (rval == 0.0))),
-        CVMObject::Bool(rval) => cvm.push(CVMObject::Bool(lval == rval)),
+        CvmObject::Int(rval) => cvm.push(CvmObject::Bool(lval == (rval == 0))),
+        CvmObject::Uint(rval) => cvm.push(CvmObject::Bool(lval == (rval == 0))),
+        CvmObject::Float(rval) => cvm.push(CvmObject::Bool(lval == (rval == 0.0))),
+        CvmObject::Bool(rval) => cvm.push(CvmObject::Bool(lval == rval)),
         _ => panic!("unchecked invalid equality operation - comparing string == bool"),
     }
 }
 
-pub fn lt(cvm: &mut CVM, current_idx: usize) -> usize {
+pub fn lt(cvm: &mut Cvm, current_idx: usize) -> usize {
     apply_comp_operator!(cvm, current_idx, <, cmp_bool)
 }
 
-pub fn lt_eq(cvm: &mut CVM, current_idx: usize) -> usize {
+pub fn lt_eq(cvm: &mut Cvm, current_idx: usize) -> usize {
     apply_comp_operator!(cvm, current_idx, <=, cmp_bool)
 }
 
-pub fn gt(cvm: &mut CVM, current_idx: usize) -> usize {
+pub fn gt(cvm: &mut Cvm, current_idx: usize) -> usize {
     apply_comp_operator!(cvm, current_idx, >, cmp_bool)
 }
 
-pub fn gt_eq(cvm: &mut CVM, current_idx: usize) -> usize {
+pub fn gt_eq(cvm: &mut Cvm, current_idx: usize) -> usize {
     apply_comp_operator!(cvm, current_idx, >=, cmp_bool)
 }
 
-pub fn eq(cvm: &mut CVM, current_idx: usize) -> usize {
+pub fn eq(cvm: &mut Cvm, current_idx: usize) -> usize {
     apply_comp_operator!(cvm, current_idx, ==, eq_bool)
 }

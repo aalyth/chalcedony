@@ -24,7 +24,7 @@ impl CharReader {
         while !self.is_empty() && cond(self.peek().unwrap()) {
             result.push(self.advance().unwrap());
         }
-        return result.into_iter().collect();
+        result.into_iter().collect()
     }
 
     pub fn advance(&mut self) -> Option<char> {

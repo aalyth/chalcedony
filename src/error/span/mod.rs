@@ -1,8 +1,8 @@
 mod pos;
-mod span;
+mod spanning;
 
 pub use pos::Position;
-pub use span::InlineSpanner;
+pub use spanning::InlineSpanner;
 
 use std::rc::Rc;
 

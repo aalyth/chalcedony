@@ -12,22 +12,22 @@ impl Spanning for InlineSpanner {
 
         let context: (String, usize) = self.context_span(start, end);
         result.push_str(&context.0);
-        result.push_str("\n");
+        result.push('\n');
 
         let ln_len = std::cmp::max(end.ln.to_string().len(), 4);
         for _ in 0..ln_len {
-            result.push_str(" ");
+            result.push(' ');
         }
         result.push_str(&color(Colors::Blue, "| "));
 
         for _ in 0..context.1 - (ln_len + 2) {
-            result.push_str(" ");
+            result.push(' ');
         }
 
         for _ in 0..(1 + end.col - start.col) {
             result.push_str(&color(Colors::Cyan, "^"));
         }
-        result.push_str("\n");
+        result.push('\n');
 
         result
     }
@@ -57,7 +57,7 @@ impl InlineSpanner {
         }
 
         if start_.ln == end_.ln && start_.col == end_.col {
-            return self.context_substr(&start_, 0);
+            return self.context_substr(start_, 0);
         }
 
         let start = Position::new(start_.ln - 1, start_.col - 1);
@@ -76,13 +76,14 @@ impl InlineSpanner {
 
         if start.ln == end.ln && end.col - start.col < 40 {
             return self.context_substr(start_, end.col - start.col);
-        } else if start.ln == end.ln {
+        }
+        if start.ln == end.ln {
             let mut result = "".to_string();
 
             let end_ln_str = end_.ln.to_string();
             let ln_len = std::cmp::max(end_ln_str.len(), 4);
             for _ in 0..ln_len - end_ln_str.len() {
-                result.push_str(" ");
+                result.push(' ');
             }
             let curr_line = &self.src[start.ln];
             result.push_str(&color(Colors::Blue, &start.ln.to_string()));
@@ -93,19 +94,19 @@ impl InlineSpanner {
 
             if start.col > 15 {
                 result.push_str("...");
-                result.push_str(&curr_line[start.col - 15..start.col + 15].to_string());
+                result.push_str(&curr_line[start.col - 15..start.col + 15]);
             } else {
-                result.push_str(&curr_line[..start.col + 15].to_string());
+                result.push_str(&curr_line[..start.col + 15]);
             }
             res_pos = result.chars().count() - 15;
 
             result.push_str("...");
-            result.push_str(&curr_line[end.col - 15..end.col].to_string());
+            result.push_str(&curr_line[end.col - 15..end.col]);
             if curr_line.len() - end.col > 15 {
-                result.push_str(&curr_line[end.col..end.col + 15].to_string());
+                result.push_str(&curr_line[end.col..end.col + 15]);
                 result.push_str("...");
             } else {
-                result.push_str(&curr_line[end.col..].to_string());
+                result.push_str(&curr_line[end.col..]);
             }
             return (result, res_pos);
         }
@@ -114,12 +115,12 @@ impl InlineSpanner {
         let res = self.context_pos(start_);
 
         result.push_str(&res.0);
-        result.push_str("\n");
+        result.push('\n');
 
         if end.ln - start.ln > 1 {
             let ln_len = std::cmp::max(end_.ln.to_string().len(), 4);
             for _ in 0..ln_len - 3 {
-                result.push_str(" ");
+                result.push(' ');
             }
             result.push_str(&color(Colors::Blue, "...| "));
             result.push_str("...\n");
@@ -162,7 +163,7 @@ impl InlineSpanner {
 
         let mut result = "".to_string();
         for _ in 0..(ln_len - pos_len) {
-            result.push_str(" ");
+            result.push(' ');
         }
         result.push_str(&color(Colors::Blue, &pos_.ln.to_string()));
         result.push_str(&color(Colors::Blue, "| "));

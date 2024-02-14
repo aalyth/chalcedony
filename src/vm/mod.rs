@@ -2,7 +2,7 @@ mod builtins;
 mod object;
 
 use builtins::{add, and, assert, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
-use object::CVMObject;
+use object::CvmObject;
 
 use crate::common::Bytecode;
 use crate::utils::Stack;
@@ -10,13 +10,13 @@ use crate::utils::Stack;
 use std::rc::Rc;
 
 #[derive(Debug)]
-struct CVMFunctionObject {
+struct CvmFunctionObject {
     arg_count: usize,
     code: Rc<Vec<Bytecode>>,
 }
 
-#[derive(Debug)]
-struct CVMCallFrame {
+#[derive(Debug, Default)]
+struct CvmCallFrame {
     prev_idx: u32,
     args_len: u16,
     stack_len: u32,
@@ -24,27 +24,28 @@ struct CVMCallFrame {
     code: Rc<Vec<Bytecode>>,
 }
 
-pub struct CVM {
-    stack: Stack<CVMObject>,
-    globals: Vec<CVMObject>,
-    functions: Vec<Rc<CVMFunctionObject>>,
-    call_stack: Stack<CVMCallFrame>,
+#[derive(Default)]
+pub struct Cvm {
+    stack: Stack<CvmObject>,
+    globals: Vec<CvmObject>,
+    functions: Vec<Rc<CvmFunctionObject>>,
+    call_stack: Stack<CvmCallFrame>,
 }
 
 macro_rules! push_constant {
     ($cvm:ident, $type:ident, $val:ident, $next_idx:ident) => {{
-        $cvm.stack.push(CVMObject::$type(*$val));
+        $cvm.stack.push(CvmObject::$type(*$val));
         $next_idx
     }};
 }
 
-impl CVM {
+impl Cvm {
     pub fn new() -> Self {
-        CVM {
-            stack: Stack::<CVMObject>::with_capacity(100_000),
-            globals: Vec::<CVMObject>::new(),
-            functions: Vec::<Rc<CVMFunctionObject>>::new(),
-            call_stack: Stack::<CVMCallFrame>::with_capacity(10_000),
+        Cvm {
+            stack: Stack::<CvmObject>::with_capacity(100_000),
+            globals: Vec::<CvmObject>::new(),
+            functions: Vec::<Rc<CvmFunctionObject>>::new(),
+            call_stack: Stack::<CvmCallFrame>::with_capacity(10_000),
         }
     }
 
@@ -72,15 +73,24 @@ impl CVM {
             Bytecode::ConstU(val) => push_constant!(self, Uint, val, next_idx),
             Bytecode::ConstF(val) => push_constant!(self, Float, val, next_idx),
             Bytecode::ConstS(val) => {
-                self.stack.push(CVMObject::Str(val.clone()));
+                self.stack.push(CvmObject::Str(val.clone()));
                 next_idx
             }
             Bytecode::ConstB(val) => push_constant!(self, Bool, val, next_idx),
 
+            Bytecode::CastI => {
+                let obj = self.stack.pop().expect("expected a value on the stack");
+                let CvmObject::Uint(val) = obj else {
+                    panic!("casting non-uint to int")
+                };
+                self.stack.push(CvmObject::Int(val as i64));
+                next_idx
+            }
+
             Bytecode::SetGlobal(var_id) => {
                 let var_value = self.stack.pop().expect("expected a value on the stack");
                 while *var_id >= self.globals.len() {
-                    self.globals.push(CVMObject::Int(0));
+                    self.globals.push(CvmObject::Int(0));
                 }
                 *self.globals.get_mut(*var_id).unwrap() = var_value;
                 next_idx
@@ -122,14 +132,14 @@ impl CVM {
                 /* since local variables can exist outside of a function scope, a check is
                  * performed whether there is a call frame */
                 if let Some(frame) = self.call_stack.peek() {
-                    var_id = frame.stack_len as usize + frame.args_len as usize + var_id;
+                    var_id += frame.stack_len as usize + frame.args_len as usize;
                 }
 
                 if let Some(var) = self.stack.get_mut(var_id) {
                     *var = value;
                 } else {
-                    while self.stack.len() <= var_id {
-                        self.stack.push(CVMObject::default());
+                    while self.stack.len() < var_id {
+                        self.stack.push(CvmObject::default());
                     }
                     self.stack.push(value);
                 }
@@ -137,7 +147,7 @@ impl CVM {
             }
             Bytecode::GetLocal(mut var_id) => {
                 if let Some(frame) = self.call_stack.peek() {
-                    var_id = frame.stack_len as usize + frame.args_len as usize + var_id;
+                    var_id += frame.stack_len as usize + frame.args_len as usize;
                 }
                 let value = self.stack.get(var_id).unwrap().clone();
                 self.stack.push(value);
@@ -163,7 +173,7 @@ impl CVM {
             Bytecode::Not => not(self, next_idx),
 
             Bytecode::CreateFunc(arg_count) => {
-                let func_obj = CVMFunctionObject {
+                let func_obj = CvmFunctionObject {
                     arg_count: *arg_count,
                     code: Rc::new(code[next_idx..].into()),
                 };
@@ -181,7 +191,7 @@ impl CVM {
                 // NOTE: the arguments to the function call are already in place
                 // and local variables are automatically handled
 
-                let frame = CVMCallFrame {
+                let frame = CvmCallFrame {
                     prev_idx: next_idx as u32,
                     stack_len: (self.stack.len() - func_obj.arg_count) as u32,
                     args_len: func_obj.arg_count as u16,
@@ -208,7 +218,7 @@ impl CVM {
 
             Bytecode::If(jmp) => {
                 let cond_raw = self.stack.pop().expect("expected an object on the stack");
-                let CVMObject::Bool(cond) = cond_raw else {
+                let CvmObject::Bool(cond) = cond_raw else {
                     panic!("expected a bool when checking if statements")
                 };
 
@@ -232,7 +242,7 @@ impl CVM {
     }
 
     #[inline(always)]
-    fn push(&mut self, val: CVMObject) {
+    fn push(&mut self, val: CvmObject) {
         self.stack.push(val)
     }
 }

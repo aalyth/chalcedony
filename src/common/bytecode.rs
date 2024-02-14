@@ -8,6 +8,9 @@ pub enum Bytecode {
     ConstS(PtrString),
     ConstB(bool),
 
+    // converts uint -> int
+    CastI,
+
     Add,
     Sub,
     Mul,

@@ -19,7 +19,7 @@ impl ToBytecode for NodeVarCall {
         if let Some(var) = interpreter.globals.get(&self.name) {
             return Ok(vec![Bytecode::GetGlobal(var.id)]);
         }
-        return Err(CompileError::unknown_variable(self.name, self.span).into());
+        Err(CompileError::unknown_variable(self.name, self.span).into())
     }
 }
 
@@ -29,7 +29,7 @@ impl ToBytecode for NodeVarDef {
             return Err(CompileError::redefining_variable(self.span.clone()).into());
         }
 
-        let value_type = self.value.as_type(&interpreter)?;
+        let value_type = self.value.as_type(interpreter)?;
         if self.ty != Type::Any {
             if self.ty != value_type {
                 return Err(CompileError::invalid_type(

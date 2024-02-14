@@ -5,7 +5,6 @@ use std::ops;
 use std::ptr;
 
 /* an 8-byte ASCII string implementation */
-#[derive(Debug)]
 pub struct PtrString(*const u8);
 
 impl PtrString {
@@ -70,7 +69,7 @@ impl ops::Mul<usize> for PtrString {
 
 impl cmp::PartialEq for PtrString {
     fn eq(&self, other: &PtrString) -> bool {
-        self.partial_cmp(other) == None
+        self.partial_cmp(other).is_none()
     }
 }
 
@@ -100,7 +99,7 @@ impl cmp::PartialOrd for PtrString {
                 return Some(cmp::Ordering::Greater);
             }
 
-            return None;
+            None
         }
     }
 }
@@ -109,15 +108,21 @@ impl fmt::Display for PtrString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         unsafe {
             let mut res = String::new();
-            let ptr = self.0 as *const u8;
+            let ptr = self.0;
             let mut i: usize = 0;
             while *ptr.add(i) != 0 {
                 let ch = *ptr.add(i);
-                res.push((ch as char).clone());
+                res.push(ch as char);
                 i += 1;
             }
             write!(f, "{}", res)
         }
+    }
+}
+
+impl fmt::Debug for PtrString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
@@ -127,7 +132,7 @@ impl From<String> for PtrString {
             // SAFETY: the error value is upon isize overflow, which would be extremely rare
             let layout = Layout::array::<*const u8>(val.len() + 1)
                 .expect("Error: creating a string with size greater than isize::MAX");
-            let res: *mut u8 = alloc(layout) as *mut u8;
+            let res: *mut u8 = alloc(layout);
             ptr::copy(val.as_ptr(), res, val.len());
             ptr::write(res.add(val.len()), 0);
             PtrString(res)

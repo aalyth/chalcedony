@@ -25,24 +25,24 @@ fn get_eval_args(eval_stack: &mut Stack<Type>) -> (Type, Type) {
 }
 
 // works with the resulting type of the 3 basic operations: add, sub, mul
-macro_rules! basic_bin_opr {
+macro_rules! bin_opr_eval {
     ($stack:ident, $str_handler:ident, $opr_name:expr, $span:ident) => {{
         let (left, right) = get_eval_args($stack);
         match (left, right) {
             (Type::Int, Type::Int) => Ok(Type::Int),
             (Type::Int, Type::Uint) => Ok(Type::Int),
-            (Type::Int, Type::Float) => Ok(Type::Float),
+            (Type::Int, Type::Float) => Ok(Type::Int),
 
             (Type::Uint, Type::Int) => Ok(Type::Int),
             (Type::Uint, Type::Uint) => Ok(Type::Uint),
-            (Type::Uint, Type::Float) => Ok(Type::Float),
+            (Type::Uint, Type::Float) => Ok(Type::Int),
 
             (Type::Float, Type::Int) => Ok(Type::Float),
             (Type::Float, Type::Uint) => Ok(Type::Float),
             (Type::Float, Type::Float) => Ok(Type::Float),
 
-            (Type::Str, right @ _) => $str_handler(right, $span),
-            (left @ _, right @ _) => Err(CompileError::invalid_bin_opr(
+            (Type::Str, right) => $str_handler(right, $span),
+            (left, right) => Err(CompileError::invalid_bin_opr(
                 $opr_name.to_string(),
                 left,
                 right,
@@ -58,52 +58,38 @@ fn opr_add(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError>
     fn add(_: Type, _: &Span) -> Result<Type, ChalError> {
         Ok(Type::Str)
     }
-    basic_bin_opr!(eval_stack, add, "+", span)
+    bin_opr_eval!(eval_stack, add, "+", span)
 }
 
 fn opr_sub(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    // anything added to a string returns a string
     fn sub(right: Type, span: &Span) -> Result<Type, ChalError> {
-        Err(CompileError::invalid_bin_opr("sub".to_string(), Type::Str, right, span.clone()).into())
+        Err(CompileError::invalid_bin_opr("-".to_string(), Type::Str, right, span.clone()).into())
     }
-    basic_bin_opr!(eval_stack, sub, "-", span)
+    bin_opr_eval!(eval_stack, sub, "-", span)
 }
 
 fn opr_mul(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    // anything added to a string returns a string
     fn mul(right: Type, span: &Span) -> Result<Type, ChalError> {
         if right == Type::Uint {
             return Ok(Type::Str);
         }
-        Err(CompileError::invalid_bin_opr("mul".to_string(), Type::Str, right, span.clone()).into())
+        Err(CompileError::invalid_bin_opr("*".to_string(), Type::Str, right, span.clone()).into())
     }
-    basic_bin_opr!(eval_stack, mul, "*", span)
+    bin_opr_eval!(eval_stack, mul, "*", span)
 }
 
 fn opr_div(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    let (left, right) = get_eval_args(eval_stack);
-    match (left, right) {
-        (Type::Int, Type::Int)
-        | (Type::Int, Type::Uint)
-        | (Type::Int, Type::Float)
-        | (Type::Uint, Type::Int)
-        | (Type::Uint, Type::Uint)
-        | (Type::Uint, Type::Float)
-        | (Type::Float, Type::Int)
-        | (Type::Float, Type::Uint)
-        | (Type::Float, Type::Float) => Ok(Type::Float),
-
-        (left @ _, right @ _) => {
-            Err(CompileError::invalid_bin_opr("/".to_string(), left, right, span.clone()).into())
-        }
+    fn div(right: Type, span: &Span) -> Result<Type, ChalError> {
+        Err(CompileError::invalid_bin_opr("/".to_string(), Type::Str, right, span.clone()).into())
     }
+    bin_opr_eval!(eval_stack, div, "/", span)
 }
 
 fn opr_mod(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
     fn _mod(right: Type, span: &Span) -> Result<Type, ChalError> {
         Err(CompileError::invalid_bin_opr("mod".to_string(), Type::Str, right, span.clone()).into())
     }
-    basic_bin_opr!(eval_stack, _mod, "%", span)
+    bin_opr_eval!(eval_stack, _mod, "%", span)
 }
 
 // logical || or &&
@@ -129,7 +115,7 @@ fn opr_logical(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<T
         | (Type::Bool, Type::Uint)
         | (Type::Bool, Type::Float)
         | (Type::Bool, Type::Bool) => Ok(Type::Bool),
-        (left @ _, right @ _) => {
+        (left, right) => {
             Err(CompileError::invalid_bin_opr(opr.to_string(), left, right, span.clone()).into())
         }
     }
@@ -158,7 +144,7 @@ macro_rules! opr_cmp_internal {
 
             (Type::Str, Type::Str) => Ok(Type::Bool),
             (Type::Bool, _) => $cmp_func(right, $span),
-            (left @ _, right @ _) => Err(CompileError::invalid_bin_opr(
+            (left, right) => Err(CompileError::invalid_bin_opr(
                 $opr_name.to_string(),
                 left,
                 right,
@@ -174,12 +160,9 @@ fn opr_eq(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, 
     let cmp_eq = |val: Type, span: &Span| -> Result<Type, ChalError> {
         match val {
             Type::Int | Type::Uint | Type::Float | Type::Bool => Ok(Type::Bool),
-            ty @ _ => {
-                Err(
-                    CompileError::invalid_bin_opr(opr.to_string(), Type::Bool, ty, span.clone())
-                        .into(),
-                )
-            }
+            ty => Err(
+                CompileError::invalid_bin_opr(opr.to_string(), Type::Bool, ty, span.clone()).into(),
+            ),
         }
     };
     opr_cmp_internal!(eval_stack, cmp_eq, opr, span)
@@ -222,7 +205,7 @@ fn opr_neg(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError>
         Type::Int => Ok(Type::Int),
         Type::Uint => Ok(Type::Int),
         Type::Float => Ok(Type::Float),
-        ty @ _ => Err(CompileError::invalid_unary_opr("-".to_string(), ty, span.clone()).into()),
+        ty => Err(CompileError::invalid_unary_opr("-".to_string(), ty, span.clone()).into()),
     }
 }
 
@@ -230,7 +213,7 @@ fn opr_not(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError>
     let val = eval_stack.pop().expect("expected a value on the stack");
     match val {
         Type::Int | Type::Uint | Type::Float | Type::Bool => Ok(Type::Bool),
-        ty @ _ => Err(CompileError::invalid_unary_opr("!".to_string(), ty, span.clone()).into()),
+        ty => Err(CompileError::invalid_unary_opr("!".to_string(), ty, span.clone()).into()),
     }
 }
 
@@ -271,7 +254,7 @@ impl NodeExprInner {
             }
 
             NodeExprInner::FuncCall(node) => {
-                if let Some(func) = interpreter.func_symtable.get(&node.name).clone() {
+                if let Some(func) = interpreter.func_symtable.get(&node.name) {
                     let func = func.borrow();
                     if func.ret_type == Type::Void {
                         return Err(CompileError::void_func_expr(node.span.clone()).into());
@@ -289,7 +272,7 @@ impl NodeExprInner {
 
 impl NodeExpr {
     pub fn as_type(&self, interpreter: &Chalcedony) -> Result<Type, ChalError> {
-        if self.expr.len() == 0 {
+        if self.expr.is_empty() {
             return Ok(Type::Void);
         }
 

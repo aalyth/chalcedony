@@ -84,7 +84,7 @@ impl TokenReader {
     pub fn expect_ident(&mut self) -> Result<String, ChalError> {
         let exp = self.expect(TokenKind::Identifier(String::new()))?;
         match exp.kind {
-            TokenKind::Identifier(res) => Ok(res.clone()),
+            TokenKind::Identifier(res) => Ok(res),
             _ => Err(
                 InternalError::new("TokenReader::expect_ident(): invalid expect() value").into(),
             ),
@@ -94,7 +94,7 @@ impl TokenReader {
     pub fn expect_type(&mut self) -> Result<Type, ChalError> {
         let exp = self.expect(TokenKind::Type(Type::Any))?;
         match exp.kind {
-            TokenKind::Type(res) => Ok(res.clone()),
+            TokenKind::Type(res) => Ok(res),
             _ => {
                 Err(InternalError::new("TokenReader::expect_type(): invalid expect() value").into())
             }

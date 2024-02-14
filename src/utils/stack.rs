@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use std::collections::VecDeque;
+
+#[derive(Debug, Default)]
 pub struct Stack<T> {
     values: Vec<T>,
 }
@@ -23,12 +25,6 @@ impl<T> Stack<T> {
     pub fn pop(&mut self) -> Option<T> {
         self.values.pop()
     }
-
-    /*
-    pub fn top(&mut self) -> Option<&mut T> {
-        self.values.last_mut()
-    }
-    */
 
     pub fn get(&mut self, idx: usize) -> Option<&T> {
         self.values.get(idx)
@@ -55,8 +51,8 @@ impl<T> Stack<T> {
     }
 }
 
-impl<T> Into<Vec<T>> for Stack<T> {
-    fn into(self) -> Vec<T> {
-        self.values
+impl<T> From<Stack<T>> for VecDeque<T> {
+    fn from(value: Stack<T>) -> Self {
+        value.values.into()
     }
 }

@@ -13,15 +13,10 @@ extern crate ahash;
 use std::env;
 use std::fs;
 
-// TODO: add itou function
-
-// TODO: add 'continue' and 'break' statements
-
-// TODO: add div by zero checks
-
 /* Future improvements
-   - `continue` and `break` statements
+   - type cast functions
    - itou() function
+   - len() for strings
    - short cuircuit logic operators
 */
 

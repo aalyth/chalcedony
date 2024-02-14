@@ -9,7 +9,7 @@ pub enum Colors {
     Cyan,
 }
 
-pub fn color<'a>(color: Colors, msg: &str) -> String {
+pub fn color(color: Colors, msg: &str) -> String {
     let end: &str = "\x1B[0m";
 
     let color_ansi = match color {
