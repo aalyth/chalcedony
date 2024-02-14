@@ -26,6 +26,11 @@ pub struct NodeElseStmnt {
 
 impl NodeIfStmnt {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
+        /* if statement structure:
+         * if n % 3 == 0:    | header
+         *     print(n)      > body
+         *     count += 1    > body
+         */
         let mut header = reader.advance_reader()?;
         header.expect_exact(TokenKind::Keyword(Keyword::If))?;
 

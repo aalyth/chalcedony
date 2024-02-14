@@ -13,8 +13,8 @@ pub struct NodeVarDef {
 
 impl NodeVarDef {
     pub fn new(mut reader: TokenReader) -> Result<NodeVarDef, ChalError> {
-        /* let a = 5 */
-        /* let b: usize = 3 */
+        /* let a = 5      */
+        /* let b: int = 3 */
         reader.expect_exact(TokenKind::Keyword(Keyword::Let))?;
 
         let lhs_tok = reader.expect(TokenKind::Identifier("".to_string()))?;

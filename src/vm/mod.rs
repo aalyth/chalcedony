@@ -60,7 +60,6 @@ impl Cvm {
 
     #[inline(always)]
     fn execute_next(&mut self, current_idx: usize, code: &Vec<Bytecode>) -> usize {
-        // let next_instr = code.get(curr_idx).unwrap();
         let next_instr: &Bytecode;
         if let Some(frame) = self.call_stack.peek() {
             next_instr = frame.code.get(current_idx).expect("invalid current idx");
@@ -188,8 +187,8 @@ impl Cvm {
                     .expect("expected a valid function id")
                     .clone();
 
-                // NOTE: the arguments to the function call are already in place
-                // and local variables are automatically handled
+                /* NOTE: the arguments to the function call are already in place
+                 * and local variables are automatically handled */
 
                 let frame = CvmCallFrame {
                     prev_idx: next_idx as u32,

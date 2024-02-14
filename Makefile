@@ -31,7 +31,10 @@ test:
 		echo "Error: the ${executable} does not exist"; \
 		exit 1; \
 	fi
-	find ./examples/* -type f -exec ${executable} '{}' ';' 1> /dev/null
+	for file in $(shell find ./examples/* -type f); do \
+		echo "Running script: $${file}"; \
+		${executable} $${file} 1> /dev/null || true; \
+	done
 
 clean:
 	cargo clean

@@ -29,22 +29,16 @@ impl ToBytecode for NodeVarDef {
             return Err(CompileError::redefining_variable(self.span.clone()).into());
         }
 
-        let value_type = self.value.as_type(interpreter)?;
+        let mut result = self.value.clone().to_bytecode(interpreter)?;
+
+        let value_type = self.value.clone().as_type(interpreter)?;
         if self.ty != Type::Any {
-            if self.ty != value_type {
-                return Err(CompileError::invalid_type(
-                    self.ty,
-                    value_type,
-                    self.value.span.clone(),
-                )
-                .into());
-            }
+            Type::verify(self.ty, value_type, &mut result, self.value.span.clone())?;
         } else {
             self.ty = value_type;
         }
 
         let var_id = interpreter.get_global_id(&self);
-        let mut result = self.value.to_bytecode(interpreter)?;
         result.push(Bytecode::SetGlobal(var_id));
         Ok(result)
     }

@@ -13,7 +13,7 @@ use crate::common::{Bytecode, Type};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-// ahash is the fastest hashing algorithm in terms of hashing strings (faster than fxhash)
+/* ahash is the fastest hashing algorithm in terms of hashing strings (faster than fxhash) */
 use ahash::AHashMap;
 
 #[derive(Debug, Clone)]

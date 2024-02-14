@@ -13,11 +13,10 @@ extern crate ahash;
 use std::env;
 use std::fs;
 
-/* Future improvements
-   - type cast functions
-   - itou() function
+/* Future ideas:
    - len() for strings
    - short cuircuit logic operators
+   - type cast functions
 */
 
 fn main() {

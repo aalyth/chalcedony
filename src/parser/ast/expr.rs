@@ -174,7 +174,6 @@ impl NodeExpr {
         let mut operators = Stack::<Operator>::new();
         let start = reader.current().start;
 
-        // let mut prev_type = false;
         let mut prev_type = PrevType::BinOpr;
 
         while !reader.is_empty() {
@@ -246,7 +245,7 @@ impl NodeExpr {
                             }
                             buffer.push_back(current);
                         }
-                        /* SAFETY: the buffer should always have at least 1 element in it */
+                        // SAFETY: the buffer should always have at least 1 element in it
                         let tmp_reader = TokenReader::new(buffer, reader.spanner());
                         let node = NodeExprInner::FuncCall(NodeFuncCall::new(tmp_reader)?);
                         push_terminal!(node, output, prev_type, current);

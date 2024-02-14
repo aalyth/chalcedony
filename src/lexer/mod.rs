@@ -36,7 +36,8 @@ impl Lexer {
         /* this is so empty lines at the end do not cause errors */
         src.push('\n');
 
-        // TODO: make a function for a file and for an inline lexer
+        // NOTE: in the case of adding an inline lexer,
+        // make a function for a lexer from file
         let mut result = Lexer {
             delim_stack: VecDeque::<Token>::new(),
             reader: CharReader::new(src),
@@ -339,8 +340,9 @@ impl Lexer {
             let mut src =
                 String::from(current) + &self.reader.advance_while(|c: &char| *c != current);
             if let Some(c) = self.reader.advance() {
+                /* adds the '"' at the end */
                 src.push(c);
-            } // adds the '"' at the end
+            }
 
             return self.advance_tok(src, start, *self.reader.pos());
         }

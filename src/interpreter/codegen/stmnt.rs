@@ -37,24 +37,14 @@ impl ToBytecode for NodeStmnt {
                     }
                 }
 
+                let mut result = node.value.clone().to_bytecode(interpreter)?;
+
                 let value_type = node.value.as_type(interpreter)?;
-                /* here we don't use Type::verify() since the user explicitly wanted the type */
                 if node.ty != Type::Any {
-                    if node.ty != value_type {
-                        return Err(CompileError::invalid_type(
-                            node.ty,
-                            value_type,
-                            node.value.span.clone(),
-                        )
-                        .into());
-                    }
+                    Type::verify(node.ty, value_type, &mut result, node.value.span.clone())?;
                 } else {
                     node.ty = value_type;
                 }
-
-                let mut result = Vec::<Bytecode>::new();
-                let value = node.value.clone().to_bytecode(interpreter)?;
-                result.extend(value);
 
                 /* this implicitly adds the variable to the locals symtable */
                 let var_id = interpreter.get_local_id(&node);
@@ -328,8 +318,7 @@ impl ToBytecode for NodeRetStmnt {
             return Ok(vec![Bytecode::ReturnVoid]);
         }
 
-        let mut result = Vec::<Bytecode>::new();
-        result.extend(self.value.clone().to_bytecode(interpreter)?);
+        let mut result = self.value.clone().to_bytecode(interpreter)?;
 
         Type::verify(exp_type, recv_type, &mut result, self.value.span)?;
 

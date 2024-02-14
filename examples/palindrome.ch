@@ -50,4 +50,3 @@ let num = 519197
 print(log10(num))
 print(nth_digit(num, 7))
 print(is_palindrome(12))
-

@@ -24,7 +24,6 @@ fn get_eval_args(eval_stack: &mut Stack<Type>) -> (Type, Type) {
     (left, right)
 }
 
-// works with the resulting type of the 3 basic operations: add, sub, mul
 macro_rules! bin_opr_eval {
     ($stack:ident, $str_handler:ident, $opr_name:expr, $span:ident) => {{
         let (left, right) = get_eval_args($stack);
@@ -54,7 +53,7 @@ macro_rules! bin_opr_eval {
 }
 
 fn opr_add(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    // anything added to a string returns a string
+    /* anything added to a string returns a string */
     fn add(_: Type, _: &Span) -> Result<Type, ChalError> {
         Ok(Type::Str)
     }
@@ -92,12 +91,11 @@ fn opr_mod(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError>
     bin_opr_eval!(eval_stack, _mod, "%", span)
 }
 
-// logical || or &&
+/* logical || or && */
 fn opr_logical(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, ChalError> {
     let right = eval_stack.pop().expect("expected a type on the eval stack");
     let left = eval_stack.pop().expect("expected a type on the eval stack");
 
-    // TODO: simplify this ???
     match (left, right) {
         (Type::Int, Type::Int)
         | (Type::Int, Type::Uint)
@@ -155,7 +153,7 @@ macro_rules! opr_cmp_internal {
     }};
 }
 
-// matches != and ==
+/* matches != and == */
 fn opr_eq(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, ChalError> {
     let cmp_eq = |val: Type, span: &Span| -> Result<Type, ChalError> {
         match val {
@@ -168,7 +166,7 @@ fn opr_eq(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, 
     opr_cmp_internal!(eval_stack, cmp_eq, opr, span)
 }
 
-// matches lt, gt, le, ge
+/* matches lt, gt, lteq, gteq */
 fn opr_cmp(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, ChalError> {
     let cmp_operator = |right: Type, span: &Span| -> Result<Type, ChalError> {
         Err(CompileError::invalid_bin_opr(opr.to_string(), Type::Bool, right, span.clone()).into())

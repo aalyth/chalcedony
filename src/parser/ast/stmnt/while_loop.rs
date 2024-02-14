@@ -10,10 +10,11 @@ pub struct NodeWhileLoop {
 
 impl NodeWhileLoop {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
-        // while loop structure:
-        // while a <= 42:    | header
-        //     print(a)      > body
-        //     a += 1        > body
+        /* while loop structure:
+         * while a <= 42:    | header
+         *     print(a)      > body
+         *     a += 1        > body
+         */
 
         let mut header = reader.advance_reader()?;
         header.expect_exact(TokenKind::Keyword(Keyword::While))?;
