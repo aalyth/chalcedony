@@ -16,12 +16,13 @@ fn fib(n: int) -> int:
     return b
 
 
-let n = 1
-while n <= 15:
-    let res = fib(n)
-    let res_rec = fib_rec(n)
-
-    print('Fib (' + n + '): ' + res + '; exp: ' + res_rec)
-    assert(res, res_rec)
-
-    n += 1
+# let n = 1
+# while n <= 15:
+#     let res = fib(n)
+#     let res_rec = fib_rec(n)
+# 
+#     print('Fib (' + n + '): ' + res + '; exp: ' + res_rec)
+#     assert(res, res_rec)
+# 
+#     n += 1
+print(fib_rec(35))

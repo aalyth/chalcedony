@@ -17,9 +17,9 @@ struct CvmFunctionObject {
 
 #[derive(Debug, Default)]
 struct CvmCallFrame {
-    prev_idx: u32,
-    args_len: u16,
-    stack_len: u32,
+    prev_idx: usize,
+    args_len: usize,
+    stack_len: usize,
 
     code: Rc<Vec<Bytecode>>,
 }
@@ -107,20 +107,13 @@ impl Cvm {
             Bytecode::SetArg(arg_id) => {
                 let frame = self.call_stack.peek().expect("expected a stack frame");
                 let value = self.stack.pop().expect("expected a value on the stack");
-                *self
-                    .stack
-                    .get_mut(frame.stack_len as usize + *arg_id)
-                    .unwrap() = value;
+                *self.stack.get_mut(frame.stack_len + *arg_id).unwrap() = value;
                 next_idx
             }
 
             Bytecode::GetArg(arg_id) => {
                 let frame = self.call_stack.peek().expect("expected a stack frame");
-                let value = self
-                    .stack
-                    .get(frame.stack_len as usize + arg_id)
-                    .unwrap()
-                    .clone();
+                let value = self.stack.get(frame.stack_len + arg_id).unwrap().clone();
                 self.stack.push(value);
                 next_idx
             }
@@ -131,7 +124,7 @@ impl Cvm {
                 /* since local variables can exist outside of a function scope, a check is
                  * performed whether there is a call frame */
                 if let Some(frame) = self.call_stack.peek() {
-                    var_id += frame.stack_len as usize + frame.args_len as usize;
+                    var_id += frame.stack_len + frame.args_len;
                 }
 
                 if let Some(var) = self.stack.get_mut(var_id) {
@@ -146,7 +139,7 @@ impl Cvm {
             }
             Bytecode::GetLocal(mut var_id) => {
                 if let Some(frame) = self.call_stack.peek() {
-                    var_id += frame.stack_len as usize + frame.args_len as usize;
+                    var_id += frame.stack_len + frame.args_len;
                 }
                 let value = self.stack.get(var_id).unwrap().clone();
                 self.stack.push(value);
@@ -191,9 +184,9 @@ impl Cvm {
                  * and local variables are automatically handled */
 
                 let frame = CvmCallFrame {
-                    prev_idx: next_idx as u32,
-                    stack_len: (self.stack.len() - func_obj.arg_count) as u32,
-                    args_len: func_obj.arg_count as u16,
+                    prev_idx: next_idx,
+                    stack_len: self.stack.len() - func_obj.arg_count,
+                    args_len: func_obj.arg_count,
                     code: func_obj.code.clone(),
                 };
                 self.call_stack.push(frame);
@@ -204,15 +197,15 @@ impl Cvm {
             Bytecode::Return => {
                 let value = self.stack.pop().unwrap();
                 let frame = self.call_stack.pop().unwrap();
-                self.stack.truncate(frame.stack_len as usize);
+                self.stack.truncate(frame.stack_len);
                 self.stack.push(value);
-                frame.prev_idx as usize
+                frame.prev_idx
             }
 
             Bytecode::ReturnVoid => {
                 let frame = self.call_stack.pop().unwrap();
-                self.stack.truncate(frame.stack_len as usize);
-                frame.prev_idx as usize
+                self.stack.truncate(frame.stack_len);
+                frame.prev_idx
             }
 
             Bytecode::If(jmp) => {
