@@ -7,7 +7,7 @@ fn test():
         if a == 42:
             break
 
-        if a % 2 == 0:
+        elif a % 2 == 0:
             continue
 
         let j = 0

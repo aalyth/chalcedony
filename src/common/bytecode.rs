@@ -2,6 +2,8 @@ use crate::utils::PtrString;
 
 #[derive(Debug, Clone)]
 pub enum Bytecode {
+    Nop,
+
     ConstI(i64),
     ConstU(u64),
     ConstF(f64),

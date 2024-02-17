@@ -237,6 +237,8 @@ impl Cvm {
             }
 
             Bytecode::Assert => assert(self, next_idx),
+
+            Bytecode::Nop => next_idx,
         }
     }
 

@@ -79,16 +79,31 @@ impl ToBytecode for NodeIfBranch {
 
 impl ToBytecode for NodeElifStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let cond_bytecode = self.condition.to_bytecode(interpreter)?;
-        let body_bytecode = self.body.to_bytecode(interpreter)?;
+        let prev_while_scope_len = interpreter
+            .current_while
+            .as_ref()
+            .unwrap_or(&WhileScope::default())
+            .current_length;
 
-        let cond_len = cond_bytecode.len();
-        let body_len = body_bytecode.len();
+        let mut result = self.condition.clone().to_bytecode(interpreter)?;
 
-        let mut result = Vec::<Bytecode>::with_capacity(cond_len + body_len + 1);
-        result.extend(cond_bytecode);
-        result.push(Bytecode::If(body_len + 1));
-        result.extend(body_bytecode);
+        let cond_ty = self.condition.as_type(interpreter)?;
+        Type::verify(
+            Type::Bool,
+            cond_ty,
+            &mut result,
+            self.condition.span.clone(),
+        )?;
+
+        increment_while_scope(interpreter, result.len() + 1);
+
+        let body = self.body.to_bytecode(interpreter)?;
+
+        /* the extra length is for potential jumps over other branches */
+        result.push(Bytecode::If(body.len() + 1));
+        result.extend(body);
+
+        set_while_scope(interpreter, prev_while_scope_len);
 
         Ok(result)
     }
@@ -122,24 +137,33 @@ impl ToBytecode for Vec<NodeStmnt> {
 
 impl ToBytecode for NodeIfStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let cond = self.condition.to_bytecode(interpreter)?;
-
         let prev_while_scope_len = interpreter
             .current_while
             .as_ref()
             .unwrap_or(&WhileScope::default())
             .current_length;
 
-        /* condition + Bytecode::If */
-        increment_while_scope(interpreter, cond.len() + 1);
+        let mut result = self.condition.clone().to_bytecode(interpreter)?;
+        let cond_ty = self.condition.as_type(interpreter)?;
+        Type::verify(
+            Type::Bool,
+            cond_ty,
+            &mut result,
+            self.condition.span.clone(),
+        )?;
+
+        increment_while_scope(interpreter, result.len() + 1);
+
         let body = self.body.to_bytecode(interpreter)?;
+
+        increment_while_scope(interpreter, body.len() + 1);
 
         let mut branches: Vec<Vec<Bytecode>> = Vec::new();
         let mut errors: Vec<ChalError> = Vec::new();
         for branch in self.branches {
             match branch.to_bytecode(interpreter) {
                 Ok(bytecode) => {
-                    increment_while_scope(interpreter, bytecode.len());
+                    increment_while_scope(interpreter, bytecode.len() + 1);
                     branches.push(bytecode);
                 }
                 Err(err) => errors.push(err),
@@ -152,13 +176,11 @@ impl ToBytecode for NodeIfStmnt {
             return Err(errors.into());
         }
 
-        let mut result = Vec::<Bytecode>::new();
-        result.extend(cond);
-
         /* a single if statement */
         if branches.is_empty() {
             result.push(Bytecode::If(body.len()));
             result.extend(body);
+            result.push(Bytecode::Nop);
 
         /* if statement with more branches */
         } else {
@@ -174,7 +196,13 @@ impl ToBytecode for NodeIfStmnt {
             for branch in branches.into_iter() {
                 leftover_branch_len -= (branch.len() + 1) as isize;
                 result.extend(branch);
-                result.push(Bytecode::Jmp(leftover_branch_len));
+
+                /* this doesn't have any performance impact, but helps when debugging */
+                if leftover_branch_len > 0 {
+                    result.push(Bytecode::Jmp(leftover_branch_len));
+                } else {
+                    result.push(Bytecode::Nop);
+                }
             }
         }
 
@@ -192,15 +220,21 @@ impl ToBytecode for NodeWhileLoop {
             increment_while_scope(interpreter, 1);
         }
 
-        let cond = self.condition.to_bytecode(interpreter)?;
+        let mut result = self.condition.clone().to_bytecode(interpreter)?;
 
-        increment_while_scope(interpreter, cond.len() + 1);
+        let cond_ty = self.condition.as_type(interpreter)?;
+        Type::verify(
+            Type::Bool,
+            cond_ty,
+            &mut result,
+            self.condition.span.clone(),
+        )?;
+
+        increment_while_scope(interpreter, result.len() + 1);
 
         let body = self.body.to_bytecode(interpreter)?;
         let body_len = body.len() + 1; // taking into account the jump backwards
-
-        let mut result = Vec::<Bytecode>::new();
-        result.extend(cond);
+                                       //
         result.push(Bytecode::If(body_len));
         result.extend(body);
 

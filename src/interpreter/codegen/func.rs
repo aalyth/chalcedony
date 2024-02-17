@@ -16,8 +16,6 @@ impl ToBytecode for NodeFuncDef {
             return Err(CompileError::overloaded_function(self.span).into());
         }
 
-        let mut body = Vec::<Bytecode>::new();
-
         /* enumerate over the function's arguments */
         let mut args = Vec::<ArgAnnotation>::new();
         for (idx, arg) in self.args.iter().enumerate() {
@@ -30,18 +28,24 @@ impl ToBytecode for NodeFuncDef {
         interpreter.create_function(self.name.clone(), args, self.ret_type);
 
         /* compile the bytecode for each statement in the body */
+        let mut body = Vec::<Bytecode>::new();
+        let mut errors = Vec::<ChalError>::new();
         let mut returned = false;
         for stmnt in self.body {
             if let NodeStmnt::RetStmnt(_) = stmnt {
                 returned = true;
             }
-            body.append(&mut stmnt.to_bytecode(interpreter)?);
 
-            /* if a return statement is reached, there is no point in
-             * parsing the rest of the body's code */
-            if returned {
-                break;
+            /* there's no point in using any code after a return statement, but we still need
+             * to check whether the rest of the body is valid */
+            match stmnt.to_bytecode(interpreter) {
+                Ok(bytecode) => body.extend(bytecode),
+                Err(err) => errors.push(err),
             }
+        }
+
+        if !errors.is_empty() {
+            return Err(errors.into());
         }
 
         /* check whether the function has returned, and if it is a void function, append

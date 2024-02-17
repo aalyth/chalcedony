@@ -15,7 +15,6 @@ fn fib(n: int) -> int:
         n -= 1
     return b
 
-
 let n = 1
 while n <= 15:
     let res = fib(n)
