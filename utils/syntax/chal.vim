@@ -1,24 +1,25 @@
-if exists("b:current_syntax")
+if exists('b:current_syntax')
     finish
 endif
 
-syn keyword keywords fn return let if elif else while pass
-syn keyword type uint int float str bool void
-syn keyword boolean true false
+syntax keyword keywords fn return let if elif else while continue break 
+syntax keyword type uint int float str bool void
+syntax keyword boolean true false
 
-syn match comment '#.*$'
-syn region string start='"' end='"'
-syn region string start="'" end="'"
+syntax match comment '#.*$'
+syntax region string start='"' end='"'
+syntax region string start="'" end="'"
 
-syn match number '\d\+'
-syn match number ' -\d\+'
-syn match number '\d\+\.\d\+'
-syn match number ' -\d\+\.\d\+'
+syntax match number '\<\d\+\>'
+syntax match number '\<\d\+\.\d\+\>'
+
+syntax match func '\(fn \)\@<=\w\+'
 
 let b:current_syntax = 'chalcedony'
-hi def link types    Type
+hi def link types    Label
 hi def link keywords Statement
 hi def link boolean  Constant
 hi def link number   Constant
 hi def link string   Constant
 hi def link comment  Comment
+hi def link func     Blue 

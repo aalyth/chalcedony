@@ -22,10 +22,10 @@ syntax: ./utils/syntax/chal.vim
 	cp ./utils/syntax/chal.vim ~/.vim/syntax/ch.vim
 	mkdir -p ~/.vim/ftdetect
 	touch ~/.vim/ftdetect/ch.vim
-	echo "au BufRead, BufNewFile *.ch setfiletype chalcedony" > ~/.vim/ftdetect/ch.vim
+	echo "au BufRead,BufNewFile *.ch set filetype=chalcedony" > ~/.vim/ftdetect/ch.vim
 	# for nvim:
 	mkdir -p ~/.config/nvim/syntax 
-	cp ./utils/syntax/chal.vim ~/.config/nvim/syntax/ch.vim
+	cp ./utils/syntax/chal.vim ~/.config/nvim/syntax/chalcedony.vim
 
 test:
 	if [ ! -f  ${executable} ]; then \
