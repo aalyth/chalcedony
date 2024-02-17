@@ -16,8 +16,6 @@ impl ToBytecode for NodeFuncDef {
             return Err(CompileError::overloaded_function(self.span).into());
         }
 
-        let mut body = Vec::<Bytecode>::new();
-
         /* enumerate over the function's arguments */
         let mut args = Vec::<ArgAnnotation>::new();
         for (idx, arg) in self.args.iter().enumerate() {
@@ -30,18 +28,24 @@ impl ToBytecode for NodeFuncDef {
         interpreter.create_function(self.name.clone(), args, self.ret_type);
 
         /* compile the bytecode for each statement in the body */
+        let mut body = Vec::<Bytecode>::new();
+        let mut errors = Vec::<ChalError>::new();
         let mut returned = false;
         for stmnt in self.body {
             if let NodeStmnt::RetStmnt(_) = stmnt {
                 returned = true;
             }
-            body.append(&mut stmnt.to_bytecode(interpreter)?);
 
-            /* if a return statement is reached, there is no point in
-             * parsing the rest of the body's code */
-            if returned {
-                break;
+            /* there's no point in using any code after a return statement, but we still need
+             * to check whether the rest of the body is valid */
+            match stmnt.to_bytecode(interpreter) {
+                Ok(bytecode) => body.extend(bytecode),
+                Err(err) => errors.push(err),
             }
+        }
+
+        if !errors.is_empty() {
+            return Err(errors.into());
         }
 
         /* check whether the function has returned, and if it is a void function, append
@@ -60,7 +64,6 @@ impl ToBytecode for NodeFuncDef {
         let Some(annotation) = interpreter.current_func.clone() else {
             panic!("CVM::create_function() did not set the annotation properly");
         };
-        let annotation = annotation.borrow();
 
         let mut result = Vec::<Bytecode>::with_capacity(body.len() + 1);
         result.push(Bytecode::CreateFunc(annotation.args.len()));
@@ -77,7 +80,6 @@ impl ToBytecode for NodeFuncCall {
         let Some(annotation) = interpreter.func_symtable.get(&self.name).cloned() else {
             return Err(CompileError::unknown_function(self.name, self.span).into());
         };
-        let annotation = annotation.borrow();
 
         /* check for mismatching number of arguments */
         if annotation.args.len() != self.args.len() {

@@ -288,18 +288,18 @@ impl Lexer {
                             );
                         }
                     }
-                    None => (),
+                    None => {}
                 }
             }
 
             let src = String::from(current)
                 + &self
                     .reader
-                    .advance_while(|c: &char| c.is_numeric() || *c == '.');
+                    .advance_while(|c: &char| c.is_numeric() || *c == '.' || *c == '_');
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
-        if current.is_alphanumeric() || current == '_' {
+        if current.is_alphabetic() || current == '_' {
             let src = String::from(current)
                 + &self
                     .reader

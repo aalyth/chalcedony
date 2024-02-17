@@ -7,11 +7,12 @@ release: ./src/main.rs
 		echo 'Error: you need to have cargo installed'; \
 		exit 1; \
 	fi
-	if [ $(shell id -u) -ne 0 ]; then \
-		echo 'Error: you need to run the script as sudo in order to place the executable in /usr/local/bin'; \
+	if [ ! -w '/usr/local/bin' ]; then \
+		echo 'Error: no permission to access "usr/local/bin"'; \
 		exit 1; \
-	fi 
+	fi
 	cargo build --release
+	cargo clippy || true
 	cp ./target/release/chalcedony /usr/local/bin/chal
 
 syntax: ./utils/syntax/chal.vim

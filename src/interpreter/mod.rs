@@ -83,11 +83,11 @@ pub struct Chalcedony {
     globals: AHashMap<String, VarAnnotation>,
 
     /* Used to keep track of the functions inside the program */
-    func_symtable: AHashMap<String, Rc<RefCell<FuncAnnotation>>>,
+    func_symtable: AHashMap<String, Rc<FuncAnnotation>>,
 
     /* Contains the necessary function information used while parsing statements
      * inside a function's scope */
-    current_func: Option<Rc<RefCell<FuncAnnotation>>>,
+    current_func: Option<Rc<FuncAnnotation>>,
 
     /* Contains the necessary information in order to implement control flow logic in while loops */
     current_while: Option<WhileScope>,
@@ -113,19 +113,15 @@ impl Chalcedony {
             ArgAnnotation::new(1, "recv".to_string(), Type::Any),
         ];
 
-        let mut func_symtable = AHashMap::<String, Rc<RefCell<FuncAnnotation>>>::new();
+        let mut func_symtable = AHashMap::<String, Rc<FuncAnnotation>>::new();
         func_symtable.insert(
             "print".to_string(),
-            Rc::new(RefCell::new(FuncAnnotation::new(0, print_args, Type::Void))),
+            Rc::new(FuncAnnotation::new(0, print_args, Type::Void)),
         );
 
         func_symtable.insert(
             "assert".to_string(),
-            Rc::new(RefCell::new(FuncAnnotation::new(
-                1,
-                assert_args,
-                Type::Void,
-            ))),
+            Rc::new(FuncAnnotation::new(1, assert_args, Type::Void)),
         );
 
         let mut vm = Cvm::new();
@@ -190,11 +186,7 @@ impl Chalcedony {
     }
 
     fn create_function(&mut self, name: String, args: Vec<ArgAnnotation>, ret: Type) {
-        let result = Rc::new(RefCell::new(FuncAnnotation::new(
-            self.func_symtable.len(),
-            args,
-            ret,
-        )));
+        let result = Rc::new(FuncAnnotation::new(self.func_symtable.len(), args, ret));
         self.func_symtable.insert(name, result.clone());
         self.current_func = Some(result);
         self.locals = RefCell::new(AHashMap::new());

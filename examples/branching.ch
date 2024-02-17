@@ -41,4 +41,3 @@ fn branch_test_3() -> str:
 assert('four', branch_test_1())
 assert('one', branch_test_2())
 assert('five', branch_test_3())
-

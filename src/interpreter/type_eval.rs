@@ -235,7 +235,7 @@ impl NodeExprInner {
             NodeExprInner::Value(node) => Ok(node.as_type()),
             NodeExprInner::VarCall(node) => {
                 if let Some(func) = interpreter.current_func.clone() {
-                    if let Some(var) = func.borrow().arg_lookup.get(&node.name) {
+                    if let Some(var) = func.arg_lookup.get(&node.name) {
                         return Ok(var.ty);
                     }
                 }
@@ -253,7 +253,7 @@ impl NodeExprInner {
 
             NodeExprInner::FuncCall(node) => {
                 if let Some(func) = interpreter.func_symtable.get(&node.name) {
-                    let func = func.borrow();
+                    let func = func;
                     if func.ret_type == Type::Void {
                         return Err(CompileError::void_func_expr(node.span.clone()).into());
                     }

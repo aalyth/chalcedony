@@ -6,7 +6,6 @@ use super::display_err;
 
 /* the possible errorous token kinds */
 enum LexerErrorKind {
-    InvalidIdentifier,
     InvalidIndentation,
     UnclosedString,
     UnclosedComment,
@@ -24,10 +23,6 @@ pub struct LexerError {
 impl LexerError {
     fn new(kind: LexerErrorKind, span: Span) -> Self {
         LexerError { kind, span }
-    }
-
-    pub fn invalid_identifier(span: Span) -> Self {
-        LexerError::new(LexerErrorKind::InvalidIdentifier, span)
     }
 
     pub fn unclosed_string(span: Span) -> Self {
@@ -69,7 +64,6 @@ impl LexerError {
 impl std::fmt::Display for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match &self.kind {
-            LexerErrorKind::InvalidIdentifier => display_err(&self.span, f, "invalid identifier"),
             LexerErrorKind::UnclosedString => display_err(&self.span, f, "unclosed string"),
             LexerErrorKind::UnclosedComment => {
                 display_err(&self.span, f, "unclosed multiline comment")

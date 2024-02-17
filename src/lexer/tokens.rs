@@ -196,33 +196,27 @@ impl TokenKind {
             _ => (),
         };
 
-        if let Ok(val) = src.parse::<u64>() {
+        let potential_digit = src.replace('_', "");
+
+        if let Ok(val) = potential_digit.parse::<u64>() {
             return Ok(TokenKind::Uint(val));
         }
 
-        if let Ok(val) = src.parse::<i64>() {
+        if let Ok(val) = potential_digit.parse::<i64>() {
             return Ok(TokenKind::Int(val));
         }
 
-        if let Ok(val) = src.parse::<f64>() {
+        if let Ok(val) = potential_digit.parse::<f64>() {
             return Ok(TokenKind::Float(val));
         }
 
-        if (src.chars().nth(0) == Some('"') && src.chars().nth(src.len() - 1) == Some('"'))
-            || (src.chars().nth(0) == Some('\'') && src.chars().nth(src.len() - 1) == Some('\''))
+        if (src.starts_with('"') && src.ends_with('"'))
+            || (src.starts_with('\'') && src.ends_with('\''))
         {
             return Ok(TokenKind::Str(src[1..src.len() - 1].to_string()));
         }
-        if src.chars().nth(0) == Some('"') {
+        if src.starts_with('"') || src.starts_with('\'') {
             return Err(LexerError::unclosed_string(span.clone()).into());
-        }
-
-        if src.chars().nth(0).unwrap().is_numeric()
-            || src
-                .chars()
-                .all(|c: char| -> bool { !c.is_ascii_alphanumeric() && c == '_' })
-        {
-            return Err(LexerError::invalid_identifier(span.clone()).into());
         }
 
         Ok(TokenKind::Identifier(src.to_string()))
