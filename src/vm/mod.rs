@@ -209,7 +209,7 @@ impl Cvm {
             }
 
             Bytecode::If(jmp) => {
-                let cond_raw = self.stack.pop().expect("expected an object on the stack");
+                let cond_raw = self.stack.pop().expect("expected a value on the stack");
                 let CvmObject::Bool(cond) = cond_raw else {
                     panic!("expected a bool when checking if statements")
                 };
