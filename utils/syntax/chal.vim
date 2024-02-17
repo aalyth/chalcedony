@@ -16,10 +16,10 @@ syntax match number '\<\d\+\.\d\+\>'
 syntax match func '\(fn \)\@<=\w\+'
 
 let b:current_syntax = 'chalcedony'
-hi def link types    Label
+hi def link types    Type 
 hi def link keywords Statement
 hi def link boolean  Constant
 hi def link number   Constant
 hi def link string   Constant
 hi def link comment  Comment
-hi def link func     Blue 
+hi def link func     Identifier 
