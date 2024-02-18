@@ -114,6 +114,11 @@ impl ToBytecode for NodeFuncCall {
 
             result.extend(arg_expr.clone().to_bytecode(interpreter)?);
             let recv_type = arg_expr.as_type(interpreter)?;
+
+            if recv_type == Type::Void {
+                return Err(CompileError::void_argument(self.span.clone()).into());
+            }
+
             Type::verify(exp_type, recv_type, &mut result, arg_expr.span)?;
         }
 

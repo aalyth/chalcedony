@@ -4,6 +4,8 @@ let pi = 3.14
 fn circle_circ(radius: float) -> float:
     return 2.0 * pi * radius
 
+let a = 5
+a = 
 assert(12.56, circle_circ(2.0)) 
 assert(43.96, circle_circ(7.0)) 
 
