@@ -11,7 +11,9 @@ impl ToBytecode for NodeExpr {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let mut result = Vec::<Bytecode>::new();
         for inner in self.expr {
+            interpreter.inside_stmnt = false;
             result.extend(inner.to_bytecode(interpreter)?);
+            interpreter.inside_stmnt = true;
         }
         Ok(result)
     }

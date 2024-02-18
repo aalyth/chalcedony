@@ -36,8 +36,6 @@ impl ToBytecode for NodeFuncDef {
                 returned = true;
             }
 
-            /* there's no point in using any code after a return statement, but we still need
-             * to check whether the rest of the body is valid */
             match stmnt.to_bytecode(interpreter) {
                 Ok(bytecode) => body.extend(bytecode),
                 Err(err) => errors.push(err),
@@ -97,6 +95,12 @@ impl ToBytecode for NodeFuncCall {
                 self.span,
             )
             .into());
+        }
+
+        if annotation.ret_type != Type::Void && interpreter.inside_stmnt {
+            return Err(
+                CompileError::non_void_func_stmnt(annotation.ret_type, self.span.clone()).into(),
+            );
         }
 
         /* push on the stack each of the argument's expression value */

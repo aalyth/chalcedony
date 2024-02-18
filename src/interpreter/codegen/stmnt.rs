@@ -277,8 +277,6 @@ impl ToBytecode for NodeAssign {
 
         /* check whether the interpreter is compiling inside a function scope */
         } else if let Some(func) = interpreter.current_func.clone() {
-            let func = func;
-
             /* check whether the variable is an argument */
             if let Some(arg) = func.arg_lookup.get(&self.lhs.name) {
                 annotation = VarAnnotation::new(arg.id, arg.ty);

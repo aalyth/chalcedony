@@ -59,7 +59,7 @@ impl Cvm {
     }
 
     #[inline(always)]
-    fn execute_next(&mut self, current_idx: usize, code: &Vec<Bytecode>) -> usize {
+    fn execute_next(&mut self, current_idx: usize, code: &[Bytecode]) -> usize {
         let next_instr: &Bytecode;
         if let Some(frame) = self.call_stack.peek() {
             next_instr = frame.code.get(current_idx).expect("invalid current idx");

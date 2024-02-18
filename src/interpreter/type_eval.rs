@@ -253,7 +253,6 @@ impl NodeExprInner {
 
             NodeExprInner::FuncCall(node) => {
                 if let Some(func) = interpreter.func_symtable.get(&node.name) {
-                    let func = func;
                     if func.ret_type == Type::Void {
                         return Err(CompileError::void_func_expr(node.span.clone()).into());
                     }

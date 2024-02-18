@@ -94,6 +94,9 @@ pub struct Chalcedony {
 
     /* Keeps track of the current scope's local variables */
     locals: RefCell<AHashMap<String, VarAnnotation>>,
+
+    /* Keeps track whether the currently compiled scope is a statement */
+    inside_stmnt: bool,
 }
 
 impl InterpreterVisitor for Chalcedony {
@@ -153,6 +156,7 @@ impl Chalcedony {
             current_func: None,
             current_while: None,
             locals: RefCell::new(AHashMap::default()),
+            inside_stmnt: false,
         }
     }
 
