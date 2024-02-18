@@ -2,6 +2,7 @@ mod color;
 mod scopes;
 pub mod span;
 
+#[allow(unused_imports)]
 pub use color::{color, err, internal, warn, Colors};
 pub use scopes::{CompileError, InternalError, LexerError, ParserError};
 

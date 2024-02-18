@@ -53,5 +53,3 @@ fn __test__():
     assert(true,  is_palindrome(1337331))
 
 __test__()
-
-print(log10(2))

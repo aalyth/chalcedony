@@ -176,34 +176,28 @@ impl ToBytecode for NodeIfStmnt {
             return Err(errors.into());
         }
 
-        /* a single if statement */
-        if branches.is_empty() {
-            result.push(Bytecode::If(body.len()));
-            result.extend(body);
-            result.push(Bytecode::Nop);
+        let mut branches_len: usize = branches.iter().map(|el| el.len()).sum();
+        branches_len += branches.len();
 
-        /* if statement with more branches */
-        } else {
-            let mut branches_len: usize = branches.iter().map(|el| el.len()).sum();
-            branches_len += branches.len();
+        let mut leftover_branch_len: isize = branches_len as isize;
 
-            let mut leftover_branch_len: isize = branches_len as isize;
-
-            result.push(Bytecode::If(body.len() + 1));
-            result.extend(body);
-            result.push(Bytecode::Jmp(leftover_branch_len));
-
-            for branch in branches.into_iter() {
-                leftover_branch_len -= (branch.len() + 1) as isize;
-                result.extend(branch);
-
+        fn push_jump(code: &mut Vec<Bytecode>, jmp_dist: isize) {
+            if jmp_dist > 0 {
+                code.push(Bytecode::Jmp(jmp_dist));
+            } else {
                 /* this doesn't have any performance impact, but helps when debugging */
-                if leftover_branch_len > 0 {
-                    result.push(Bytecode::Jmp(leftover_branch_len));
-                } else {
-                    result.push(Bytecode::Nop);
-                }
+                code.push(Bytecode::Nop);
             }
+        }
+
+        result.push(Bytecode::If(body.len() + 1));
+        result.extend(body);
+        push_jump(&mut result, leftover_branch_len);
+
+        for branch in branches.into_iter() {
+            leftover_branch_len -= (branch.len() + 1) as isize;
+            result.extend(branch);
+            push_jump(&mut result, leftover_branch_len);
         }
 
         Ok(result)
