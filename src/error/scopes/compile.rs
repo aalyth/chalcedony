@@ -9,9 +9,8 @@ enum CompileErrorKind {
     InvalidBinOpr(String, Type, Type), /* opr_name, lhs, rhs */
     InvalidUnaryOpr(String, Type),     /* opr_name, val*/
     InvalidType(Type, Type),           /* exp, recv */
-    InvalidUnOperation(Type),
-    TooManyArguments(usize, usize), /* exp, recv */
-    TooFewArguments(usize, usize),  /* exp, recv */
+    TooManyArguments(usize, usize),    /* exp, recv */
+    TooFewArguments(usize, usize),     /* exp, recv */
     NonVoidFunctionStmnt(Type),
     VoidFunctionExpr,
     NoDefaultReturnStmnt,
@@ -52,10 +51,6 @@ impl CompileError {
 
     pub fn invalid_type(exp: Type, recv: Type, span: Span) -> Self {
         CompileError::new(CompileErrorKind::InvalidType(exp, recv), span)
-    }
-
-    pub fn invalid_un_operation(ty: Type, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::InvalidUnOperation(ty), span)
     }
 
     pub fn too_many_arguments(exp: usize, recv: usize, span: Span) -> Self {
@@ -138,11 +133,6 @@ impl std::fmt::Display for CompileError {
                     "invalid expression type (expected {:?}, received {:?})",
                     exp, recv
                 );
-                display_err(&self.span, f, msg)
-            }
-
-            CompileErrorKind::InvalidUnOperation(ty) => {
-                let msg = &format!("invalid unary operation on type {:?}", ty);
                 display_err(&self.span, f, msg)
             }
 

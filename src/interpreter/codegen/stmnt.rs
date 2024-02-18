@@ -228,7 +228,7 @@ impl ToBytecode for NodeWhileLoop {
 
         let body = self.body.to_bytecode(interpreter)?;
         let body_len = body.len() + 1; // taking into account the jump backwards
-                                       //
+
         result.push(Bytecode::If(body_len));
         result.extend(body);
 
@@ -359,7 +359,7 @@ impl ToBytecode for NodeBreakStmnt {
             return Err(CompileError::control_flow_outside_while(self.span.clone()).into());
         };
         scope.unfinished_breaks.push(scope.current_length);
-        Ok(vec![Bytecode::Jmp(0)])
+        Ok(vec![Bytecode::Nop])
     }
 }
 

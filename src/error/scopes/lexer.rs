@@ -8,7 +8,6 @@ use super::display_err;
 enum LexerErrorKind {
     InvalidIndentation,
     UnclosedString,
-    UnclosedComment,
     UnclosedDelimiter(String),
     UnexpectedClosingDelimiter(String),
     MismatchingDelimiters(String, String),
@@ -27,10 +26,6 @@ impl LexerError {
 
     pub fn unclosed_string(span: Span) -> Self {
         LexerError::new(LexerErrorKind::UnclosedString, span)
-    }
-
-    pub fn unclosed_comment(span: Span) -> Self {
-        LexerError::new(LexerErrorKind::UnclosedComment, span)
     }
 
     pub fn invalid_indentation(span: Span) -> Self {
@@ -64,11 +59,8 @@ impl LexerError {
 impl std::fmt::Display for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match &self.kind {
-            LexerErrorKind::UnclosedString => display_err(&self.span, f, "unclosed string"),
-            LexerErrorKind::UnclosedComment => {
-                display_err(&self.span, f, "unclosed multiline comment")
-            }
             LexerErrorKind::InvalidIndentation => display_err(&self.span, f, "invalid indendation"),
+            LexerErrorKind::UnclosedString => display_err(&self.span, f, "unclosed string"),
 
             LexerErrorKind::UnclosedDelimiter(del) => {
                 let msg = &format!("unclosed delimiter ('{}')", del);
