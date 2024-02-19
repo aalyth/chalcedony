@@ -1,6 +1,6 @@
-use crate::error::format::internal;
+use crate::error::internal;
 
-/* indicates something is wrong with the interpreter itself*/
+/* indicates something is wrong with the interpreter itself */
 pub struct InternalError {
     msg: String,
 }
@@ -15,6 +15,6 @@ impl InternalError {
 
 impl std::fmt::Display for InternalError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}\n", internal(&self.msg))
+        writeln!(f, "{}", internal(&self.msg))
     }
 }

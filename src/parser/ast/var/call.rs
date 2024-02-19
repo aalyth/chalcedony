@@ -1,26 +1,27 @@
-use crate::error::{ChalError, ParserError, Span};
+use crate::error::span::Span;
+use crate::error::{ChalError, ParserError};
 use crate::lexer::{Token, TokenKind};
 
-use std::rc::Rc;
-
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct NodeVarCall {
-    name: String,
-    /* NOTE: might need to store the type for type inference */
+    pub name: String,
+    pub span: Span,
 }
 
 impl NodeVarCall {
-    pub fn new(token: Token, span: Rc<Span>) -> Result<Self, ChalError> {
-        let kind = token.kind();
+    pub fn new(token: Token) -> Result<Self, ChalError> {
+        let kind = token.kind;
         let TokenKind::Identifier(name) = kind else {
-            return Err(ChalError::from(ParserError::invalid_token(
+            return Err(ParserError::invalid_token(
                 TokenKind::Identifier(String::new()),
                 kind.clone(),
-                token.start(),
-                token.end(),
-                span.clone(),
-            )));
+                token.span,
+            )
+            .into());
         };
-        Ok(NodeVarCall { name: name.clone() })
+        Ok(NodeVarCall {
+            name: name.clone(),
+            span: token.span,
+        })
     }
 }

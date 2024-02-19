@@ -1,42 +1,36 @@
-pub mod error;
-pub mod lexer;
-pub mod parser;
+mod common;
+mod error;
+mod interpreter;
+mod lexer;
+mod parser;
+mod utils;
+mod vm;
 
-use crate::parser::Parser;
+use crate::interpreter::Chalcedony;
 
-#[macro_use]
-extern crate lazy_static;
+extern crate ahash;
+
+use std::env;
+use std::fs;
+
+/* Future ideas:
+   - len() for strings
+   - short cuircuit logic operators
+   - type cast functions
+*/
 
 fn main() {
-    let mut parser = Parser::new(
-        "
-# let a = -5.2*--3
-let c := fib(-min(2 + 3 * 4, - 5 + 7 * 6 / 3), - 2 * 3 / 2) + fib( min(5, 6) - 2 ) * 2
-let c := fib(min(2 + 3 * 4, 5 + 7 * 6 / 3), 2 * 3 / 2) + fib( min(5, 6) - 2 ) * 2
-# let d := 2 || 3 + !(12 / 4 * 2)
-
-fn main(args: i8, argv: str) -> str:
-    let b := ajaj 
-    if -5 + 2 > 3 :
-        b += 5
-    elif  b == 5:
-        let c := -2
-        return print(\"bueno\")
-
-    while 5 == 6:
-        print(\"hello\")
-",
-    );
-
-    while !parser.is_empty() {
-        let current = parser.advance();
-        match current {
-            Ok(node) => println!("{:#?}\n", node),
-            Err(err) => {
-                print!("{}\n", err);
-                continue;
-            }
-        }
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        eprintln!("Error: expected only 1 argument - a file to execute");
+        std::process::exit(1);
     }
-    println!("bueno");
+
+    let Ok(script) = fs::read_to_string(args[1].clone()) else {
+        eprintln!("Error: could not open the passed script");
+        std::process::exit(1);
+    };
+
+    let mut interpreter = Chalcedony::new();
+    interpreter.interpret(&script);
 }

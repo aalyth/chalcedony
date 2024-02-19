@@ -24,7 +24,7 @@ impl CharReader {
         while !self.is_empty() && cond(self.peek().unwrap()) {
             result.push(self.advance().unwrap());
         }
-        return result.into_iter().collect();
+        result.into_iter().collect()
     }
 
     pub fn advance(&mut self) -> Option<char> {
@@ -43,6 +43,17 @@ impl CharReader {
 
     pub fn peek(&self) -> Option<&char> {
         self.src.front()
+    }
+
+    pub fn peek_word(&self) -> String {
+        let mut result = String::new();
+        for c in &self.src {
+            if !c.is_alphabetic() {
+                break;
+            }
+            result.push(*c);
+        }
+        result
     }
 
     pub fn is_empty(&self) -> bool {

@@ -1,51 +1,55 @@
-use crate::error::{ChalError, InternalError, LexerError, Span};
-use crate::lexer::{Delimiter, Keyword, Line, Special, TokenKind, Type};
-use crate::parser::ast::{parse_body, NodeStmnt};
+use crate::error::span::Span;
+use crate::error::{ChalError, InternalError, LexerError};
+use crate::lexer::{Delimiter, Keyword, Special, TokenKind};
+use crate::parser::ast::NodeStmnt;
 use crate::parser::{LineReader, TokenReader};
 
-use std::collections::VecDeque;
-use std::rc::Rc;
+use crate::common::Type;
 
-#[derive(Debug)]
+pub struct Arg {
+    pub name: String,
+    pub ty: Type,
+}
+
 pub struct NodeFuncDef {
-    name: String,
-    args: Vec<(String, Type)>,
-    ret_type: Type,
-    body: VecDeque<NodeStmnt>,
+    pub name: String,
+    pub args: Vec<Arg>,
+    pub ret_type: Type,
+    pub body: Vec<NodeStmnt>,
+
+    /* the span refers to the function's header */
+    pub span: Span,
 }
 
 impl NodeFuncDef {
-    pub fn new(chunk: VecDeque<Line>, span: Rc<Span>) -> Result<Self, ChalError> {
+    pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
         /* function composition:
          * fn main() -> void:        | header
-         *     let a := 5            > body
+         *     let a = 5             > body
          *     print("Hello world")  > body
          */
-        let mut reader = LineReader::new(chunk, span.clone());
+
         let Some(header_src) = reader.advance() else {
-            return Err(ChalError::from(InternalError::new(
+            return Err(InternalError::new(
                 "NodeFuncDef::new(): creating a function definiton from empty source",
-            )));
+            )
+            .into());
         };
 
-        if header_src.tokens().is_empty() {
-            return Err(ChalError::from(InternalError::new(
+        if header_src.tokens.is_empty() {
+            return Err(InternalError::new(
                 "NodeFuncDef::new(): creating a function definiton with empty source tokens",
-            )));
+            )
+            .into());
         }
 
-        /* NOTE: remove this if nested function definitions become allowed */
-        if header_src.indent() != 0 {
-            let start = header_src.tokens().front().unwrap().start();
-            let end = header_src.tokens().front().unwrap().end();
-            return Err(ChalError::from(LexerError::invalid_indentation(
-                start,
-                end,
-                span.clone(),
-            )));
+        if header_src.indent != 0 {
+            let front_tok = header_src.tokens.front().unwrap();
+            return Err(LexerError::invalid_indentation(front_tok.span.clone()).into());
         }
 
-        let mut header = TokenReader::new(header_src.into(), span.clone());
+        let mut header = TokenReader::new(header_src.into(), Span::from(reader.spanner()));
+        let start = header.current().start;
 
         header.expect_exact(TokenKind::Keyword(Keyword::Fn))?;
 
@@ -53,41 +57,42 @@ impl NodeFuncDef {
 
         header.expect_exact(TokenKind::Delimiter(Delimiter::OpenPar))?;
 
-        let mut args = Vec::<(String, Type)>::new();
+        let mut args = Vec::<Arg>::new();
         let mut first_iter = true;
         while !header.peek_is_exact(TokenKind::Delimiter(Delimiter::ClosePar)) {
             if !first_iter {
                 header.expect_exact(TokenKind::Special(Special::Comma))?;
             }
 
-            let argname = header.expect_ident()?;
+            let name = header.expect_ident()?;
             header.expect_exact(TokenKind::Special(Special::Colon))?;
-            let argkind = header.expect_type()?;
+            let ty = header.expect_type()?;
 
-            args.push((argname, argkind));
+            args.push(Arg { name, ty });
 
             first_iter = false;
         }
 
         header.expect_exact(TokenKind::Delimiter(Delimiter::ClosePar))?;
 
-        let mut ret_type = Type::Any;
+        let mut ret_type = Type::Void;
         if header.peek_is_exact(TokenKind::Special(Special::RightArrow)) {
             /* this should never fail */
             header.expect_exact(TokenKind::Special(Special::RightArrow))?;
             ret_type = header.expect_type()?;
         }
 
-        /* TODO: uncomment
         header.expect_exact(TokenKind::Special(Special::Colon))?;
+        let end = header.current().end;
         header.expect_exact(TokenKind::Newline)?;
-        */
 
+        let span = Span::new(start, end, reader.spanner());
         Ok(NodeFuncDef {
             name,
             args,
             ret_type,
-            body: parse_body(reader)?,
+            body: reader.try_into()?,
+            span,
         })
     }
 }

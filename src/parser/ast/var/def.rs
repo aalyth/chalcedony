@@ -1,43 +1,48 @@
-use crate::error::ChalError;
-use crate::lexer::{Keyword, Operator, Special, TokenKind, Type};
+use crate::error::{span::Span, ChalError};
+use crate::lexer::{Keyword, Operator, Special, TokenKind};
 use crate::parser::{ast::NodeExpr, TokenReader};
 
-#[derive(Debug)]
+use crate::common::Type;
+
 pub struct NodeVarDef {
-    /* the variable type */
-    kind: Type,
-    name: String,
-    /* when default type values are implemented, this could be optional, so variable declarations
-     * are possible */
-    value: NodeExpr,
+    pub ty: Type,
+    pub name: String,
+    pub value: NodeExpr,
+    pub span: Span,
 }
 
 impl NodeVarDef {
     pub fn new(mut reader: TokenReader) -> Result<NodeVarDef, ChalError> {
-        /* let a := 5*/
-        /* let b: usize = 3 */
-
+        /* let a = 5      */
+        /* let b: int = 3 */
         reader.expect_exact(TokenKind::Keyword(Keyword::Let))?;
 
-        let name = reader.expect_ident()?;
+        let lhs_tok = reader.expect(TokenKind::Identifier("".to_string()))?;
+        let name = lhs_tok.src;
+        let span = lhs_tok.span;
 
-        let mut kind = Type::Any;
-        if let Ok(_) = reader.expect_exact(TokenKind::Special(Special::Colon)) {
-            kind = reader.expect_type()?;
+        let mut ty = Type::Any;
+        if reader
+            .expect_exact(TokenKind::Special(Special::Colon))
+            .is_ok()
+        {
+            ty = reader.expect_type()?;
 
-            /* NOTE: might remove later if needed to leave only function declaration */
             reader.expect_exact(TokenKind::Operator(Operator::Eq))?;
         } else {
-            reader.expect_exact(TokenKind::Operator(Operator::Walrus))?;
+            reader.expect_exact(TokenKind::Operator(Operator::Eq))?;
         }
 
-        /* TODO! parse the rhs expression */
-        /* TODO! expect the end of the line
-         * reader.expect_exact(TokenKind::Newline); */
-
         let rhs = reader.advance_until(|tk| tk == &TokenKind::Newline)?;
-        let value = NodeExpr::new(rhs, reader.span())?;
+        let rhs_reader = TokenReader::new(rhs, reader.current());
+        let value = NodeExpr::new(rhs_reader)?;
+        reader.expect_exact(TokenKind::Newline)?;
 
-        Ok(NodeVarDef { name, kind, value })
+        Ok(NodeVarDef {
+            name,
+            ty,
+            value,
+            span,
+        })
     }
 }

@@ -1,12 +1,49 @@
-use crate::error::format::{color, Colors};
-use crate::error::span::pos::Position;
+use crate::error::{color, span::Position, Colors};
 
-pub struct Span {
+use super::Spanning;
+
+const ELLIPSIS_LEN: usize = 3;
+
+pub struct InlineSpanner {
     src: Vec<String>,
 }
 
-impl Span {
-    pub fn new(src_code: &str) -> Span {
+impl Spanning for InlineSpanner {
+    fn context(&self, start: &Position, end: &Position) -> String {
+        let mut result = String::new();
+
+        let (context, ctx_offset) = self.context_span(start, end);
+        result.push_str(&context);
+        result.push('\n');
+
+        let ln_len = std::cmp::max(end.ln.to_string().len(), 4);
+        for _ in 0..ln_len {
+            result.push(' ');
+        }
+        result.push_str(&color(Colors::Blue, "| "));
+
+        for _ in 0..ctx_offset - (ln_len + 2) {
+            result.push(' ');
+        }
+
+        /* color offset are the chars, used to represent the colors */
+        const COLOR_OFFSET: usize = 5 + 4 + 5 + 4;
+        let max_len = context.chars().count() - ctx_offset - COLOR_OFFSET;
+
+        let el_len = 1 + end.col - start.col;
+        let dist = std::cmp::min(el_len, max_len);
+
+        for _ in 0..dist {
+            result.push_str(&color(Colors::Cyan, "^"));
+        }
+        result.push('\n');
+
+        result
+    }
+}
+
+impl InlineSpanner {
+    pub fn new(src_code: &str) -> InlineSpanner {
         let mut result = Vec::<String>::new();
         result.push("".to_string());
         for i in src_code.chars() {
@@ -16,32 +53,7 @@ impl Span {
                 _ => result[end_pos].push(i),
             }
         }
-        Span { src: result }
-    }
-
-    pub fn context(&self, start: &Position, end: &Position) -> String {
-        let mut result = String::new();
-
-        let context: (String, usize) = self.context_span(start, end);
-        result.push_str(&context.0);
-        result.push_str("\n");
-
-        let ln_len = std::cmp::max(end.ln.to_string().len(), 4);
-        for _ in 0..ln_len {
-            result.push_str(" ");
-        }
-        result.push_str(&color(Colors::Blue, "| "));
-
-        for _ in 0..context.1 - (ln_len + 2) {
-            result.push_str(" ");
-        }
-
-        for _ in 0..(1 + end.col - start.col) {
-            result.push_str(&color(Colors::Cyan, "^"));
-        }
-        result.push_str("\n");
-
-        result
+        InlineSpanner { src: result }
     }
 
     /* returns the context string and the relative index in the result string of the start position */
@@ -54,7 +66,7 @@ impl Span {
         }
 
         if start_.ln == end_.ln && start_.col == end_.col {
-            return self.context_substr(&start_, 0);
+            return self.context_substr(start_, 0);
         }
 
         let start = Position::new(start_.ln - 1, start_.col - 1);
@@ -71,38 +83,39 @@ impl Span {
             panic!("Error: span: context_span: end position out of bounds.\n");
         }
 
-        if start.ln == end.ln && end.col - start.col < 40 {
+        if start.ln == end.ln && end.col - start.col < 70 {
             return self.context_substr(start_, end.col - start.col);
-        } else if start.ln == end.ln {
+        }
+
+        if start.ln == end.ln {
             let mut result = "".to_string();
 
             let end_ln_str = end_.ln.to_string();
             let ln_len = std::cmp::max(end_ln_str.len(), 4);
             for _ in 0..ln_len - end_ln_str.len() {
-                result.push_str(" ");
+                result.push(' ');
             }
             let curr_line = &self.src[start.ln];
             result.push_str(&color(Colors::Blue, &start.ln.to_string()));
             result.push_str(&color(Colors::Blue, "| "));
 
-            #[allow(unused_assignments)]
-            let mut res_pos: usize = 0;
+            let mut res_pos: usize = ln_len + start_.col;
 
-            if start.col > 15 {
+            if start.col > 35 {
                 result.push_str("...");
-                result.push_str(&curr_line[start.col - 15..start.col + 15].to_string());
+                result.push_str(&curr_line[start.col - 15..start.col + 15]);
+                res_pos = ln_len + ELLIPSIS_LEN + 15 + 1;
             } else {
-                result.push_str(&curr_line[..start.col + 15].to_string());
+                result.push_str(&curr_line[..start.col + 15]);
             }
-            res_pos = result.chars().count() - 15;
 
             result.push_str("...");
-            result.push_str(&curr_line[end.col - 15..end.col].to_string());
+            result.push_str(&curr_line[end.col - 15..end.col]);
             if curr_line.len() - end.col > 15 {
-                result.push_str(&curr_line[end.col..end.col + 15].to_string());
+                result.push_str(&curr_line[end.col..end.col + 15]);
                 result.push_str("...");
             } else {
-                result.push_str(&curr_line[end.col..].to_string());
+                result.push_str(&curr_line[end.col..]);
             }
             return (result, res_pos);
         }
@@ -111,12 +124,12 @@ impl Span {
         let res = self.context_pos(start_);
 
         result.push_str(&res.0);
-        result.push_str("\n");
+        result.push('\n');
 
         if end.ln - start.ln > 1 {
             let ln_len = std::cmp::max(end_.ln.to_string().len(), 4);
             for _ in 0..ln_len - 3 {
-                result.push_str(" ");
+                result.push(' ');
             }
             result.push_str(&color(Colors::Blue, "...| "));
             result.push_str("...\n");
@@ -142,15 +155,15 @@ impl Span {
      */
     fn context_substr(&self, pos_: &Position, ctx_len: usize) -> (String, usize) {
         if pos_.ln == 0 || pos_.col == 0 {
-            panic!("Error: Span::context_substr(): invalid position.");
+            panic!("Error: InlineSpanner::context_substr(): invalid position.");
         }
 
-        let pos: Position = Position::new(pos_.ln - 1, pos_.col - 1);
+        let mut pos: Position = Position::new(pos_.ln - 1, pos_.col - 1);
         if pos.ln > self.src.len() {
-            panic!("Error: Span::context_substr(): position out of bounds.");
+            panic!("Error: InlineSpanner::context_substr(): position out of bounds.");
         }
         if pos.col > self.src[pos.ln].len() {
-            panic!("Error: Span::context_substr(): position out of bounds.");
+            panic!("Error: InlineSpanner::context_substr(): position out of bounds.");
         }
 
         let curr_line = &self.src[pos.ln];
@@ -159,53 +172,51 @@ impl Span {
 
         let mut result = "".to_string();
         for _ in 0..(ln_len - pos_len) {
-            result.push_str(" ");
+            result.push(' ');
         }
         result.push_str(&color(Colors::Blue, &pos_.ln.to_string()));
         result.push_str(&color(Colors::Blue, "| "));
 
-        #[allow(unused_assignments)]
-        let mut res_pos: usize = 1;
+        let mut res_pos: usize = ln_len + pos_.col;
 
-        let ellipsis = color(Colors::Gray, "...");
-        const ELLIPSIS_LEN: usize = 3;
-
-        if pos.col > 25 {
-            let left_bound = pos.col - 25;
+        if pos.col > 35 {
+            let left_bound = pos.col - 35;
             let right_bound = pos.col + ctx_len;
 
-            result.push_str(&ellipsis);
+            result.push_str("...");
             let tmp: String = curr_line
                 .chars()
                 .take(right_bound)
                 .skip(left_bound)
                 .collect();
             result.push_str(&tmp);
-
-            /* the added 2 are the buffered whitespaces around the line indicator */
-            res_pos = ln_len + ELLIPSIS_LEN + 25 + 2;
+            res_pos = ln_len + ELLIPSIS_LEN + 35 + 1;
         } else {
             let tmp: String = curr_line.chars().take(pos.col + ctx_len).collect();
             result.push_str(&tmp);
-            res_pos = pos_.col + ln_len + 1;
         }
 
-        if curr_line.chars().count() - (pos.col + ctx_len) > 25 {
+        if ctx_len > 70 {
+            result.push_str("...");
+            pos.col += ctx_len - 70;
+        }
+
+        if curr_line.chars().count() - (pos.col + ctx_len) > 35 {
             /* same as curr_line[pos.col + len .. pos.col + len + 24]
              * but works with UTF-8
              */
             let tmp: String = curr_line
                 .chars()
-                .take(pos.col + ctx_len + 24)
+                .take(pos.col + ctx_len + 34)
                 .skip(pos.col + ctx_len)
                 .collect();
             result.push_str(&tmp);
-            result.push_str(&ellipsis);
+            result.push_str("...");
         } else {
             let tmp: String = curr_line.chars().skip(pos.col + ctx_len).collect();
             result.push_str(&tmp);
         }
 
-        (result, res_pos - 1)
+        (result, res_pos)
     }
 }
