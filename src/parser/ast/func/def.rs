@@ -36,19 +36,19 @@ impl NodeFuncDef {
             .into());
         };
 
-        if header_src.tokens().is_empty() {
+        if header_src.tokens.is_empty() {
             return Err(InternalError::new(
                 "NodeFuncDef::new(): creating a function definiton with empty source tokens",
             )
             .into());
         }
 
-        if header_src.indent() != 0 {
-            let front_tok = header_src.tokens().front().unwrap();
+        if header_src.indent != 0 {
+            let front_tok = header_src.tokens.front().unwrap();
             return Err(LexerError::invalid_indentation(front_tok.span.clone()).into());
         }
 
-        let mut header = TokenReader::new(header_src.into(), reader.spanner());
+        let mut header = TokenReader::new(header_src.into(), Span::from(reader.spanner()));
         let start = header.current().start;
 
         header.expect_exact(TokenKind::Keyword(Keyword::Fn))?;

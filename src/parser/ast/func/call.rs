@@ -67,7 +67,7 @@ impl NodeFuncCall {
             buffer.push_back(current);
         }
 
-        let buffer_reader = TokenReader::new(buffer, reader.spanner());
+        let buffer_reader = TokenReader::new(buffer, reader.current());
         NodeExpr::new(buffer_reader)
     }
 }

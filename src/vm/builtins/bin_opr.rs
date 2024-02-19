@@ -114,16 +114,16 @@ macro_rules! apply_comp_operator {
         match (left, right) {
             (CvmObject::Int(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
             (CvmObject::Int(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval as i64))),
-            (CvmObject::Int(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval as i64))),
+            (CvmObject::Int(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval as f64) $opr rval)),
             (left @ CvmObject::Int(_), CvmObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
 
             (CvmObject::Uint(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval as i64) $opr rval)),
             (CvmObject::Uint(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
-            (CvmObject::Uint(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool(lval  $opr (rval as u64))),
+            (CvmObject::Uint(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval as f64) $opr rval)),
             (left @ CvmObject::Uint(_), CvmObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
 
-            (CvmObject::Float(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval as i64) $opr rval)),
-            (CvmObject::Float(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool((lval as u64) $opr rval)),
+            (CvmObject::Float(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval as f64))),
+            (CvmObject::Float(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval as f64))),
             (CvmObject::Float(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
             (left @ CvmObject::Float(_), CvmObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
 

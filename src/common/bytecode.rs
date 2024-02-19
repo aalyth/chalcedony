@@ -12,6 +12,8 @@ pub enum Bytecode {
 
     // converts uint -> int
     CastI,
+    // converts uint/int -> float
+    CastF,
 
     Add,
     Sub,

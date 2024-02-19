@@ -34,7 +34,7 @@ impl NodeVarDef {
         }
 
         let rhs = reader.advance_until(|tk| tk == &TokenKind::Newline)?;
-        let rhs_reader = TokenReader::new(rhs, reader.spanner());
+        let rhs_reader = TokenReader::new(rhs, reader.current());
         let value = NodeExpr::new(rhs_reader)?;
         reader.expect_exact(TokenKind::Newline)?;
 

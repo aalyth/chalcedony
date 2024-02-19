@@ -27,6 +27,11 @@ impl Type {
             return Ok(());
         }
 
+        if exp == Type::Float && (recv == Type::Uint || recv == Type::Int) {
+            code.push(Bytecode::CastF);
+            return Ok(());
+        }
+
         Err(CompileError::invalid_type(exp, recv, span).into())
     }
 }

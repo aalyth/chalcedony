@@ -31,6 +31,16 @@ impl Span {
     }
 }
 
+impl From<Rc<dyn Spanning>> for Span {
+    fn from(value: Rc<dyn Spanning>) -> Self {
+        Span {
+            start: Position::new(0, 0),
+            end: Position::new(0, 0),
+            spanner: value.clone(),
+        }
+    }
+}
+
 impl std::cmp::PartialEq for Span {
     fn eq(&self, other: &Span) -> bool {
         self.start == other.start && self.end == other.end

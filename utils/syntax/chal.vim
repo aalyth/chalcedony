@@ -6,12 +6,14 @@ syntax keyword keywords fn return let if elif else while continue break
 syntax keyword type uint int float str bool void
 syntax keyword boolean true false
 
+syntax keyword builtin print assert
+
 syntax match comment '#.*$'
 syntax region string start='"' end='"'
 syntax region string start="'" end="'"
 
-syntax match number '\<\d\+\>'
-syntax match number '\<\d\+\.\d\+\>'
+syntax match number '\<\d[0-9_]*\>'
+syntax match number '\<\d[0-9_]*\.\d[0-9_]*\>'
 
 syntax match func '\(fn \)\@<=\w\+'
 

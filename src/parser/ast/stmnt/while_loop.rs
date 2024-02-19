@@ -1,4 +1,4 @@
-use crate::error::ChalError;
+use crate::error::{span::Span, ChalError};
 use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{NodeExpr, NodeStmnt};
 use crate::parser::{LineReader, TokenReader};
@@ -22,7 +22,7 @@ impl NodeWhileLoop {
         let cond_raw = header.advance_until(|tk| {
             *tk == TokenKind::Special(Special::Colon) || *tk == TokenKind::Newline
         })?;
-        let cond_reader = TokenReader::new(cond_raw, reader.spanner());
+        let cond_reader = TokenReader::new(cond_raw, Span::from(reader.spanner()));
         let cond = NodeExpr::new(cond_reader)?;
 
         header.expect_exact(TokenKind::Special(Special::Colon))?;

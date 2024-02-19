@@ -39,7 +39,7 @@ impl NodeAssign {
             .try_into_assignment_opr()?;
 
         let rhs_raw = reader.advance_until(|tk| *tk == TokenKind::Newline)?;
-        let rhs_reader = TokenReader::new(rhs_raw, reader.spanner());
+        let rhs_reader = TokenReader::new(rhs_raw, reader.current());
         let rhs = NodeExpr::new(rhs_reader)?;
 
         Ok(NodeAssign { lhs, opr, rhs })

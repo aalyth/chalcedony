@@ -246,7 +246,7 @@ impl NodeExpr {
                             buffer.push_back(current);
                         }
                         // SAFETY: the buffer should always have at least 1 element in it
-                        let tmp_reader = TokenReader::new(buffer, reader.spanner());
+                        let tmp_reader = TokenReader::new(buffer, reader.current());
                         let node = NodeExprInner::FuncCall(NodeFuncCall::new(tmp_reader)?);
                         push_terminal!(node, output, prev_type, current);
                         continue;
@@ -304,6 +304,13 @@ impl NodeExpr {
         let span = Span::new(start, reader.current().end, reader.spanner());
         if !output.is_empty() && prev_type != PrevType::Terminal {
             return Err(ParserError::invalid_expr_end(span).into());
+        }
+
+        if output.is_empty() {
+            println!("EMPTY EXPR");
+            let curr = reader.current();
+            println!("{:?} {:?}\n", curr.start, curr.end);
+            return Err(ParserError::empty_expr(reader.current()).into());
         }
 
         Ok(NodeExpr {

@@ -86,6 +86,16 @@ impl Cvm {
                 next_idx
             }
 
+            Bytecode::CastF => {
+                let obj = self.stack.pop().expect("expected a value on the stack");
+                match obj {
+                    CvmObject::Int(val) => self.stack.push(CvmObject::Float(val as f64)),
+                    CvmObject::Uint(val) => self.stack.push(CvmObject::Float(val as f64)),
+                    _ => panic!("casting non-uint or int to float"),
+                }
+                next_idx
+            }
+
             Bytecode::SetGlobal(var_id) => {
                 let var_value = self.stack.pop().expect("expected a value on the stack");
                 while *var_id >= self.globals.len() {

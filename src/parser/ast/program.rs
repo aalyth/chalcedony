@@ -1,4 +1,5 @@
-use crate::error::{span::Spanning, ChalError, InternalError, ParserError};
+use crate::error::span::{Span, Spanning};
+use crate::error::{ChalError, InternalError, ParserError};
 use crate::lexer::{Delimiter, Operator};
 use crate::lexer::{Keyword, Line, TokenKind};
 use crate::parser::ast::{
@@ -24,7 +25,8 @@ macro_rules! single_line_stmnt {
         // SAFETY: the front line is already checked
         let front_line = $chunk.pop_front().unwrap().into();
         Ok(NodeProg::$enum_type($node_type::new(TokenReader::new(
-            front_line, $spanner,
+            front_line,
+            Span::from($spanner),
         ))?))
     }};
 }
@@ -44,11 +46,11 @@ impl NodeProg {
         }
 
         let front_line = chunk.front().unwrap();
-        if front_line.tokens().is_empty() {
+        if front_line.tokens.is_empty() {
             return Err(InternalError::new("NodeProg::new(): empty first line of chunk").into());
         }
 
-        let front_tok = front_line.tokens().front().unwrap();
+        let front_tok = front_line.front_tok().unwrap();
 
         match front_tok.kind {
             TokenKind::Keyword(Keyword::Let) => {
@@ -65,7 +67,7 @@ impl NodeProg {
             }
 
             TokenKind::Identifier(_) => {
-                let Some(peek_2nd) = front_line.tokens().get(1) else {
+                let Some(peek_2nd) = front_line.tokens.get(1) else {
                     // by deafult we expect a function call
                     return Err(ParserError::expected_token(
                         TokenKind::Delimiter(Delimiter::OpenPar),

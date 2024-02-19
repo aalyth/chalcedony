@@ -1,4 +1,5 @@
-use crate::error::{span::Spanning, ChalError, InternalError};
+use crate::error::span::{Span, Spanning};
+use crate::error::{ChalError, InternalError};
 use crate::lexer::{Keyword, Line, Token, TokenKind};
 
 use std::collections::VecDeque;
@@ -21,11 +22,11 @@ impl LineReader {
     }
 
     pub fn indent(&self) -> Option<u64> {
-        Some(self.src.front()?.indent())
+        Some(self.src.front()?.indent)
     }
 
     pub fn peek_tok(&self) -> Option<&Token> {
-        self.src.front()?.tokens().front()
+        self.src.front()?.front_tok()
     }
 
     pub fn advance(&mut self) -> Option<Line> {
@@ -68,14 +69,15 @@ impl LineReader {
             )
             .into());
         };
-        let indent = front.indent();
-        let cond = |ln: &Line| -> bool { ln.indent() <= indent };
+        /* NOTE: this line is necessary so front goes out of scope and the borrow checker is happy */
+        let indent = front.indent;
+        let cond = |ln: &Line| -> bool { ln.indent <= indent };
 
         let mut res = self.advance_until(cond)?;
 
         /* if the chunk is of type if statement check for elif/else bodies */
         if let Some(front_ln) = res.front() {
-            if let Some(front_tok) = front_ln.tokens().front() {
+            if let Some(front_tok) = front_ln.front_tok() {
                 if front_tok.kind != TokenKind::Keyword(Keyword::If) {
                     return Ok(LineReader::new(res, self.spanner.clone()));
                 }
@@ -103,6 +105,9 @@ impl LineReader {
             .into());
         };
 
-        Ok(TokenReader::new(next.into(), self.spanner.clone()))
+        Ok(TokenReader::new(
+            next.into(),
+            Span::from(self.spanner.clone()),
+        ))
     }
 }

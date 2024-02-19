@@ -12,6 +12,7 @@ enum LexerErrorKind {
     UnexpectedClosingDelimiter(String),
     MismatchingDelimiters(String, String),
     InvalidGlobalStatement(TokenKind),
+    InvalidChar(char),
 }
 
 pub struct LexerError {
@@ -54,6 +55,10 @@ impl LexerError {
     pub fn invalid_global_statement(token_kind: TokenKind, span: Span) -> Self {
         LexerError::new(LexerErrorKind::InvalidGlobalStatement(token_kind), span)
     }
+
+    pub fn invalid_char(chr: char, span: Span) -> Self {
+        LexerError::new(LexerErrorKind::InvalidChar(chr), span)
+    }
 }
 
 impl std::fmt::Display for LexerError {
@@ -90,6 +95,11 @@ impl std::fmt::Display for LexerError {
 
             LexerErrorKind::InvalidGlobalStatement(token_kind) => {
                 let msg = &format!("invalid global statement ({:?})", token_kind);
+                display_err(&self.span, f, msg)
+            }
+
+            LexerErrorKind::InvalidChar(chr) => {
+                let msg = &format!("could not lex the given char ({:?})", chr);
                 display_err(&self.span, f, msg)
             }
         }

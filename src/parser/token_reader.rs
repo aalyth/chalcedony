@@ -1,4 +1,4 @@
-use crate::error::span::{Position, Span, Spanning};
+use crate::error::span::{Span, Spanning};
 use crate::error::{ChalError, InternalError, ParserError};
 use crate::lexer::{Token, TokenKind};
 
@@ -14,6 +14,7 @@ pub struct TokenReader {
 }
 
 impl TokenReader {
+    /*
     pub fn new(src: VecDeque<Token>, spanner: Rc<dyn Spanning>) -> Self {
         let mut start = Position::new(0, 0);
         let mut end = Position::new(0, 0);
@@ -30,6 +31,24 @@ impl TokenReader {
             src,
             current: Span::new(start, end, spanner.clone()),
             spanner,
+        }
+    }
+    */
+
+    pub fn new(src: VecDeque<Token>, current: Span) -> Self {
+        let mut start = current.start;
+        let mut end = current.end;
+
+        if !src.is_empty() {
+            let front = src.front().unwrap();
+            start = front.span.start;
+            end = front.span.end;
+        }
+
+        TokenReader {
+            src,
+            current: Span::new(start, end, current.spanner.clone()),
+            spanner: current.spanner.clone(),
         }
     }
 

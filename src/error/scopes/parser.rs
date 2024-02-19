@@ -12,6 +12,7 @@ enum ParserErrorKind {
     RepeatedExprOperator,
     InvalidStatement,
     InvalidExprEnd,
+    EmptyExpr,
 }
 
 pub struct ParserError {
@@ -55,6 +56,10 @@ impl ParserError {
     pub fn invalid_expr_end(span: Span) -> Self {
         ParserError::new(ParserErrorKind::InvalidExprEnd, span)
     }
+
+    pub fn empty_expr(span: Span) -> Self {
+        ParserError::new(ParserErrorKind::EmptyExpr, span)
+    }
 }
 
 impl std::fmt::Display for ParserError {
@@ -94,6 +99,8 @@ impl std::fmt::Display for ParserError {
             ParserErrorKind::InvalidExprEnd => {
                 display_err(&self.span, f, "expressions must end with a terminal")
             }
+
+            ParserErrorKind::EmptyExpr => display_err(&self.span, f, "expected an expression"),
         }
     }
 }

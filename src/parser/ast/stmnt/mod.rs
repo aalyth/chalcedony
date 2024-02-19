@@ -95,9 +95,10 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                     };
 
                     // SAFETY: there is always at least 2 elements in the line (the identifer + newline)
-                    if let Some(peek) = line.tokens().get(1) {
+                    if let Some(peek) = line.tokens.get(1) {
                         if peek.kind == TokenKind::Delimiter(Delimiter::OpenPar) {
-                            let node_reader = TokenReader::new(line.into(), reader.spanner());
+                            let node_reader =
+                                TokenReader::new(line.into(), Span::from(reader.spanner()));
                             let node_raw = NodeFuncCall::new(node_reader);
                             let Ok(node) = node_raw else {
                                 errors.push(node_raw.err().unwrap());
@@ -108,7 +109,7 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                         }
                     }
 
-                    let token_reader = TokenReader::new(line.into(), reader.spanner().clone());
+                    let token_reader = TokenReader::new(line.into(), Span::from(reader.spanner()));
                     let node_raw = NodeAssign::new(token_reader);
                     let Ok(node) = node_raw else {
                         errors.push(node_raw.err().unwrap());

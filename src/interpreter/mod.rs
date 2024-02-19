@@ -97,12 +97,18 @@ pub struct Chalcedony {
 
     /* Keeps track whether the currently compiled scope is a statement */
     inside_stmnt: bool,
+
+    /* Whether the interpreter has failed */
+    failed: bool,
 }
 
 impl InterpreterVisitor for Chalcedony {
     fn interpret_node(&mut self, node: NodeProg) -> Result<(), ChalError> {
         let bytecode = node.to_bytecode(self)?;
-        self.vm.execute(bytecode);
+        /* this is so all of the errors in the code are displayed */
+        if !self.failed {
+            self.vm.execute(bytecode);
+        }
         Ok(())
     }
 }
@@ -129,7 +135,6 @@ impl Chalcedony {
 
         let mut vm = Cvm::new();
 
-        /* TODO: integrate builtins directly into the vm */
         let mut builtins = Vec::<Vec<Bytecode>>::new();
         let print = vec![
             Bytecode::CreateFunc(1),
@@ -157,6 +162,7 @@ impl Chalcedony {
             current_while: None,
             locals: RefCell::new(AHashMap::default()),
             inside_stmnt: false,
+            failed: false,
         }
     }
 
@@ -165,18 +171,17 @@ impl Chalcedony {
 
         let mut errors = Vec::<ChalError>::new();
 
-        let mut failed = false;
+        self.failed = false;
         while !parser.is_empty() {
             match parser.advance() {
-                Ok(node) if !failed => {
+                Ok(node) => {
                     if let Err(err) = self.interpret_node(node) {
-                        eprint!("{}", err);
-                        return;
+                        self.failed = true;
+                        errors.push(err);
                     }
                 }
-                Ok(_) => {}
                 Err(err) => {
-                    failed = true;
+                    self.failed = true;
                     errors.push(err);
                 }
             }
