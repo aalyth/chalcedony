@@ -20,6 +20,7 @@ syntax match func '\(fn \)\@<=\w\+'
 let b:current_syntax = 'chalcedony'
 hi def link types    Type 
 hi def link keywords Statement
+hi def link builtin  Special
 hi def link boolean  Constant
 hi def link number   Constant
 hi def link string   Constant
