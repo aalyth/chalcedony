@@ -307,9 +307,7 @@ impl NodeExpr {
         }
 
         if output.is_empty() {
-            println!("EMPTY EXPR");
             let curr = reader.current();
-            println!("{:?} {:?}\n", curr.start, curr.end);
             return Err(ParserError::empty_expr(reader.current()).into());
         }
 
