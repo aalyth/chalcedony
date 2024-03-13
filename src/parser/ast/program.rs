@@ -11,6 +11,7 @@ use crate::parser::{LineReader, TokenReader};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+#[derive(Debug)]
 pub enum NodeProg {
     VarDef(NodeVarDef),
     FuncDef(NodeFuncDef),

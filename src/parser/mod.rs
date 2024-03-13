@@ -29,7 +29,9 @@ impl Parser {
         if self.lexer.is_empty() {
             return Err(InternalError::new("Parser::advance(): advancing an empty parser").into());
         }
-        NodeProg::new(self.lexer.advance_prog()?, self.spanner.clone())
+        let res = NodeProg::new(self.lexer.advance_prog()?, self.spanner.clone())?;
+        println!("Program node: {:#?}\n", res);
+        Ok(res)
     }
 
     pub fn is_empty(&self) -> bool {

@@ -32,13 +32,7 @@ macro_rules! apply_bin_operator {
 
 pub fn add(cvm: &mut Cvm, current_idx: usize) -> usize {
     fn add_str(cvm: &mut Cvm, lval: PtrString, right: CvmObject) {
-        match right {
-            CvmObject::Int(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
-            CvmObject::Uint(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
-            CvmObject::Float(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
-            CvmObject::Str(rval) => cvm.push(CvmObject::Str(lval + rval)),
-            CvmObject::Bool(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
-        }
+        cvm.push(CvmObject::Str(format!("{}{}", lval, right).into()));
     }
     apply_bin_operator!(cvm, current_idx, +, add_str)
 }

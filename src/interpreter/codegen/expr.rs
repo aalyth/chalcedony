@@ -58,6 +58,8 @@ impl ToBytecode for NodeExprInner {
             NodeExprInner::VarCall(node) => node.to_bytecode(interpreter),
 
             NodeExprInner::FuncCall(node) => node.to_bytecode(interpreter),
+
+            NodeExprInner::List(_) => todo!(), // TODO:
         }
     }
 }

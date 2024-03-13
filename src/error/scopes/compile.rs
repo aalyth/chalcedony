@@ -21,6 +21,7 @@ enum CompileErrorKind {
     RedefiningVariable,
     ReturnOutsideFunc,
     CtrlFlowOutsideWhile,
+    IncoherentList(Type, Type),
 }
 
 pub struct CompileError {
@@ -99,6 +100,10 @@ impl CompileError {
 
     pub fn control_flow_outside_while(span: Span) -> Self {
         CompileError::new(CompileErrorKind::CtrlFlowOutsideWhile, span)
+    }
+
+    pub fn incoherent_list(span: Span, el1: Type, el2: Type) -> Self {
+        CompileError::new(CompileErrorKind::IncoherentList(el1, el2), span)
     }
 }
 
@@ -195,6 +200,11 @@ impl std::fmt::Display for CompileError {
 
             CompileErrorKind::CtrlFlowOutsideWhile => {
                 display_err(&self.span, f, "control flow outside a while scope")
+            }
+
+            CompileErrorKind::IncoherentList(el1, el2) => {
+                let msg = &format!("incoherent list elements ('{:?}' and '{:?}')", el1, el2);
+                display_err(&self.span, f, msg)
             }
         }
     }

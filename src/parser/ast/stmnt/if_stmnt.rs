@@ -4,22 +4,26 @@ use crate::parser::ast::{NodeExpr, NodeStmnt};
 
 use crate::parser::{LineReader, TokenReader};
 
+#[derive(Debug)]
 pub struct NodeIfStmnt {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
     pub branches: Vec<NodeIfBranch>,
 }
 
+#[derive(Debug)]
 pub enum NodeIfBranch {
     Elif(NodeElifStmnt),
     Else(NodeElseStmnt),
 }
 
+#[derive(Debug)]
 pub struct NodeElifStmnt {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
 }
 
+#[derive(Debug)]
 pub struct NodeElseStmnt {
     pub body: Vec<NodeStmnt>,
 }

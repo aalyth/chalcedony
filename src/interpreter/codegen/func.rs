@@ -22,10 +22,10 @@ impl ToBytecode for NodeFuncDef {
             if arg.ty == Type::Void {
                 return Err(CompileError::void_argument(self.span).into());
             }
-            args.push(ArgAnnotation::new(idx, arg.name.clone(), arg.ty));
+            args.push(ArgAnnotation::new(idx, arg.name.clone(), arg.ty.clone()));
         }
 
-        interpreter.create_function(self.name.clone(), args, self.ret_type);
+        interpreter.create_function(self.name.clone(), args, self.ret_type.clone());
 
         /* compile the bytecode for each statement in the body */
         let mut body = Vec::<Bytecode>::new();
@@ -98,9 +98,11 @@ impl ToBytecode for NodeFuncCall {
         }
 
         if annotation.ret_type != Type::Void && interpreter.inside_stmnt {
-            return Err(
-                CompileError::non_void_func_stmnt(annotation.ret_type, self.span.clone()).into(),
-            );
+            return Err(CompileError::non_void_func_stmnt(
+                annotation.ret_type.clone(),
+                self.span.clone(),
+            )
+            .into());
         }
 
         /* push on the stack each of the argument's expression value */
@@ -110,7 +112,8 @@ impl ToBytecode for NodeFuncCall {
                 .args
                 .get(idx)
                 .expect("the argument bounds should have already been checked")
-                .ty;
+                .ty
+                .clone();
 
             result.extend(arg_expr.clone().to_bytecode(interpreter)?);
             let recv_type = arg_expr.as_type(interpreter)?;

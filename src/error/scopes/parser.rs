@@ -13,6 +13,7 @@ enum ParserErrorKind {
     InvalidStatement,
     InvalidExprEnd,
     EmptyExpr,
+    UntypedList,
 }
 
 pub struct ParserError {
@@ -60,6 +61,10 @@ impl ParserError {
     pub fn empty_expr(span: Span) -> Self {
         ParserError::new(ParserErrorKind::EmptyExpr, span)
     }
+
+    pub fn untyped_list(span: Span) -> Self {
+        ParserError::new(ParserErrorKind::UntypedList, span)
+    }
 }
 
 impl std::fmt::Display for ParserError {
@@ -101,6 +106,9 @@ impl std::fmt::Display for ParserError {
             }
 
             ParserErrorKind::EmptyExpr => display_err(&self.span, f, "expected an expression"),
+            ParserErrorKind::UntypedList => {
+                display_err(&self.span, f, "expected a type to the list")
+            }
         }
     }
 }

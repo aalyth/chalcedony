@@ -5,6 +5,7 @@ pub use pos::Position;
 pub use spanning::InlineSpanner;
 
 use std::rc::Rc;
+use std::{cmp, fmt};
 
 pub trait Spanning {
     fn context(&self, start: &Position, end: &Position) -> String;
@@ -41,8 +42,14 @@ impl From<Rc<dyn Spanning>> for Span {
     }
 }
 
-impl std::cmp::PartialEq for Span {
+impl cmp::PartialEq for Span {
     fn eq(&self, other: &Span) -> bool {
         self.start == other.start && self.end == other.end
+    }
+}
+
+impl fmt::Debug for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<span instance>")
     }
 }

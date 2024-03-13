@@ -29,7 +29,7 @@ impl ArgAnnotation {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct VarAnnotation {
     id: usize,
     ty: Type,
@@ -207,7 +207,7 @@ impl Chalcedony {
         }
         self.globals.insert(
             node.name.clone(),
-            VarAnnotation::new(self.globals.len(), node.ty),
+            VarAnnotation::new(self.globals.len(), node.ty.clone()),
         );
         self.globals.len() - 1
     }
@@ -218,9 +218,10 @@ impl Chalcedony {
         }
 
         let next_id = self.locals.borrow().len();
-        self.locals
-            .borrow_mut()
-            .insert(node.name.clone(), VarAnnotation::new(next_id, node.ty));
+        self.locals.borrow_mut().insert(
+            node.name.clone(),
+            VarAnnotation::new(next_id, node.ty.clone()),
+        );
         next_id
     }
 }

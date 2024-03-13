@@ -41,7 +41,12 @@ impl ToBytecode for NodeStmnt {
 
                 let value_type = node.value.as_type(interpreter)?;
                 if node.ty != Type::Any {
-                    Type::verify(node.ty, value_type, &mut result, node.value.span.clone())?;
+                    Type::verify(
+                        node.ty.clone(),
+                        value_type,
+                        &mut result,
+                        node.value.span.clone(),
+                    )?;
                 } else {
                     node.ty = value_type;
                 }
@@ -266,14 +271,14 @@ impl ToBytecode for NodeAssign {
         let mut scope = VarScope::Global;
 
         if let Some(var) = interpreter.locals.borrow().get(&self.lhs.name) {
-            annotation = *var;
+            annotation = var.clone();
             scope = VarScope::Local;
 
         /* check whether the interpreter is compiling inside a function scope */
         } else if let Some(func) = interpreter.current_func.clone() {
             /* check whether the variable is an argument */
             if let Some(arg) = func.arg_lookup.get(&self.lhs.name) {
-                annotation = VarAnnotation::new(arg.id, arg.ty);
+                annotation = VarAnnotation::new(arg.id, arg.ty.clone());
                 scope = VarScope::Arg;
 
             /* check whether the variable is a local variable */
@@ -283,7 +288,7 @@ impl ToBytecode for NodeAssign {
 
         /* the interpreter is in the global scope*/
         } else if let Some(var) = interpreter.globals.get(&self.lhs.name) {
-            annotation = *var;
+            annotation = var.clone();
         } else {
             return Err(CompileError::unknown_variable(self.lhs.name, self.lhs.span).into());
         }
@@ -338,7 +343,7 @@ impl ToBytecode for NodeRetStmnt {
         };
 
         let recv_type = self.value.as_type(interpreter)?;
-        let exp_type = func.ret_type;
+        let exp_type = func.ret_type.clone();
 
         if exp_type == Type::Void && recv_type == Type::Void {
             return Ok(vec![Bytecode::ReturnVoid]);

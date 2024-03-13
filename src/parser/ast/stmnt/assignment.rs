@@ -5,6 +5,7 @@ use crate::parser::TokenReader;
 
 use crate::common::operators::AssignOprType;
 
+#[derive(Debug)]
 pub struct NodeAssign {
     pub lhs: NodeVarCall,
     pub opr: AssignOprType,

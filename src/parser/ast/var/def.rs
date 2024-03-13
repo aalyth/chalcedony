@@ -4,6 +4,7 @@ use crate::parser::{ast::NodeExpr, TokenReader};
 
 use crate::common::Type;
 
+#[derive(Debug)]
 pub struct NodeVarDef {
     pub ty: Type,
     pub name: String,
@@ -27,11 +28,8 @@ impl NodeVarDef {
             .is_ok()
         {
             ty = reader.expect_type()?;
-
-            reader.expect_exact(TokenKind::Operator(Operator::Eq))?;
-        } else {
-            reader.expect_exact(TokenKind::Operator(Operator::Eq))?;
         }
+        reader.expect_exact(TokenKind::Operator(Operator::Eq))?;
 
         let rhs = reader.advance_until(|tk| tk == &TokenKind::Newline)?;
         let rhs_reader = TokenReader::new(rhs, reader.current());

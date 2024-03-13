@@ -14,6 +14,7 @@ use crate::error::{span::Span, ChalError, InternalError, ParserError};
 use crate::lexer::{Delimiter, Keyword, TokenKind};
 use crate::parser::{LineReader, TokenReader};
 
+#[derive(Debug)]
 pub enum NodeStmnt {
     VarDef(NodeVarDef),
     FuncCall(NodeFuncCall),
@@ -23,6 +24,16 @@ pub enum NodeStmnt {
     RetStmnt(NodeRetStmnt),
     ContStmnt(NodeContStmnt),
     BreakStmnt(NodeBreakStmnt),
+}
+
+#[derive(Debug)]
+pub struct NodeContStmnt {
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct NodeBreakStmnt {
+    pub span: Span,
 }
 
 macro_rules! single_line_statement {
@@ -142,10 +153,6 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
     }
 }
 
-pub struct NodeContStmnt {
-    pub span: Span,
-}
-
 impl NodeContStmnt {
     fn new(mut reader: TokenReader) -> Result<Self, ChalError> {
         reader.expect_exact(TokenKind::Keyword(Keyword::Continue))?;
@@ -154,10 +161,6 @@ impl NodeContStmnt {
 
         Ok(NodeContStmnt { span })
     }
-}
-
-pub struct NodeBreakStmnt {
-    pub span: Span,
 }
 
 impl NodeBreakStmnt {

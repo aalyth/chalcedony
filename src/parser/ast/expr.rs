@@ -11,16 +11,30 @@ use crate::parser::TokenReader;
 
 use std::collections::VecDeque;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum NodeExprInner {
     BinOpr(BinOprType),
     UnaryOpr(UnaryOprType),
     Value(NodeValue),
     VarCall(NodeVarCall),
     FuncCall(NodeFuncCall),
+
+    List(NodeList),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+pub struct NodeList {
+    pub elements: Vec<NodeExpr>,
+    pub span: Span,
+}
+
+impl NodeList {
+    fn new(elements: Vec<NodeExpr>, span: Span) -> Self {
+        NodeList { elements, span }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct NodeExpr {
     pub expr: VecDeque<NodeExprInner>,
     pub span: Span,
@@ -230,21 +244,16 @@ impl NodeExpr {
 
                     if let TokenKind::Delimiter(Delimiter::OpenPar) = reader.peek().unwrap().kind {
                         let mut buffer = VecDeque::<Token>::new();
+
+                        /* the name of the function */
                         buffer.push_back(current.clone());
-                        /* push the open parenthesis */
+
+                        /* the open parenthesis */
                         buffer.push_back(reader.advance().unwrap());
-                        let mut open_delims: u64 = 1;
 
-                        while !reader.is_empty() && open_delims > 0 {
-                            let current = reader.advance().unwrap();
+                        /* the remainder of the function call */
+                        buffer.extend(reader.advance_scope());
 
-                            match current.kind {
-                                TokenKind::Delimiter(Delimiter::OpenPar) => open_delims += 1,
-                                TokenKind::Delimiter(Delimiter::ClosePar) => open_delims -= 1,
-                                _ => (),
-                            }
-                            buffer.push_back(current);
-                        }
                         // SAFETY: the buffer should always have at least 1 element in it
                         let tmp_reader = TokenReader::new(buffer, reader.current());
                         let node = NodeExprInner::FuncCall(NodeFuncCall::new(tmp_reader)?);
@@ -291,6 +300,38 @@ impl NodeExpr {
                     operators.pop();
                 }
 
+                /* building a list */
+                TokenKind::Delimiter(Delimiter::OpenBracket) => {
+                    let start = reader.current().start;
+                    let mut scope = reader.advance_scope();
+                    /* remove the closing bracket */
+                    scope.pop_back();
+
+                    let element_reader = TokenReader::new(scope, current.span.clone());
+                    let elements = element_reader.split_commas();
+
+                    let mut list = Vec::<NodeExpr>::new();
+                    for el in elements {
+                        let Some(front) = el.front() else {
+                            return Err(ParserError::empty_expr(current.span).into());
+                        };
+                        /* this is necessary to shadow the immutable borrow of `el` */
+                        let front = front.span.clone();
+                        let reader = TokenReader::new(el, front);
+                        list.push(NodeExpr::new(reader)?);
+                    }
+
+                    let end = reader.current().end;
+                    let span = Span::new(start, end, reader.spanner());
+
+                    push_terminal!(
+                        NodeExprInner::List(NodeList::new(list, span)),
+                        output,
+                        prev_type,
+                        current
+                    );
+                }
+
                 TokenKind::Newline => break,
 
                 _ => return Err(ParserError::unexpected_token(current.kind, current.span).into()),
@@ -307,7 +348,6 @@ impl NodeExpr {
         }
 
         if output.is_empty() {
-            let curr = reader.current();
             return Err(ParserError::empty_expr(reader.current()).into());
         }
 

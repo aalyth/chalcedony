@@ -128,20 +128,20 @@ macro_rules! opr_cmp_internal {
             (Type::Int, Type::Int) => Ok(Type::Bool),
             (Type::Int, Type::Uint) => Ok(Type::Bool),
             (Type::Int, Type::Float) => Ok(Type::Bool),
-            (Type::Int, Type::Bool) => $cmp_func(left, $span),
+            (left @ Type::Int, Type::Bool) => $cmp_func(left, $span),
 
             (Type::Uint, Type::Int) => Ok(Type::Bool),
             (Type::Uint, Type::Uint) => Ok(Type::Bool),
             (Type::Uint, Type::Float) => Ok(Type::Bool),
-            (Type::Uint, Type::Bool) => $cmp_func(left, $span),
+            (left @ Type::Uint, Type::Bool) => $cmp_func(left, $span),
 
             (Type::Float, Type::Int) => Ok(Type::Bool),
             (Type::Float, Type::Uint) => Ok(Type::Bool),
             (Type::Float, Type::Float) => Ok(Type::Bool),
-            (Type::Float, Type::Bool) => $cmp_func(left, $span),
+            (left @ Type::Float, Type::Bool) => $cmp_func(left, $span),
 
             (Type::Str, Type::Str) => Ok(Type::Bool),
-            (Type::Bool, _) => $cmp_func(right, $span),
+            (Type::Bool, right) => $cmp_func(right, $span),
             (left, right) => Err(CompileError::invalid_bin_opr(
                 $opr_name.to_string(),
                 left,
@@ -236,16 +236,16 @@ impl NodeExprInner {
             NodeExprInner::VarCall(node) => {
                 if let Some(func) = interpreter.current_func.clone() {
                     if let Some(var) = func.arg_lookup.get(&node.name) {
-                        return Ok(var.ty);
+                        return Ok(var.ty.clone());
                     }
                 }
 
                 if let Some(var) = interpreter.locals.borrow().get(&node.name) {
-                    return Ok(var.ty);
+                    return Ok(var.ty.clone());
                 }
 
                 if let Some(var) = interpreter.globals.get(&node.name) {
-                    return Ok(var.ty);
+                    return Ok(var.ty.clone());
                 }
 
                 Err(CompileError::unknown_variable(node.name.clone(), node.span.clone()).into())
@@ -256,13 +256,39 @@ impl NodeExprInner {
                     if func.ret_type == Type::Void {
                         return Err(CompileError::void_func_expr(node.span.clone()).into());
                     }
-                    return Ok(func.ret_type);
+                    return Ok(func.ret_type.clone());
                 }
                 Err(CompileError::unknown_function(node.name.clone(), node.span.clone()).into())
             }
 
             NodeExprInner::BinOpr(opr) => opr.as_type(eval_stack, span),
             NodeExprInner::UnaryOpr(opr) => opr.as_type(eval_stack, span),
+
+            NodeExprInner::List(node) => {
+                /* an empty list is equal to `[Any]` */
+                if node.elements.is_empty() {
+                    return Ok(Type::List(Box::new(Type::Any)));
+                }
+
+                let mut prev_type = Type::Any;
+
+                for el in node.elements.iter() {
+                    let ty = el.as_type(interpreter)?;
+
+                    if ty != prev_type {
+                        return Err(CompileError::incoherent_list(
+                            node.span.clone(),
+                            ty,
+                            prev_type,
+                        )
+                        .into());
+                    }
+                    prev_type = ty;
+                }
+
+                /* since each type should be the same, we can just return the last type */
+                Ok(prev_type)
+            }
         }
     }
 }

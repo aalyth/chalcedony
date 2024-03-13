@@ -1,7 +1,7 @@
 use super::Bytecode;
 use crate::error::{span::Span, ChalError, CompileError};
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Type {
     Int,
     Uint,
@@ -10,6 +10,7 @@ pub enum Type {
     Bool,
     Any,
     Void,
+    List(Box<Type>),
 }
 
 impl Type {
@@ -33,5 +34,17 @@ impl Type {
         }
 
         Err(CompileError::invalid_type(exp, recv, span).into())
+    }
+
+    /* compares the two types implicitly using `Type::Any` as wildcards */
+    pub fn implicit_eq(&self, other: &Type) -> bool {
+        if *self == Type::Any || *other == Type::Any {
+            return true;
+        }
+
+        match (self, other) {
+            (Type::List(lhs), Type::List(rhs)) => lhs == rhs,
+            _ => self == other,
+        }
     }
 }

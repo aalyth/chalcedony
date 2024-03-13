@@ -6,11 +6,13 @@ use crate::parser::{LineReader, TokenReader};
 
 use crate::common::Type;
 
+#[derive(Debug)]
 pub struct Arg {
     pub name: String,
     pub ty: Type,
 }
 
+#[derive(Debug)]
 pub struct NodeFuncDef {
     pub name: String,
     pub args: Vec<Arg>,
