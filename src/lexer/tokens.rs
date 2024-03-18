@@ -14,6 +14,8 @@ pub enum Keyword {
     While,
     Continue,
     Break,
+    For,
+    In,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -144,6 +146,8 @@ impl TokenKind {
             "while" => return Ok(TokenKind::Keyword(Keyword::While)),
             "continue" => return Ok(TokenKind::Keyword(Keyword::Continue)),
             "break" => return Ok(TokenKind::Keyword(Keyword::Break)),
+            "for" => return Ok(TokenKind::Keyword(Keyword::For)),
+            "in" => return Ok(TokenKind::Keyword(Keyword::In)),
 
             /* DELIMITERS */
             "(" => return Ok(TokenKind::Delimiter(Delimiter::OpenPar)),

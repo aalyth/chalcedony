@@ -1,12 +1,12 @@
 mod assignment;
 mod if_stmnt;
+mod loops;
 mod return_stmnt;
-mod while_loop;
 
 pub use assignment::NodeAssign;
 pub use if_stmnt::{NodeElifStmnt, NodeElseStmnt, NodeIfBranch, NodeIfStmnt};
+pub use loops::{NodeForLoop, NodeWhileLoop};
 pub use return_stmnt::NodeRetStmnt;
-pub use while_loop::NodeWhileLoop;
 
 use super::{NodeFuncCall, NodeVarDef};
 
@@ -24,6 +24,7 @@ pub enum NodeStmnt {
     RetStmnt(NodeRetStmnt),
     ContStmnt(NodeContStmnt),
     BreakStmnt(NodeBreakStmnt),
+    ForLoop(NodeForLoop),
 }
 
 #[derive(Debug)]
@@ -136,6 +137,10 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
 
                 TokenKind::Keyword(Keyword::While) => {
                     multi_line_statement!(reader, result, errors, NodeWhileLoop, WhileLoop);
+                }
+
+                TokenKind::Keyword(Keyword::For) => {
+                    multi_line_statement!(reader, result, errors, NodeForLoop, ForLoop);
                 }
 
                 _ => {

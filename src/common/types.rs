@@ -23,6 +23,7 @@ impl Type {
         if exp == Type::Any || exp == recv {
             return Ok(());
         }
+
         if exp == Type::Int && recv == Type::Uint {
             code.push(Bytecode::CastI);
             return Ok(());
@@ -37,14 +38,14 @@ impl Type {
     }
 
     /* compares the two types implicitly using `Type::Any` as wildcards */
-    pub fn implicit_eq(&self, other: &Type) -> bool {
-        if *self == Type::Any || *other == Type::Any {
+    pub fn implicit_eq(left: &Type, right: &Type) -> bool {
+        if *left == Type::Any || *right == Type::Any {
             return true;
         }
 
-        match (self, other) {
+        match (left, right) {
             (Type::List(lhs), Type::List(rhs)) => lhs == rhs,
-            _ => self == other,
+            _ => left == right,
         }
     }
 }

@@ -1,12 +1,16 @@
 mod builtins;
 mod object;
 
-use builtins::{add, and, assert, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
+use builtins::{
+    add, and, assert, div, eq, gt, gt_eq, list_insert, lt, lt_eq, modulo, mul, neg, not, or, sub,
+};
 use object::CvmObject;
 
 use crate::common::Bytecode;
 use crate::utils::Stack;
 
+use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -76,6 +80,11 @@ impl Cvm {
                 next_idx
             }
             Bytecode::ConstB(val) => push_constant!(self, Bool, val, next_idx),
+            Bytecode::ConstL => {
+                self.stack
+                    .push(CvmObject::List(Rc::new(RefCell::new(VecDeque::new()))));
+                next_idx
+            }
 
             Bytecode::CastI => {
                 let obj = self.stack.pop().expect("expected a value on the stack");
@@ -232,6 +241,9 @@ impl Cvm {
             }
 
             Bytecode::Jmp(dist) => (next_idx as isize + dist) as usize,
+
+            Bytecode::LInsert(idx) => list_insert(self, *idx, next_idx),
+            Bytecode::LPop(_idx) => todo!(), // TODO:
 
             Bytecode::Print => {
                 let obj = self.stack.pop().expect("expected an object on the stack");

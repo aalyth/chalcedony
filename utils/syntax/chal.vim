@@ -2,7 +2,7 @@ if exists('b:current_syntax')
     finish
 endif
 
-syntax keyword keywords fn return let if elif else while continue break
+syntax keyword keywords fn return let if elif else while continue break for in
 syntax keyword type uint int float str bool void
 syntax keyword boolean true false
 

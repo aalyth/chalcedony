@@ -10,9 +10,11 @@ pub enum Bytecode {
     ConstS(PtrString),
     ConstB(bool),
 
-    // converts uint -> int
+    ConstL, /* builds a new empty list */
+
+    /* converts uint -> int */
     CastI,
-    // converts uint/int -> float
+    /* converts uint/int -> float */
     CastF,
 
     Add,
@@ -32,21 +34,24 @@ pub enum Bytecode {
     Neg,
     Not,
 
-    SetGlobal(usize),
-    GetGlobal(usize),
-    SetArg(usize),
-    GetArg(usize),
-    SetLocal(usize),
-    GetLocal(usize),
+    SetGlobal(usize), /* global id */
+    GetGlobal(usize), /* global id */
+    SetArg(usize),    /* arg id */
+    GetArg(usize),    /* arg id */
+    SetLocal(usize),  /* local id */
+    GetLocal(usize),  /* local id */
 
-    CreateFunc(usize), // arg count
-    CallFunc(usize),
+    CreateFunc(usize), /* arg count */
+    CallFunc(usize),   /* func id */
     Return,
     ReturnVoid,
 
-    If(usize), // how much to jump over if the top of the stack is false
+    If(usize), /* how much to jump over if the top of the stack is false */
     Jmp(isize),
 
+    LInsert(isize),
+    LPop(usize),
+
     Print,
-    Assert, // asserts the top 2 values on the stack are equal
+    Assert, /* asserts the top 2 values on the stack are equal */
 }

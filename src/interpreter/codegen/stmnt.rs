@@ -4,7 +4,7 @@ use crate::error::{ChalError, CompileError};
 use crate::interpreter::{Chalcedony, VarAnnotation, WhileScope};
 use crate::parser::ast::{
     NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExprInner,
-    NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeWhileLoop,
+    NodeForLoop, NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeWhileLoop,
 };
 
 use crate::common::operators::{AssignOprType, BinOprType};
@@ -25,6 +25,7 @@ fn set_while_scope(interpreter: &mut Chalcedony, val: usize) {
 impl ToBytecode for NodeStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let result: Vec<Bytecode> = match self {
+            /* the code here cannot be infered by `NodeVarDef::to_bytecode()` */
             NodeStmnt::VarDef(mut node) => {
                 if interpreter.locals.borrow().contains_key(&node.name) {
                     return Err(CompileError::redefining_variable(node.span.clone()).into());
@@ -65,6 +66,7 @@ impl ToBytecode for NodeStmnt {
             NodeStmnt::Assign(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::ContStmnt(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::BreakStmnt(node) => node.to_bytecode(interpreter)?,
+            NodeStmnt::ForLoop(node) => node.to_bytecode(interpreter)?,
         };
 
         increment_while_scope(interpreter, result.len());
@@ -374,5 +376,22 @@ impl ToBytecode for NodeContStmnt {
             return Err(CompileError::control_flow_outside_while(self.span.clone()).into());
         };
         Ok(vec![Bytecode::Jmp(-(scope.current_length as isize))])
+    }
+}
+
+impl ToBytecode for NodeForLoop {
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
+        if interpreter.locals.borrow().contains_key(&self.iter.name) {
+            return Err(CompileError::redefining_variable(self.iter.span.clone()).into());
+        }
+
+        /* check whether the variable exists as a function's argument */
+        if let Some(func) = interpreter.current_func.clone() {
+            if func.arg_lookup.get(&self.iter.name).is_some() {
+                return Err(CompileError::redefining_function_arg(self.iter.span).into());
+            }
+        }
+
+        Ok(vec![])
     }
 }

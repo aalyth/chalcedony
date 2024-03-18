@@ -105,6 +105,7 @@ pub struct Chalcedony {
 impl InterpreterVisitor for Chalcedony {
     fn interpret_node(&mut self, node: NodeProg) -> Result<(), ChalError> {
         let bytecode = node.to_bytecode(self)?;
+        print!("BYTECODE: {:#?}", bytecode);
         /* this is so all of the errors in the code are displayed */
         if !self.failed {
             self.vm.execute(bytecode);

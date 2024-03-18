@@ -107,7 +107,8 @@ impl Lexer {
 
             TokenKind::Keyword(Keyword::Fn)
             | TokenKind::Keyword(Keyword::If)
-            | TokenKind::Keyword(Keyword::While) => {
+            | TokenKind::Keyword(Keyword::While)
+            | TokenKind::Keyword(Keyword::For) => {
                 result.push_back(line);
                 result.extend(self.advance_chunk()?);
             }
@@ -185,17 +186,17 @@ impl Lexer {
         start: Position,
         end: Position,
     ) -> Result<Token, ChalError> {
-        /* 1. create the token
-         * 2. match the token:
-         *  * delimiter:
-         *      1. update the delimiter stack
-         *      2. check for delimiter errors
-         *
-         *  * subtraction:
-         *      1. check if the operator is binary or unary
-         *
-         * 3. update the prev token
-         */
+        // 1. create the token
+        // 2. match the token:
+        //  - delimiter:
+        //      1. update the delimiter stack
+        //      2. check for delimiter errors
+        //
+        //  - subtraction:
+        //      1. check if the operator is binary or unary
+        //
+        // 3. update the prev token
+        //
         let mut tok = Token::new(src, self.get_span(start, end))?;
 
         match &tok.kind {

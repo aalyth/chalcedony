@@ -59,7 +59,16 @@ impl ToBytecode for NodeExprInner {
 
             NodeExprInner::FuncCall(node) => node.to_bytecode(interpreter),
 
-            NodeExprInner::List(_) => todo!(), // TODO:
+            NodeExprInner::List(node) => {
+                let mut result = Vec::<Bytecode>::new();
+                result.push(Bytecode::ConstL);
+                for el in node.elements {
+                    result.extend(el.to_bytecode(interpreter)?);
+                    /* -1 means insert at the end */
+                    result.push(Bytecode::LInsert(-1));
+                }
+                Ok(result)
+            }
         }
     }
 }

@@ -275,7 +275,7 @@ impl NodeExprInner {
                 for el in node.elements.iter() {
                     let ty = el.as_type(interpreter)?;
 
-                    if ty != prev_type {
+                    if !Type::implicit_eq(&ty, &prev_type) {
                         return Err(CompileError::incoherent_list(
                             node.span.clone(),
                             ty,
@@ -287,7 +287,7 @@ impl NodeExprInner {
                 }
 
                 /* since each type should be the same, we can just return the last type */
-                Ok(prev_type)
+                Ok(Type::List(Box::new(prev_type)))
             }
         }
     }
