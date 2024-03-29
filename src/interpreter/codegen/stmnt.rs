@@ -380,6 +380,7 @@ impl ToBytecode for NodeContStmnt {
 }
 
 impl ToBytecode for NodeForLoop {
+    #[allow(non_upper_case_globals)]
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         if interpreter.locals.borrow().contains_key(&self.iter.name) {
             return Err(CompileError::redefining_variable(self.iter.span.clone()).into());
@@ -392,6 +393,65 @@ impl ToBytecode for NodeForLoop {
             }
         }
 
-        Ok(vec![])
+        // it is important that these variable names have the trailing whitespace,
+        // so they do not interfere with the user's variable names
+        const idx_name: &str = "__idx__ ";
+        const iterable_name: &str = "__list__ ";
+
+        let iterable_type = self.iterable.as_type(interpreter)?;
+        let iterator_type = match iterable_type.clone() {
+            Type::List(ty) => *ty,
+            ty => return Err(CompileError::invalid_iterable(self.iterable.span, ty).into()),
+        };
+
+        let iterator_id = interpreter.get_local_id_internal(&self.iter.name, iterator_type);
+        let idx_id = interpreter.get_local_id_internal(idx_name, Type::Uint);
+        let iterable_id = interpreter.get_local_id_internal(iterable_name, iterable_type);
+
+        let mut result = Vec::<Bytecode>::new();
+        /* __idx__ = 0 */
+        result.extend(vec![Bytecode::ConstU(0), Bytecode::SetLocal(idx_id)]);
+        /* __list__ = <list> */
+        result.extend(self.iterable.to_bytecode(interpreter)?);
+        result.push(Bytecode::SetLocal(iterable_id));
+
+        /* while __idx__ < len(__list__) */
+        let mut condition = vec![
+            Bytecode::GetLocal(idx_id),
+            Bytecode::GetLocal(iterable_id),
+            Bytecode::Len,
+            Bytecode::Lt,
+            /* here will be inserted `Bytecode::If(body_len)` */
+        ];
+
+        let mut body = Vec::<Bytecode>::new();
+        /* <iterator> = __list__[__idx__] */
+        body.extend(vec![
+            Bytecode::GetLocal(iterable_id),
+            Bytecode::GetLocal(idx_id),
+            Bytecode::GetIdx,
+            Bytecode::SetLocal(iterator_id),
+        ]);
+
+        /* loop body source */
+        body.extend(self.body.to_bytecode(interpreter)?);
+
+        /* __idx__ += 1 */
+        body.extend(vec![
+            Bytecode::GetLocal(idx_id),
+            Bytecode::ConstU(1),
+            Bytecode::Add,
+            Bytecode::SetLocal(idx_id),
+        ]);
+        body.push(Bytecode::Jmp(
+            -((body.len() + condition.len() + 2) as isize),
+        ));
+
+        condition.push(Bytecode::If(body.len()));
+
+        result.extend(condition);
+        result.extend(body);
+
+        Ok(result)
     }
 }

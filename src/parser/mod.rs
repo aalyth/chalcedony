@@ -30,7 +30,6 @@ impl Parser {
             return Err(InternalError::new("Parser::advance(): advancing an empty parser").into());
         }
         let res = NodeProg::new(self.lexer.advance_prog()?, self.spanner.clone())?;
-        println!("Program node: {:#?}\n", res);
         Ok(res)
     }
 

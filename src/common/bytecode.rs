@@ -10,12 +10,17 @@ pub enum Bytecode {
     ConstS(PtrString),
     ConstB(bool),
 
-    ConstL, /* builds a new empty list */
+    /* builds a new empty list */
+    ConstL,
 
     /* converts uint -> int */
     CastI,
     /* converts uint/int -> float */
     CastF,
+
+    Len,
+    /* <list> <idx> */
+    GetIdx,
 
     Add,
     Sub,

@@ -22,6 +22,7 @@ enum CompileErrorKind {
     ReturnOutsideFunc,
     CtrlFlowOutsideWhile,
     IncoherentList(Type, Type),
+    InvalidIterable(Type),
 }
 
 pub struct CompileError {
@@ -104,6 +105,10 @@ impl CompileError {
 
     pub fn incoherent_list(span: Span, el1: Type, el2: Type) -> Self {
         CompileError::new(CompileErrorKind::IncoherentList(el1, el2), span)
+    }
+
+    pub fn invalid_iterable(span: Span, ty: Type) -> Self {
+        CompileError::new(CompileErrorKind::InvalidIterable(ty), span)
     }
 }
 
@@ -204,6 +209,11 @@ impl std::fmt::Display for CompileError {
 
             CompileErrorKind::IncoherentList(el1, el2) => {
                 let msg = &format!("incoherent list elements ('{:?}' and '{:?}')", el1, el2);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::InvalidIterable(ty) => {
+                let msg = &format!("value of type `{:?}` is not iterable", ty);
                 display_err(&self.span, f, msg)
             }
         }

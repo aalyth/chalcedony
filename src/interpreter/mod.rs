@@ -105,7 +105,6 @@ pub struct Chalcedony {
 impl InterpreterVisitor for Chalcedony {
     fn interpret_node(&mut self, node: NodeProg) -> Result<(), ChalError> {
         let bytecode = node.to_bytecode(self)?;
-        print!("BYTECODE: {:#?}", bytecode);
         /* this is so all of the errors in the code are displayed */
         if !self.failed {
             self.vm.execute(bytecode);
@@ -214,15 +213,18 @@ impl Chalcedony {
     }
 
     fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
-        if let Some(var) = self.locals.borrow().get(&node.name) {
+        self.get_local_id_internal(&node.name, node.ty.clone())
+    }
+
+    fn get_local_id_internal(&mut self, name: &str, ty: Type) -> usize {
+        if let Some(var) = self.locals.borrow().get(name) {
             return var.id;
         }
 
         let next_id = self.locals.borrow().len();
-        self.locals.borrow_mut().insert(
-            node.name.clone(),
-            VarAnnotation::new(next_id, node.ty.clone()),
-        );
+        self.locals
+            .borrow_mut()
+            .insert(name.to_owned(), VarAnnotation::new(next_id, ty));
         next_id
     }
 }

@@ -22,6 +22,7 @@ impl ToBytecode for NodeProg {
             NodeProg::Assign(node) => node.to_bytecode(interpreter),
             NodeProg::IfStmnt(node) => node.to_bytecode(interpreter),
             NodeProg::WhileLoop(node) => node.to_bytecode(interpreter),
+            NodeProg::ForLoop(node) => node.to_bytecode(interpreter),
         }
     }
 }

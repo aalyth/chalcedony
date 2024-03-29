@@ -105,6 +105,34 @@ impl Cvm {
                 next_idx
             }
 
+            Bytecode::Len => {
+                let obj = self.stack.pop().expect("expected a value on the stack");
+                match obj {
+                    CvmObject::List(list) => {
+                        self.stack.push(CvmObject::Uint(list.borrow().len() as u64))
+                    }
+                    CvmObject::Str(val) => self.stack.push(CvmObject::Uint(val.len() as u64)),
+                    _ => panic!("getting the length of non string/list"),
+                }
+                next_idx
+            }
+
+            Bytecode::GetIdx => {
+                let CvmObject::Uint(idx) = self.stack.pop().expect("expected a value on the stack")
+                else {
+                    panic!("invalid index type");
+                };
+                let CvmObject::List(list) =
+                    self.stack.pop().expect("expected a value on the stack")
+                else {
+                    panic!("invalid list type");
+                };
+                let list = list.borrow();
+                self.stack
+                    .push(list.get(idx as usize).expect("invalid index").clone());
+                next_idx
+            }
+
             Bytecode::SetGlobal(var_id) => {
                 let var_value = self.stack.pop().expect("expected a value on the stack");
                 while *var_id >= self.globals.len() {

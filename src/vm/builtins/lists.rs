@@ -3,7 +3,6 @@ use crate::vm::{Cvm, CvmObject};
 use super::get_operands;
 
 pub fn list_insert(cvm: &mut Cvm, list_idx: isize, current_idx: usize) -> usize {
-    println!("STACK: {:#?}\n", cvm.stack);
     let (list_obj, el) = get_operands(cvm);
     let CvmObject::List(list) = list_obj else {
         panic!("inserting into a non-list object");
