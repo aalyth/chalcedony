@@ -11,6 +11,7 @@ use crate::vm::Cvm;
 use crate::common::{Bytecode, Type};
 
 use std::cell::RefCell;
+use std::iter::zip;
 use std::rc::Rc;
 
 /* ahash is the fastest hashing algorithm in terms of hashing strings (faster than fxhash) */
@@ -83,7 +84,8 @@ pub struct Chalcedony {
     globals: AHashMap<String, VarAnnotation>,
 
     /* Used to keep track of the functions inside the program */
-    func_symtable: AHashMap<String, Rc<FuncAnnotation>>,
+    func_symtable: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
+    func_id_counter: usize,
 
     /* Contains the necessary function information used while parsing statements
      * inside a function's scope */
@@ -122,15 +124,22 @@ impl Chalcedony {
             ArgAnnotation::new(1, "recv".to_string(), Type::Any),
         ];
 
-        let mut func_symtable = AHashMap::<String, Rc<FuncAnnotation>>::new();
+        let ftoi_args = vec![ArgAnnotation::new(0, "val".to_string(), Type::Float)];
+
+        let mut func_symtable = AHashMap::new();
         func_symtable.insert(
             "print".to_string(),
-            Rc::new(FuncAnnotation::new(0, print_args, Type::Void)),
+            vec![Rc::new(FuncAnnotation::new(0, print_args, Type::Void))],
         );
 
         func_symtable.insert(
             "assert".to_string(),
-            Rc::new(FuncAnnotation::new(1, assert_args, Type::Void)),
+            vec![Rc::new(FuncAnnotation::new(1, assert_args, Type::Void))],
+        );
+
+        func_symtable.insert(
+            "ftoi".to_string(),
+            vec![Rc::new(FuncAnnotation::new(2, ftoi_args, Type::Int))],
         );
 
         let mut vm = Cvm::new();
@@ -147,9 +156,16 @@ impl Chalcedony {
             Bytecode::Assert,
             Bytecode::ReturnVoid,
         ];
+        let ftoi = vec![
+            Bytecode::CreateFunc(1),
+            Bytecode::GetArg(0),
+            Bytecode::CastI,
+            Bytecode::Return,
+        ];
 
         builtins.push(print);
         builtins.push(assert);
+        builtins.push(ftoi);
         for builtin in builtins {
             vm.execute(builtin);
         }
@@ -158,6 +174,7 @@ impl Chalcedony {
             vm,
             globals: AHashMap::new(),
             func_symtable,
+            func_id_counter: 3,
             current_func: None,
             current_while: None,
             locals: RefCell::new(AHashMap::default()),
@@ -194,11 +211,32 @@ impl Chalcedony {
         }
     }
 
+    /* builds the function and sets the currennt function scope */
     fn create_function(&mut self, name: String, args: Vec<ArgAnnotation>, ret: Type) {
-        let result = Rc::new(FuncAnnotation::new(self.func_symtable.len(), args, ret));
-        self.func_symtable.insert(name, result.clone());
-        self.current_func = Some(result);
+        let func = Rc::new(FuncAnnotation::new(self.func_id_counter, args, ret));
+        self.func_id_counter += 1;
+
+        self.current_func = Some(func.clone());
         self.locals = RefCell::new(AHashMap::new());
+
+        match self.func_symtable.get_mut(&name) {
+            Some(func_bucket) => func_bucket.push(func),
+            None => {
+                self.func_symtable.insert(name, vec![func]);
+            }
+        }
+    }
+
+    fn get_function(&self, name: &str, arg_types: &Vec<Type>) -> Option<&FuncAnnotation> {
+        let func_bucket = self.func_symtable.get(name)?;
+        /* inlining the clippy suggestion does not help due to the Rc inside */
+        #[allow(clippy::manual_find)]
+        for annotation in func_bucket {
+            if valid_annotation(&annotation.args, arg_types) {
+                return Some(annotation);
+            }
+        }
+        None
     }
 
     fn get_global_id(&mut self, node: &NodeVarDef) -> usize {
@@ -223,4 +261,18 @@ impl Chalcedony {
             .insert(node.name.clone(), VarAnnotation::new(next_id, node.ty));
         next_id
     }
+}
+
+fn valid_annotation(args: &Vec<ArgAnnotation>, received: &Vec<Type>) -> bool {
+    if args.len() != received.len() {
+        return false;
+    }
+
+    for (arg, recv) in zip(args, received) {
+        if !arg.ty.soft_eq(recv) {
+            return false;
+        }
+    }
+
+    true
 }

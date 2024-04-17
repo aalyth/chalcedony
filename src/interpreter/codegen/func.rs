@@ -7,13 +7,15 @@ use crate::interpreter::{ArgAnnotation, Chalcedony};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 
 use crate::common::{Bytecode, Type};
+use itertools::izip;
 
 use ahash::AHashMap;
 
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        if interpreter.func_symtable.get(&self.name).is_some() {
-            return Err(CompileError::overloaded_function(self.span).into());
+        let arg_types: Vec<Type> = self.args.iter().map(|arg| arg.ty).collect();
+        if interpreter.get_function(&self.name, &arg_types).is_some() {
+            return Err(CompileError::overwritten_function(self.span).into());
         }
 
         /* enumerate over the function's arguments */
@@ -75,7 +77,18 @@ impl ToBytecode for NodeFuncDef {
 
 impl ToBytecode for NodeFuncCall {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let Some(annotation) = interpreter.func_symtable.get(&self.name).cloned() else {
+        let arg_types: Result<Vec<Type>, ChalError> = self
+            .args
+            .iter()
+            .map(|expr| expr.as_type(interpreter))
+            .collect();
+
+        let arg_types = match arg_types {
+            Ok(ok) => ok,
+            Err(err) => return Err(err),
+        };
+
+        let Some(annotation) = interpreter.get_function(&self.name, &arg_types).cloned() else {
             return Err(CompileError::unknown_function(self.name, self.span).into());
         };
 
@@ -105,16 +118,11 @@ impl ToBytecode for NodeFuncCall {
 
         /* push on the stack each of the argument's expression value */
         let mut result = Vec::<Bytecode>::new();
-        for (idx, arg_expr) in self.args.into_iter().enumerate() {
-            let exp_type = annotation
-                .args
-                .get(idx)
-                .expect("the argument bounds should have already been checked")
-                .ty;
-
-            result.extend(arg_expr.clone().to_bytecode(interpreter)?);
-            let recv_type = arg_expr.as_type(interpreter)?;
-            Type::verify(exp_type, recv_type, &mut result, arg_expr.span)?;
+        for (arg, arg_ty, exp) in izip!(self.args, arg_types, annotation.args.clone()) {
+            // NOTE: this is very important to go in before the type check, else
+            // an empty value cast is possible
+            result.extend(arg.clone().to_bytecode(interpreter)?);
+            Type::verify(exp.ty, arg_ty, &mut result, arg.span.clone())?;
         }
 
         /* complete the function call instruction */

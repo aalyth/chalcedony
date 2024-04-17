@@ -14,27 +14,6 @@ pub struct TokenReader {
 }
 
 impl TokenReader {
-    /*
-    pub fn new(src: VecDeque<Token>, spanner: Rc<dyn Spanning>) -> Self {
-        let mut start = Position::new(0, 0);
-        let mut end = Position::new(0, 0);
-
-        /* check if there is at least 1 token in the source
-         * and take the first token's end position */
-        if !src.is_empty() {
-            let front = src.front().unwrap();
-            start = front.span.start;
-            end = front.span.end;
-        }
-
-        TokenReader {
-            src,
-            current: Span::new(start, end, spanner.clone()),
-            spanner,
-        }
-    }
-    */
-
     pub fn new(src: VecDeque<Token>, current: Span) -> Self {
         let mut start = current.start;
         let mut end = current.end;

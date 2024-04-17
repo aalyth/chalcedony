@@ -17,7 +17,7 @@ enum CompileErrorKind {
     MutatingExternalState,
     RedefiningFunctionArg,
     VoidArgument,
-    OverloadedFunction,
+    OverwrittenFunction,
     RedefiningVariable,
     ReturnOutsideFunc,
     CtrlFlowOutsideWhile,
@@ -85,8 +85,8 @@ impl CompileError {
         CompileError::new(CompileErrorKind::VoidArgument, span)
     }
 
-    pub fn overloaded_function(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::OverloadedFunction, span)
+    pub fn overwritten_function(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::OverwrittenFunction, span)
     }
 
     pub fn redefining_variable(span: Span) -> Self {
@@ -179,11 +179,9 @@ impl std::fmt::Display for CompileError {
                 display_err(&self.span, f, "function arguments must be non-void")
             }
 
-            CompileErrorKind::OverloadedFunction => display_err(
-                &self.span,
-                f,
-                "function overloading is currently not supported",
-            ),
+            CompileErrorKind::OverwrittenFunction => {
+                display_err(&self.span, f, "overwriting already defined function")
+            }
 
             CompileErrorKind::RedefiningVariable => {
                 display_err(&self.span, f, "redefining variable")

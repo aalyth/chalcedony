@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 ahash = "0.8.7"
+itertools = "0.12.1"
 
 # for more detailed flamegraphs
 [profile.release]
