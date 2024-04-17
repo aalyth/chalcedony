@@ -48,3 +48,15 @@ impl ToBytecode for NodeVarDef {
         Ok(result)
     }
 }
+
+pub fn var_exists(name: &str, interpreter: &Chalcedony) -> bool {
+    if let Some(func) = interpreter.current_func.clone() {
+        if func.arg_lookup.get(name).is_some() {
+            return true;
+        }
+    }
+    if interpreter.locals.borrow().get(name).is_some() || interpreter.globals.get(name).is_some() {
+        return true;
+    }
+    false
+}

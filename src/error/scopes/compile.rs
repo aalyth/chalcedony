@@ -21,6 +21,9 @@ enum CompileErrorKind {
     RedefiningVariable,
     ReturnOutsideFunc,
     CtrlFlowOutsideWhile,
+    NestedTryCatch,
+    UnsafeCatch,
+    ThrowInSafeFunc,
 }
 
 pub struct CompileError {
@@ -99,6 +102,18 @@ impl CompileError {
 
     pub fn control_flow_outside_while(span: Span) -> Self {
         CompileError::new(CompileErrorKind::CtrlFlowOutsideWhile, span)
+    }
+
+    pub fn nested_try_catch(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::NestedTryCatch, span)
+    }
+
+    pub fn unsafe_catch(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::UnsafeCatch, span)
+    }
+
+    pub fn throw_in_safe_func(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::ThrowInSafeFunc, span)
     }
 }
 
@@ -193,6 +208,20 @@ impl std::fmt::Display for CompileError {
 
             CompileErrorKind::CtrlFlowOutsideWhile => {
                 display_err(&self.span, f, "control flow outside a while scope")
+            }
+
+            CompileErrorKind::NestedTryCatch => {
+                display_err(&self.span, f, "redundant nested try-catch block")
+            }
+
+            CompileErrorKind::UnsafeCatch => display_err(
+                &self.span,
+                f,
+                "unsafe oprations are not allowed in `catch` blocks",
+            ),
+
+            CompileErrorKind::ThrowInSafeFunc => {
+                display_err(&self.span, f, "unguarded `throw` statements are only allowed in unsafe functions (ending with `!`)")
             }
         }
     }

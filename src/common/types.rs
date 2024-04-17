@@ -10,6 +10,7 @@ pub enum Type {
     Bool,
     Any,
     Void,
+    Exception,
 }
 
 impl Type {

@@ -9,7 +9,7 @@ pub use func::{NodeFuncCall, NodeFuncDef};
 pub use program::NodeProg;
 pub use stmnt::{
     NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeIfBranch,
-    NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeWhileLoop,
+    NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeThrow, NodeTryCatch, NodeWhileLoop,
 };
 pub use var::{NodeVarCall, NodeVarDef};
 

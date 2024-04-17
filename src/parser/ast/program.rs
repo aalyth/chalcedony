@@ -11,6 +11,8 @@ use crate::parser::{LineReader, TokenReader};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+use super::NodeTryCatch;
+
 pub enum NodeProg {
     VarDef(NodeVarDef),
     FuncDef(NodeFuncDef),
@@ -18,6 +20,7 @@ pub enum NodeProg {
     Assign(NodeAssign),
     IfStmnt(NodeIfStmnt),
     WhileLoop(NodeWhileLoop),
+    TryCatch(NodeTryCatch),
 }
 
 macro_rules! single_line_stmnt {
@@ -31,7 +34,7 @@ macro_rules! single_line_stmnt {
     }};
 }
 
-macro_rules! multi_line_stmnt {
+macro_rules! multiline_stmnt {
     ( $enum_type: ident, $node_type: ident, $chunk: ident, $spanner: ident) => {{
         Ok(NodeProg::$enum_type($node_type::new(LineReader::new(
             $chunk, $spanner,
@@ -57,13 +60,16 @@ impl NodeProg {
                 single_line_stmnt!(VarDef, NodeVarDef, chunk, spanner)
             }
             TokenKind::Keyword(Keyword::Fn) => {
-                multi_line_stmnt!(FuncDef, NodeFuncDef, chunk, spanner)
+                multiline_stmnt!(FuncDef, NodeFuncDef, chunk, spanner)
             }
             TokenKind::Keyword(Keyword::If) => {
-                multi_line_stmnt!(IfStmnt, NodeIfStmnt, chunk, spanner)
+                multiline_stmnt!(IfStmnt, NodeIfStmnt, chunk, spanner)
             }
             TokenKind::Keyword(Keyword::While) => {
-                multi_line_stmnt!(WhileLoop, NodeWhileLoop, chunk, spanner)
+                multiline_stmnt!(WhileLoop, NodeWhileLoop, chunk, spanner)
+            }
+            TokenKind::Keyword(Keyword::Try) => {
+                multiline_stmnt!(TryCatch, NodeTryCatch, chunk, spanner)
             }
 
             TokenKind::Identifier(_) => {

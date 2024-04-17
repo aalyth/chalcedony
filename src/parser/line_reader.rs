@@ -1,5 +1,5 @@
 use crate::error::span::{Span, Spanning};
-use crate::error::{ChalError, InternalError};
+use crate::error::{ChalError, InternalError, ParserError};
 use crate::lexer::{Keyword, Line, Token, TokenKind};
 
 use std::collections::VecDeque;
@@ -75,24 +75,28 @@ impl LineReader {
 
         let mut res = self.advance_until(cond)?;
 
-        /* if the chunk is of type if statement check for elif/else bodies */
-        if let Some(front_ln) = res.front() {
-            if let Some(front_tok) = front_ln.front_tok() {
-                if front_tok.kind != TokenKind::Keyword(Keyword::If) {
-                    return Ok(LineReader::new(res, self.spanner.clone()));
-                }
-            }
+        // check wheter the resulting chunk is:
+        //   - if statement -> get any `elif/else` branches
+        //   - try/catch    -> get the `catch` statement
+
+        let Some(front_ln) = res.front() else {
+            return Ok(LineReader::new(res, self.spanner.clone()));
         };
-        while let Some(peek) = self.peek_tok() {
-            match peek.kind {
-                TokenKind::Keyword(Keyword::Elif) => res.append(&mut self.advance_until(cond)?),
-                TokenKind::Keyword(Keyword::Else) => {
-                    res.append(&mut self.advance_until(cond)?);
-                    break;
-                }
-                _ => break,
+
+        let Some(front_tok) = front_ln.front_tok() else {
+            panic!("LineReader::advance_chunk(): parsed an empty line")
+        };
+
+        match front_tok.kind {
+            TokenKind::Keyword(Keyword::If) => res.extend(self.advance_if_branches(indent)?),
+            TokenKind::Keyword(Keyword::Try) => {
+                /* SAFETY: there is at least 1 line in the result */
+                let last_line = res.back().unwrap();
+                let last_span = &last_line.tokens.back().expect("empty line").span;
+                res.extend(self.advance_catch_block(indent, last_span)?)
             }
-        }
+            _ => {}
+        };
 
         Ok(LineReader::new(res, self.spanner.clone()))
     }
@@ -109,5 +113,45 @@ impl LineReader {
             next.into(),
             Span::from(self.spanner.clone()),
         ))
+    }
+
+    fn advance_if_branches(&mut self, indent: u64) -> Result<VecDeque<Line>, ChalError> {
+        let mut res = VecDeque::<Line>::new();
+        let cond = |ln: &Line| -> bool { ln.indent <= indent };
+
+        while let Some(peek) = self.peek_tok() {
+            match peek.kind {
+                TokenKind::Keyword(Keyword::Elif) => res.append(&mut self.advance_until(cond)?),
+                TokenKind::Keyword(Keyword::Else) => {
+                    res.append(&mut self.advance_until(cond)?);
+                    break;
+                }
+                _ => break,
+            }
+        }
+
+        Ok(res)
+    }
+
+    fn advance_catch_block(
+        &mut self,
+        indent: u64,
+        current_span: &Span,
+    ) -> Result<VecDeque<Line>, ChalError> {
+        let cond = |ln: &Line| -> bool { ln.indent <= indent };
+
+        let Some(peek) = self.peek_tok() else {
+            return Err(ParserError::expected_token(
+                TokenKind::Keyword(Keyword::Catch),
+                current_span.clone(),
+            )
+            .into());
+        };
+
+        if peek.kind != TokenKind::Keyword(Keyword::Catch) {
+            return Err(ParserError::missing_catch_block(current_span.clone()).into());
+        }
+
+        self.advance_until(cond)
     }
 }

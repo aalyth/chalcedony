@@ -44,6 +44,7 @@ impl VarAnnotation {
 
 #[derive(Debug, Clone)]
 pub struct FuncAnnotation {
+    is_unsafe: bool,
     id: usize,
     args: Vec<ArgAnnotation>,
     arg_lookup: AHashMap<String, ArgAnnotation>,
@@ -51,12 +52,13 @@ pub struct FuncAnnotation {
 }
 
 impl FuncAnnotation {
-    fn new(id: usize, args: Vec<ArgAnnotation>, ret_type: Type) -> Self {
+    fn new(id: usize, args: Vec<ArgAnnotation>, ret_type: Type, is_unsafe: bool) -> Self {
         let mut arg_lookup = AHashMap::<String, ArgAnnotation>::new();
         for arg in args.clone() {
             arg_lookup.insert(arg.name.clone(), arg);
         }
         FuncAnnotation {
+            is_unsafe,
             id,
             args,
             arg_lookup,
@@ -71,8 +73,12 @@ pub struct WhileScope {
     unfinished_breaks: Vec<usize>,
 }
 
-trait InterpreterVisitor {
-    fn interpret_node(&mut self, _: NodeProg) -> Result<(), ChalError>;
+#[derive(Default, PartialEq)]
+pub enum SafetyScope {
+    #[default]
+    Normal,
+    Try,
+    Catch,
 }
 
 #[derive(Default)]
@@ -91,6 +97,9 @@ pub struct Chalcedony {
      * inside a function's scope */
     current_func: Option<Rc<FuncAnnotation>>,
 
+    /* Determines the way exceptions are compiled */
+    safety_scope: SafetyScope,
+
     /* Contains the necessary information in order to implement control flow logic in while loops */
     current_while: Option<WhileScope>,
 
@@ -102,6 +111,10 @@ pub struct Chalcedony {
 
     /* Whether the interpreter has failed */
     failed: bool,
+}
+
+trait InterpreterVisitor {
+    fn interpret_node(&mut self, _: NodeProg) -> Result<(), ChalError>;
 }
 
 impl InterpreterVisitor for Chalcedony {
@@ -129,17 +142,27 @@ impl Chalcedony {
         let mut func_symtable = AHashMap::new();
         func_symtable.insert(
             "print".to_string(),
-            vec![Rc::new(FuncAnnotation::new(0, print_args, Type::Void))],
+            vec![Rc::new(FuncAnnotation::new(
+                0,
+                print_args,
+                Type::Void,
+                false,
+            ))],
         );
 
         func_symtable.insert(
             "assert".to_string(),
-            vec![Rc::new(FuncAnnotation::new(1, assert_args, Type::Void))],
+            vec![Rc::new(FuncAnnotation::new(
+                1,
+                assert_args,
+                Type::Void,
+                false,
+            ))],
         );
 
         func_symtable.insert(
             "ftoi".to_string(),
-            vec![Rc::new(FuncAnnotation::new(2, ftoi_args, Type::Int))],
+            vec![Rc::new(FuncAnnotation::new(2, ftoi_args, Type::Int, false))],
         );
 
         let mut vm = Cvm::new();
@@ -177,6 +200,7 @@ impl Chalcedony {
             func_id_counter: 3,
             current_func: None,
             current_while: None,
+            safety_scope: SafetyScope::Normal,
             locals: RefCell::new(AHashMap::default()),
             inside_stmnt: false,
             failed: false,
@@ -213,7 +237,12 @@ impl Chalcedony {
 
     /* builds the function and sets the currennt function scope */
     fn create_function(&mut self, name: String, args: Vec<ArgAnnotation>, ret: Type) {
-        let func = Rc::new(FuncAnnotation::new(self.func_id_counter, args, ret));
+        let func = Rc::new(FuncAnnotation::new(
+            self.func_id_counter,
+            args,
+            ret,
+            name.ends_with('!'),
+        ));
         self.func_id_counter += 1;
 
         self.current_func = Some(func.clone());
@@ -251,15 +280,23 @@ impl Chalcedony {
     }
 
     fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
-        if let Some(var) = self.locals.borrow().get(&node.name) {
+        self.get_local_id_internal(&node.name, node.ty)
+    }
+
+    fn get_local_id_internal(&mut self, name: &str, ty: Type) -> usize {
+        if let Some(var) = self.locals.borrow().get(name) {
             return var.id;
         }
 
         let next_id = self.locals.borrow().len();
         self.locals
             .borrow_mut()
-            .insert(node.name.clone(), VarAnnotation::new(next_id, node.ty));
+            .insert(name.to_owned(), VarAnnotation::new(next_id, ty));
         next_id
+    }
+
+    fn remove_local(&mut self, name: &str) {
+        self.locals.borrow_mut().remove(name);
     }
 }
 

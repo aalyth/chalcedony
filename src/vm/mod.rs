@@ -5,6 +5,7 @@ use builtins::{add, and, assert, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg
 use object::CvmObject;
 
 use crate::common::Bytecode;
+use crate::error::unhandled_exception;
 use crate::utils::Stack;
 
 use std::rc::Rc;
@@ -20,6 +21,7 @@ struct CvmCallFrame {
     prev_idx: usize,
     args_len: usize,
     stack_len: usize,
+    catch_idx: Option<usize>,
 
     code: Rc<Vec<Bytecode>>,
 }
@@ -30,6 +32,8 @@ pub struct Cvm {
     globals: Vec<CvmObject>,
     functions: Vec<Rc<CvmFunctionObject>>,
     call_stack: Stack<CvmCallFrame>,
+
+    catch_idx: Option<usize>,
 }
 
 macro_rules! push_constant {
@@ -46,6 +50,7 @@ impl Cvm {
             globals: Vec::<CvmObject>::new(),
             functions: Vec::<Rc<CvmFunctionObject>>::new(),
             call_stack: Stack::<CvmCallFrame>::with_capacity(10_000),
+            catch_idx: None,
         }
     }
 
@@ -76,6 +81,15 @@ impl Cvm {
                 next_idx
             }
             Bytecode::ConstB(val) => push_constant!(self, Bool, val, next_idx),
+
+            Bytecode::ThrowException => {
+                let obj = self.stack.pop().expect("expected a value on the stack");
+                let CvmObject::Str(val) = obj else {
+                    panic!("invalid exception type");
+                };
+                self.stack.push(CvmObject::Exception(val));
+                self.handle_exception()
+            }
 
             Bytecode::CastI => {
                 let obj = self.stack.pop().expect("expected a value on the stack");
@@ -198,8 +212,10 @@ impl Cvm {
                     stack_len: self.stack.len() - func_obj.arg_count,
                     args_len: func_obj.arg_count,
                     code: func_obj.code.clone(),
+                    catch_idx: self.catch_idx,
                 };
                 self.call_stack.push(frame);
+                self.catch_idx = None;
 
                 0
             }
@@ -233,6 +249,17 @@ impl Cvm {
 
             Bytecode::Jmp(dist) => (next_idx as isize + dist) as usize,
 
+            Bytecode::TryScope(offset) => {
+                /* SAFETY: it is guaranteed there are no nested try-catch blocks */
+                self.catch_idx = Some(next_idx + offset);
+                next_idx
+            }
+
+            Bytecode::CatchJmp(dist) => {
+                self.catch_idx = None;
+                next_idx + dist
+            }
+
             Bytecode::Print => {
                 let obj = self.stack.pop().expect("expected an object on the stack");
                 println!("{}", obj);
@@ -248,5 +275,30 @@ impl Cvm {
     #[inline(always)]
     fn push(&mut self, val: CvmObject) {
         self.stack.push(val)
+    }
+
+    /* returns the index of the next instruction */
+    fn handle_exception(&mut self) -> usize {
+        if let Some(catch_idx) = self.catch_idx {
+            self.catch_idx = None;
+            return catch_idx;
+        }
+
+        while let Some(frame) = self.call_stack.pop() {
+            let exc = self.stack.pop().expect("expected the exception");
+            self.stack.truncate(frame.stack_len);
+            self.stack.push(exc);
+            if let Some(catch_idx) = frame.catch_idx {
+                return catch_idx;
+            }
+        }
+
+        let obj = self.stack.pop().expect("expected a value on the stack");
+        let CvmObject::Exception(exc) = obj else {
+            panic!("invalid exception");
+        };
+
+        unhandled_exception(format!("{}", exc));
+        unreachable!();
     }
 }

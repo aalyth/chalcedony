@@ -9,6 +9,7 @@ pub enum Bytecode {
     ConstF(f64),
     ConstS(PtrString),
     ConstB(bool),
+    ThrowException,
 
     // converts uint -> int
     CastI,
@@ -46,6 +47,11 @@ pub enum Bytecode {
 
     If(usize), // how much to jump over if the top of the stack is false
     Jmp(isize),
+
+    /* the length of the try-catch scope */
+    TryScope(usize),
+    /* jumping over the `catch` body, terminating the `try` block */
+    CatchJmp(usize),
 
     Print,
     Assert, // asserts the top 2 values on the stack are equal

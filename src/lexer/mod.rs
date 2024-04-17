@@ -61,6 +61,10 @@ impl Lexer {
                     "else" => {}
                     _ => break,
                 },
+                Some('c') => match self.reader.peek_word().as_str() {
+                    "catch" => {}
+                    _ => break,
+                },
                 Some(_) => break,
                 None => break,
             }
@@ -107,7 +111,8 @@ impl Lexer {
 
             TokenKind::Keyword(Keyword::Fn)
             | TokenKind::Keyword(Keyword::If)
-            | TokenKind::Keyword(Keyword::While) => {
+            | TokenKind::Keyword(Keyword::While)
+            | TokenKind::Keyword(Keyword::Try) => {
                 result.push_back(line);
                 result.extend(self.advance_chunk()?);
             }
@@ -128,8 +133,8 @@ impl Lexer {
                 errors.push(LexerError::unclosed_delimiter(&delim.src, delim.span.clone()).into());
             }
         }
-        /* NOTE: the delim stack always remains empty after every program ndoe */
 
+        /* NOTE: the delim stack always remains empty after every program ndoe */
         if !errors.is_empty() {
             return Err(errors.into());
         }
@@ -296,10 +301,16 @@ impl Lexer {
         }
 
         if current.is_alphabetic() || current == '_' {
-            let src = String::from(current)
+            let mut src = String::from(current)
                 + &self
                     .reader
                     .advance_while(|c: &char| c.is_alphanumeric() || *c == '_');
+
+            /* only function names can end with a '!' */
+            if self.reader.peek() == Some(&'!') && self.reader.peek_nth(1) == Some(&'(') {
+                src.push(self.reader.advance().unwrap());
+            }
+
             return self.advance_tok(src, start, *self.reader.pos());
         }
 

@@ -13,6 +13,7 @@ enum ParserErrorKind {
     InvalidStatement,
     InvalidExprEnd,
     EmptyExpr,
+    MissingCatchBlock,
 }
 
 pub struct ParserError {
@@ -60,6 +61,10 @@ impl ParserError {
     pub fn empty_expr(span: Span) -> Self {
         ParserError::new(ParserErrorKind::EmptyExpr, span)
     }
+
+    pub fn missing_catch_block(span: Span) -> Self {
+        ParserError::new(ParserErrorKind::MissingCatchBlock, span)
+    }
 }
 
 impl std::fmt::Display for ParserError {
@@ -101,6 +106,12 @@ impl std::fmt::Display for ParserError {
             }
 
             ParserErrorKind::EmptyExpr => display_err(&self.span, f, "expected an expression"),
+
+            ParserErrorKind::MissingCatchBlock => display_err(
+                &self.span,
+                f,
+                "`try` blocks must be followed by `catch` blocks",
+            ),
         }
     }
 }

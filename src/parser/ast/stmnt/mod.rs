@@ -1,9 +1,11 @@
 mod assignment;
+mod exceptions;
 mod if_stmnt;
 mod return_stmnt;
 mod while_loop;
 
 pub use assignment::NodeAssign;
+pub use exceptions::{NodeThrow, NodeTryCatch};
 pub use if_stmnt::{NodeElifStmnt, NodeElseStmnt, NodeIfBranch, NodeIfStmnt};
 pub use return_stmnt::NodeRetStmnt;
 pub use while_loop::NodeWhileLoop;
@@ -18,11 +20,15 @@ pub enum NodeStmnt {
     VarDef(NodeVarDef),
     FuncCall(NodeFuncCall),
     Assign(NodeAssign),
+    RetStmnt(NodeRetStmnt),
+
     IfStmnt(NodeIfStmnt),
     WhileLoop(NodeWhileLoop),
-    RetStmnt(NodeRetStmnt),
     ContStmnt(NodeContStmnt),
     BreakStmnt(NodeBreakStmnt),
+
+    TryCatch(NodeTryCatch),
+    Throw(NodeThrow),
 }
 
 macro_rules! single_line_statement {
@@ -43,7 +49,7 @@ macro_rules! single_line_statement {
     }};
 }
 
-macro_rules! multi_line_statement {
+macro_rules! multiline_statement {
     ($reader:ident, $result:ident, $errors:ident, $node_type:ident, $stmnt_type:ident) => {{
         let line_reader_raw = $reader.advance_chunk();
         let Ok(line_reader) = line_reader_raw else {
@@ -70,6 +76,7 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
 
         while let Some(front) = reader.peek_tok() {
             match front.kind {
+                /* Single line statements */
                 TokenKind::Keyword(Keyword::Let) => {
                     single_line_statement!(reader, result, errors, NodeVarDef, VarDef);
                 }
@@ -86,6 +93,24 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                     single_line_statement!(reader, result, errors, NodeBreakStmnt, BreakStmnt);
                 }
 
+                TokenKind::Keyword(Keyword::Throw) => {
+                    single_line_statement!(reader, result, errors, NodeThrow, Throw);
+                }
+
+                /* Multiline statements  */
+                TokenKind::Keyword(Keyword::If) => {
+                    multiline_statement!(reader, result, errors, NodeIfStmnt, IfStmnt);
+                }
+
+                TokenKind::Keyword(Keyword::While) => {
+                    multiline_statement!(reader, result, errors, NodeWhileLoop, WhileLoop);
+                }
+
+                TokenKind::Keyword(Keyword::Catch) => {
+                    multiline_statement!(reader, result, errors, NodeTryCatch, TryCatch);
+                }
+
+                /* Function calls and assignments */
                 TokenKind::Identifier(_) => {
                     let Some(line) = reader.advance() else {
                         return Err(InternalError::new(
@@ -117,14 +142,6 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                     };
 
                     result.push(NodeStmnt::Assign(node));
-                }
-
-                TokenKind::Keyword(Keyword::If) => {
-                    multi_line_statement!(reader, result, errors, NodeIfStmnt, IfStmnt);
-                }
-
-                TokenKind::Keyword(Keyword::While) => {
-                    multi_line_statement!(reader, result, errors, NodeWhileLoop, WhileLoop);
                 }
 
                 _ => {

@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError};
-use crate::interpreter::{ArgAnnotation, Chalcedony};
+use crate::interpreter::{ArgAnnotation, Chalcedony, SafetyScope};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 
 use crate::common::{Bytecode, Type};
@@ -91,6 +91,10 @@ impl ToBytecode for NodeFuncCall {
         let Some(annotation) = interpreter.get_function(&self.name, &arg_types).cloned() else {
             return Err(CompileError::unknown_function(self.name, self.span).into());
         };
+
+        if self.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Catch {
+            return Err(CompileError::unsafe_catch(self.span).into());
+        }
 
         /* check for mismatching number of arguments */
         if annotation.args.len() != self.args.len() {
