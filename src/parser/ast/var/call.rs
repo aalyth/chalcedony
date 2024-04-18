@@ -2,7 +2,7 @@ use crate::error::span::Span;
 use crate::error::{ChalError, ParserError};
 use crate::lexer::{Token, TokenKind};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NodeVarCall {
     pub name: String,
     pub span: Span,

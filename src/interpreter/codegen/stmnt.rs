@@ -268,7 +268,12 @@ impl ToBytecode for NodeAssign {
     fn to_bytecode(mut self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         /* the annotation of the mutated variable */
         let annotation: VarAnnotation;
+        /* used to compute the resulting type */
         let mut scope = VarScope::Global;
+
+        if !var_exists(&self.lhs.name, interpreter) {
+            return Err(CompileError::unknown_variable(self.lhs.name, self.lhs.span).into());
+        }
 
         if let Some(var) = interpreter.locals.borrow().get(&self.lhs.name) {
             annotation = *var;
@@ -290,17 +295,12 @@ impl ToBytecode for NodeAssign {
         } else if let Some(var) = interpreter.globals.get(&self.lhs.name) {
             annotation = *var;
         } else {
-            return Err(CompileError::unknown_variable(self.lhs.name, self.lhs.span).into());
+            /* this is necessary for the proper compilation */
+            unreachable!();
         }
 
         let mut result = Vec::<Bytecode>::new();
         if self.opr != AssignOprType::Eq {
-            match scope {
-                VarScope::Arg => result.push(Bytecode::GetArg(annotation.id)),
-                VarScope::Local => result.push(Bytecode::GetLocal(annotation.id)),
-                VarScope::Global => result.push(Bytecode::GetGlobal(annotation.id)),
-            }
-
             self.rhs
                 .expr
                 .push_front(NodeExprInner::VarCall(self.lhs.clone()));
@@ -401,6 +401,8 @@ impl ToBytecode for NodeTryCatch {
         result.push(Bytecode::CatchJmp(catch_body.len()));
         *result.get_mut(0).unwrap() = Bytecode::TryScope(result.len());
         result.extend(catch_body);
+
+        interpreter.safety_scope = SafetyScope::Normal;
 
         Ok(result)
     }

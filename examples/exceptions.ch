@@ -9,5 +9,3 @@ try:
     test!()
 catch (exc: exception):
     print("Caught the exception: " + exc)
-
-

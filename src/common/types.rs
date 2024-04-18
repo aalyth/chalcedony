@@ -50,7 +50,6 @@ impl Type {
             | (Type::Bool, Type::Bool) => true,
             /* type casts */
             (Type::Int, Type::Uint) => true,
-            // (Type::Float, Type::Uint) | (Type::Float, Type::Int) => true,
             _ => false,
         }
     }
