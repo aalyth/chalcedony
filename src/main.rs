@@ -9,6 +9,7 @@ mod vm;
 use crate::interpreter::Chalcedony;
 
 extern crate ahash;
+extern crate itertools;
 
 use std::env;
 use std::fs;

@@ -11,9 +11,11 @@ pub enum Type {
     Any,
     Void,
     List(Box<Type>),
+    Exception,
 }
 
 impl Type {
+    /* NOTE: it is very important that this function goes after value calls inside the result */
     pub fn verify(
         exp: Type,
         recv: Type,
@@ -46,6 +48,23 @@ impl Type {
         match (left, right) {
             (Type::List(lhs), Type::List(rhs)) => lhs == rhs,
             _ => left == right,
+        }
+    }
+
+    pub fn soft_eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            /* Universal types */
+            (Type::Void, _) | (_, Type::Void) => false,
+            (Type::Any, _) => true,
+            /* Actual types */
+            (Type::Int, Type::Int)
+            | (Type::Uint, Type::Uint)
+            | (Type::Float, Type::Float)
+            | (Type::Str, Type::Str)
+            | (Type::Bool, Type::Bool) => true,
+            /* type casts */
+            (Type::Int, Type::Uint) => true,
+            _ => false,
         }
     }
 }

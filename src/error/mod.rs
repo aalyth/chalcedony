@@ -12,6 +12,12 @@ pub fn assertion_fail(exp: String, recv: String) {
     std::process::exit(1);
 }
 
+pub fn unhandled_exception(exc: String) {
+    let fail_msg = color(Colors::Blue, "Unhandled exception");
+    eprintln!("{}: {}", fail_msg, exc);
+    std::process::exit(1);
+}
+
 pub enum ChalError {
     LexerErr(LexerError),
     ParserErr(ParserError),

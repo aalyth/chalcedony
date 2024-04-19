@@ -13,9 +13,11 @@ pub enum CvmObject {
     Str(PtrString),
     Bool(bool),
     List(Rc<RefCell<VecDeque<CvmObject>>>),
+    Exception(PtrString),
 }
 
 impl CvmObject {
+    /* used for debugging */
     pub fn as_type(&self) -> Type {
         match self {
             CvmObject::Int(_) => Type::Int,
@@ -30,6 +32,7 @@ impl CvmObject {
                 }
                 Type::List(Box::new(Type::Any))
             }
+            CvmObject::Exception(_) => Type::Exception,
         }
     }
 }
@@ -57,6 +60,7 @@ impl std::fmt::Display for CvmObject {
                 /* `\x08` is the same as `\b` */
                 write!(f, "\x08\x08]")
             }
+            CvmObject::Exception(val) => write!(f, "{}", val),
         }
     }
 }

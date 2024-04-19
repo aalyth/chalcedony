@@ -1,10 +1,12 @@
+use super::var::var_exists;
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError};
-use crate::interpreter::{Chalcedony, VarAnnotation, WhileScope};
+use crate::interpreter::{Chalcedony, SafetyScope, VarAnnotation, WhileScope};
 use crate::parser::ast::{
     NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExprInner,
-    NodeForLoop, NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeWhileLoop,
+    NodeForLoop, NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeThrow, NodeTryCatch,
+    NodeWhileLoop,
 };
 
 use crate::common::operators::{AssignOprType, BinOprType};
@@ -59,14 +61,18 @@ impl ToBytecode for NodeStmnt {
                 result
             }
 
-            NodeStmnt::RetStmnt(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::FuncCall(node) => node.to_bytecode(interpreter)?,
+            NodeStmnt::RetStmnt(node) => node.to_bytecode(interpreter)?,
+            NodeStmnt::Assign(node) => node.to_bytecode(interpreter)?,
+
             NodeStmnt::IfStmnt(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::WhileLoop(node) => node.to_bytecode(interpreter)?,
-            NodeStmnt::Assign(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::ContStmnt(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::BreakStmnt(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::ForLoop(node) => node.to_bytecode(interpreter)?,
+
+            NodeStmnt::TryCatch(node) => node.to_bytecode(interpreter)?,
+            NodeStmnt::Throw(node) => node.to_bytecode(interpreter)?,
         };
 
         increment_while_scope(interpreter, result.len());
@@ -270,7 +276,12 @@ impl ToBytecode for NodeAssign {
     fn to_bytecode(mut self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         /* the annotation of the mutated variable */
         let annotation: VarAnnotation;
+        /* used to compute the resulting type */
         let mut scope = VarScope::Global;
+
+        if !var_exists(&self.lhs.name, interpreter) {
+            return Err(CompileError::unknown_variable(self.lhs.name, self.lhs.span).into());
+        }
 
         if let Some(var) = interpreter.locals.borrow().get(&self.lhs.name) {
             annotation = var.clone();
@@ -292,17 +303,12 @@ impl ToBytecode for NodeAssign {
         } else if let Some(var) = interpreter.globals.get(&self.lhs.name) {
             annotation = var.clone();
         } else {
-            return Err(CompileError::unknown_variable(self.lhs.name, self.lhs.span).into());
+            /* this is necessary for the proper compilation */
+            unreachable!();
         }
 
         let mut result = Vec::<Bytecode>::new();
         if self.opr != AssignOprType::Eq {
-            match scope {
-                VarScope::Arg => result.push(Bytecode::GetArg(annotation.id)),
-                VarScope::Local => result.push(Bytecode::GetLocal(annotation.id)),
-                VarScope::Global => result.push(Bytecode::GetGlobal(annotation.id)),
-            }
-
             self.rhs
                 .expr
                 .push_front(NodeExprInner::VarCall(self.lhs.clone()));
@@ -452,6 +458,62 @@ impl ToBytecode for NodeForLoop {
         result.extend(condition);
         result.extend(body);
 
+        Ok(result)
+    }
+}
+
+impl ToBytecode for NodeTryCatch {
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
+        if interpreter.safety_scope != SafetyScope::Normal {
+            return Err(CompileError::nested_try_catch(self.try_span).into());
+        }
+
+        interpreter.safety_scope = SafetyScope::Try;
+        /* this instruction will be overwritten by `Bytecode::TryScope()` */
+        let mut result = vec![Bytecode::Nop];
+        result.extend(self.try_body.to_bytecode(interpreter)?);
+
+        interpreter.safety_scope = SafetyScope::Catch;
+        if var_exists(&self.exception_var.name, interpreter) {
+            return Err(CompileError::redefining_variable(self.exception_var.span).into());
+        }
+        /* create the variable, holding the exception */
+        let exc_id = interpreter.get_local_id_internal(&self.exception_var.name, Type::Exception);
+        let mut catch_body = vec![Bytecode::SetLocal(exc_id)];
+        catch_body.extend(self.catch_body.to_bytecode(interpreter)?);
+        interpreter.remove_local(&self.exception_var.name);
+
+        result.push(Bytecode::CatchJmp(catch_body.len()));
+        *result.get_mut(0).unwrap() = Bytecode::TryScope(result.len());
+        result.extend(catch_body);
+
+        interpreter.safety_scope = SafetyScope::Normal;
+
+        Ok(result)
+    }
+}
+
+impl ToBytecode for NodeThrow {
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
+        let NodeThrow(exception) = self;
+
+        if interpreter.safety_scope == SafetyScope::Catch {
+            return Err(CompileError::unsafe_catch(exception.span).into());
+        }
+
+        if let Some(func) = interpreter.current_func.clone() {
+            if !func.is_unsafe {
+                return Err(CompileError::throw_in_safe_func(exception.span).into());
+            }
+        }
+
+        let exc_ty = exception.as_type(interpreter)?;
+        if exc_ty != Type::Str {
+            return Err(CompileError::invalid_type(Type::Str, exc_ty, exception.span).into());
+        }
+
+        let mut result = exception.to_bytecode(interpreter)?;
+        result.push(Bytecode::ThrowException);
         Ok(result)
     }
 }

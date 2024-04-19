@@ -13,6 +13,7 @@ enum LexerErrorKind {
     MismatchingDelimiters(String, String),
     InvalidGlobalStatement(TokenKind),
     InvalidChar(char),
+    InvalidNewlineEscape,
 }
 
 pub struct LexerError {
@@ -59,6 +60,10 @@ impl LexerError {
     pub fn invalid_char(chr: char, span: Span) -> Self {
         LexerError::new(LexerErrorKind::InvalidChar(chr), span)
     }
+
+    pub fn invalid_newline_escape(span: Span) -> Self {
+        LexerError::new(LexerErrorKind::InvalidNewlineEscape, span)
+    }
 }
 
 impl std::fmt::Display for LexerError {
@@ -102,6 +107,12 @@ impl std::fmt::Display for LexerError {
                 let msg = &format!("could not lex the given char ({:?})", chr);
                 display_err(&self.span, f, msg)
             }
+
+            LexerErrorKind::InvalidNewlineEscape => display_err(
+                &self.span,
+                f,
+                "using newline escape (`\\`) before the end of the line",
+            ),
         }
     }
 }

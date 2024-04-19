@@ -252,7 +252,16 @@ impl NodeExprInner {
             }
 
             NodeExprInner::FuncCall(node) => {
-                if let Some(func) = interpreter.func_symtable.get(&node.name) {
+                let arg_types: Result<Vec<Type>, ChalError> = node
+                    .args
+                    .iter()
+                    .map(|arg| arg.as_type(interpreter))
+                    .collect();
+                let arg_types = match arg_types {
+                    Ok(ok) => ok,
+                    Err(err) => return Err(err),
+                };
+                if let Some(func) = interpreter.get_function(&node.name, &arg_types) {
                     if func.ret_type == Type::Void {
                         return Err(CompileError::void_func_expr(node.span.clone()).into());
                     }

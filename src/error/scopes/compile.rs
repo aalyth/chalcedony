@@ -17,12 +17,15 @@ enum CompileErrorKind {
     MutatingExternalState,
     RedefiningFunctionArg,
     VoidArgument,
-    OverloadedFunction,
+    OverwrittenFunction,
     RedefiningVariable,
     ReturnOutsideFunc,
     CtrlFlowOutsideWhile,
     IncoherentList(Type, Type),
     InvalidIterable(Type),
+    NestedTryCatch,
+    UnsafeCatch,
+    ThrowInSafeFunc,
 }
 
 pub struct CompileError {
@@ -87,8 +90,8 @@ impl CompileError {
         CompileError::new(CompileErrorKind::VoidArgument, span)
     }
 
-    pub fn overloaded_function(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::OverloadedFunction, span)
+    pub fn overwritten_function(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::OverwrittenFunction, span)
     }
 
     pub fn redefining_variable(span: Span) -> Self {
@@ -109,6 +112,18 @@ impl CompileError {
 
     pub fn invalid_iterable(span: Span, ty: Type) -> Self {
         CompileError::new(CompileErrorKind::InvalidIterable(ty), span)
+    }
+
+    pub fn nested_try_catch(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::NestedTryCatch, span)
+    }
+
+    pub fn unsafe_catch(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::UnsafeCatch, span)
+    }
+
+    pub fn throw_in_safe_func(span: Span) -> Self {
+        CompileError::new(CompileErrorKind::ThrowInSafeFunc, span)
     }
 }
 
@@ -189,11 +204,9 @@ impl std::fmt::Display for CompileError {
                 display_err(&self.span, f, "function arguments must be non-void")
             }
 
-            CompileErrorKind::OverloadedFunction => display_err(
-                &self.span,
-                f,
-                "function overloading is currently not supported",
-            ),
+            CompileErrorKind::OverwrittenFunction => {
+                display_err(&self.span, f, "overwriting already defined function")
+            }
 
             CompileErrorKind::RedefiningVariable => {
                 display_err(&self.span, f, "redefining variable")
@@ -215,6 +228,20 @@ impl std::fmt::Display for CompileError {
             CompileErrorKind::InvalidIterable(ty) => {
                 let msg = &format!("value of type `{:?}` is not iterable", ty);
                 display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::NestedTryCatch => {
+                display_err(&self.span, f, "redundant nested try-catch block")
+            }
+
+            CompileErrorKind::UnsafeCatch => display_err(
+                &self.span,
+                f,
+                "unsafe oprations are not allowed in `catch` blocks",
+            ),
+
+            CompileErrorKind::ThrowInSafeFunc => {
+                display_err(&self.span, f, "unguarded `throw` statements are only allowed in unsafe functions (ending with `!`)")
             }
         }
     }

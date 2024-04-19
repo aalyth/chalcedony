@@ -14,6 +14,7 @@ enum ParserErrorKind {
     InvalidExprEnd,
     EmptyExpr,
     UntypedList,
+    MissingCatchBlock,
 }
 
 pub struct ParserError {
@@ -65,6 +66,10 @@ impl ParserError {
     pub fn untyped_list(span: Span) -> Self {
         ParserError::new(ParserErrorKind::UntypedList, span)
     }
+
+    pub fn missing_catch_block(span: Span) -> Self {
+        ParserError::new(ParserErrorKind::MissingCatchBlock, span)
+    }
 }
 
 impl std::fmt::Display for ParserError {
@@ -109,6 +114,12 @@ impl std::fmt::Display for ParserError {
             ParserErrorKind::UntypedList => {
                 display_err(&self.span, f, "expected a type to the list")
             }
+
+            ParserErrorKind::MissingCatchBlock => display_err(
+                &self.span,
+                f,
+                "`try` blocks must be followed by `catch` blocks",
+            ),
         }
     }
 }

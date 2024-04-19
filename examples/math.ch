@@ -28,10 +28,10 @@ fn abs(x: float) -> float:
 
 fn sgn(x: float) -> float:
     if x == 0.0:
-        return 0
+        return 0.0
     elif x < 0:
-        return -1
-    return 1
+        return -1.0
+    return 1.0
 
 fn round(x: float, n: uint) -> float:
     let modifier = pow(10.0, n)
@@ -66,7 +66,7 @@ assert(15, gcd(30, 75))
 assert(21, lcm(3, 7))
 
 fn __test_sine__():
-    assert(0.0,    sin(0))
+    assert(0.0,    sin(0.0))
     assert(0.5,    round(sin(pi/6), 3))
     assert(0.707,  round(sin(pi/4), 3))
     assert(0.866,  round(sin(pi/3), 3))
@@ -79,7 +79,7 @@ fn __test_sine__():
     assert(-1.0,   round(sin(-pi/2), 3))
 
 fn __test_cosine__():
-    assert(1.0,    cos(0))
+    assert(1.0,    cos(0.0))
     assert(0.866,  round(cos(pi/6), 3))
     assert(0.707,  round(cos(pi/4), 3))
     assert(0.5,    round(cos(pi/3), 3))
@@ -93,4 +93,4 @@ fn __test_cosine__():
 
 __test_sine__()
 __test_cosine__()
-assert(1.414_213_562_373_095, sqrt(2))
+assert(1.414_213_562_373_095, sqrt(2.0))

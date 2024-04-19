@@ -3,17 +3,19 @@ use std::cell::RefCell;
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError};
-use crate::interpreter::{ArgAnnotation, Chalcedony};
+use crate::interpreter::{ArgAnnotation, Chalcedony, SafetyScope};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 
 use crate::common::{Bytecode, Type};
+use itertools::izip;
 
 use ahash::AHashMap;
 
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        if interpreter.func_symtable.get(&self.name).is_some() {
-            return Err(CompileError::overloaded_function(self.span).into());
+        let arg_types: Vec<Type> = self.args.iter().map(|arg| arg.ty.clone()).collect();
+        if interpreter.get_function(&self.name, &arg_types).is_some() {
+            return Err(CompileError::overwritten_function(self.span).into());
         }
 
         /* enumerate over the function's arguments */
@@ -75,9 +77,24 @@ impl ToBytecode for NodeFuncDef {
 
 impl ToBytecode for NodeFuncCall {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let Some(annotation) = interpreter.func_symtable.get(&self.name).cloned() else {
+        let arg_types: Result<Vec<Type>, ChalError> = self
+            .args
+            .iter()
+            .map(|expr| expr.as_type(interpreter))
+            .collect();
+
+        let arg_types = match arg_types {
+            Ok(ok) => ok,
+            Err(err) => return Err(err),
+        };
+
+        let Some(annotation) = interpreter.get_function(&self.name, &arg_types).cloned() else {
             return Err(CompileError::unknown_function(self.name, self.span).into());
         };
+
+        if self.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Catch {
+            return Err(CompileError::unsafe_catch(self.span).into());
+        }
 
         /* check for mismatching number of arguments */
         if annotation.args.len() != self.args.len() {
@@ -97,6 +114,10 @@ impl ToBytecode for NodeFuncCall {
             .into());
         }
 
+        if self.name == "set!" {
+            self.check_list_adding(interpreter)?;
+        }
+
         if annotation.ret_type != Type::Void && interpreter.inside_stmnt {
             return Err(CompileError::non_void_func_stmnt(
                 annotation.ret_type.clone(),
@@ -107,22 +128,48 @@ impl ToBytecode for NodeFuncCall {
 
         /* push on the stack each of the argument's expression value */
         let mut result = Vec::<Bytecode>::new();
-        for (idx, arg_expr) in self.args.into_iter().enumerate() {
-            let exp_type = annotation
-                .args
-                .get(idx)
-                .expect("the argument bounds should have already been checked")
-                .ty
-                .clone();
-
-            result.extend(arg_expr.clone().to_bytecode(interpreter)?);
-            let recv_type = arg_expr.as_type(interpreter)?;
-            Type::verify(exp_type, recv_type, &mut result, arg_expr.span)?;
+        for (arg, arg_ty, exp) in izip!(self.args, arg_types, annotation.args.clone()) {
+            // NOTE: this is very important to go in before the type check, else
+            // an empty value cast is possible
+            result.extend(arg.clone().to_bytecode(interpreter)?);
+            Type::verify(exp.ty, arg_ty, &mut result, arg.span.clone())?;
         }
 
         /* complete the function call instruction */
         result.push(Bytecode::CallFunc(annotation.id));
 
         Ok(result)
+    }
+
+    // get!<V>(list: [V], idx: int) -> V
+    // remove!<V>(list: [V], idx: int) -> V
+    // pop!<V>(list: [V]) -> V
+}
+
+impl NodeFuncCall {
+    // set!<V>(list: [V], val: V, idx: int)
+    // insert!<V>(list: [V], val: V, idx: int)
+    // push!<V>(list: [V], val: V)
+    /* simulating bounded polymorphism (generics) */
+    fn check_list_adding(&self, interpreter: &mut Chalcedony) -> Result<(), ChalError> {
+        let list = self.args.get(0).unwrap();
+        let list_ty = list.as_type(interpreter)?;
+        let val = self.args.get(1).unwrap();
+        let val_ty = val.as_type(interpreter)?;
+
+        let Type::List(ty) = list_ty else {
+            return Err(CompileError::invalid_type(
+                Type::List(Box::new(Type::Any)),
+                list_ty,
+                list.span.clone(),
+            )
+            .into());
+        };
+
+        if *ty != val_ty {
+            return Err(CompileError::invalid_type(*ty, val_ty, val.span.clone()).into());
+        }
+
+        Ok(())
     }
 }

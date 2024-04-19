@@ -9,6 +9,7 @@ pub enum Bytecode {
     ConstF(f64),
     ConstS(PtrString),
     ConstB(bool),
+    ThrowException,
 
     /* builds a new empty list */
     ConstL,
@@ -56,6 +57,11 @@ pub enum Bytecode {
 
     LInsert(isize),
     LPop(usize),
+
+    /* the length of the try-catch scope */
+    TryScope(usize),
+    /* jumping over the `catch` body, terminating the `try` block */
+    CatchJmp(usize),
 
     Print,
     Assert, /* asserts the top 2 values on the stack are equal */
