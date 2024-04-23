@@ -502,7 +502,7 @@ impl ToBytecode for NodeThrow {
         }
 
         if let Some(func) = interpreter.current_func.clone() {
-            if !func.is_unsafe {
+            if !func.is_unsafe && interpreter.safety_scope != SafetyScope::Try {
                 return Err(CompileError::throw_in_safe_func(exception.span).into());
             }
         }

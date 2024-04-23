@@ -261,6 +261,7 @@ impl Cvm {
                 let value = self.stack.pop().unwrap();
                 let frame = self.call_stack.pop().unwrap();
                 self.stack.truncate(frame.stack_len);
+                self.catch_idx = frame.catch_idx;
                 self.stack.push(value);
                 frame.prev_idx
             }
@@ -268,6 +269,7 @@ impl Cvm {
             Bytecode::ReturnVoid => {
                 let frame = self.call_stack.pop().unwrap();
                 self.stack.truncate(frame.stack_len);
+                self.catch_idx = frame.catch_idx;
                 frame.prev_idx
             }
 
