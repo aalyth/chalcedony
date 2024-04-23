@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+/// A wrapper around the default `Vec<T>` type, used for better code readability.
 #[derive(Debug, Default)]
 pub struct Stack<T> {
     values: Vec<T>,
@@ -34,6 +35,7 @@ impl<T> Stack<T> {
         self.values.get_mut(idx)
     }
 
+    // Keeps the first `len` elements on the stack, removing the others.
     pub fn truncate(&mut self, len: usize) {
         self.values.truncate(len)
     }

@@ -1,8 +1,10 @@
 use crate::lexer::Token;
 use std::collections::VecDeque;
 
+/// Represents a single line inside the source code, containing the indentation
+/// and the remaining tokens.
 pub struct Line {
-    /* the number of spaces in (not tabulations) */
+    /* the indentation measured in the number of spaces (not tabulations) */
     pub indent: u64,
     pub tokens: VecDeque<Token>,
 }

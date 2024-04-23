@@ -1,6 +1,9 @@
 use crate::error::internal;
 
-/* indicates something is wrong with the interpreter itself */
+/// A structure, representing an internal error with the interpreter.
+///
+/// TODO: Currently this structure is outdated and should be replaced by panics
+/// inside the source code.
 pub struct InternalError {
     msg: String,
 }

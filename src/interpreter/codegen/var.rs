@@ -13,7 +13,7 @@ impl ToBytecode for NodeVarCall {
                 return Ok(vec![Bytecode::GetArg(var.id)]);
             }
         }
-        if let Some(var) = interpreter.locals.borrow().get(&self.name) {
+        if let Some(var) = interpreter.locals.get(&self.name) {
             return Ok(vec![Bytecode::GetLocal(var.id)]);
         }
         if let Some(var) = interpreter.globals.get(&self.name) {
@@ -23,9 +23,11 @@ impl ToBytecode for NodeVarCall {
     }
 }
 
+// This implementation of `to_bytecode()` is used for any globally created variables,
+// i.e. it is called only from `NodeProg::VarDef(NodeVarDef)`.
 impl ToBytecode for NodeVarDef {
     fn to_bytecode(mut self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        if interpreter.locals.borrow().contains_key(&self.name) {
+        if interpreter.locals.contains_key(&self.name) {
             return Err(CompileError::redefining_variable(self.span.clone()).into());
         }
 

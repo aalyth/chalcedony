@@ -3,6 +3,11 @@ use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{NodeExpr, NodeStmnt};
 use crate::parser::{LineReader, TokenReader};
 
+/// The structure representing a while loop.
+///
+/// Syntax:
+/// while <condition>:    | header
+///     <statments>       > body
 pub struct NodeWhileLoop {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
@@ -10,12 +15,6 @@ pub struct NodeWhileLoop {
 
 impl NodeWhileLoop {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
-        /* while loop structure:
-         * while a <= 42:    | header
-         *     print(a)      > body
-         *     a += 1        > body
-         */
-
         let mut header = reader.advance_reader()?;
         header.expect_exact(TokenKind::Keyword(Keyword::While))?;
 

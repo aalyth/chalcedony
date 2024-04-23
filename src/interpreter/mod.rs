@@ -10,11 +10,10 @@ use crate::vm::Cvm;
 
 use crate::common::{Bytecode, Type};
 
-use std::cell::RefCell;
 use std::iter::zip;
 use std::rc::Rc;
 
-/* ahash is the fastest hashing algorithm in terms of hashing strings (faster than fxhash) */
+/* ahash is the fastest hashing algorithm in terms of hashing strings */
 use ahash::AHashMap;
 
 #[derive(Debug, Clone)]
@@ -66,7 +65,7 @@ impl FuncAnnotation {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct WhileScope {
+pub struct LoopScope {
     current_length: usize,
     unfinished_breaks: Vec<usize>,
 }
@@ -75,32 +74,36 @@ trait InterpreterVisitor {
     fn interpret_node(&mut self, _: NodeProg) -> Result<(), ChalError>;
 }
 
+/// The structure representing the interpreter, used to compile the received
+/// Abstract Syntax Tree into a stream of `Bytecode` instructions and respectively
+/// interpret the instructions via the Chalcedony Virtual Machine (CVM).
 #[derive(Default)]
 pub struct Chalcedony {
-    /* The virtual machine used to execute the resulting bytecode*/
+    // The virtual machine used to execute the compiled bytecode instructions.
     vm: Cvm,
 
-    /* Used to keep track of the globally declared variables */
+    // Used to keep track of the globally declared variables.
     globals: AHashMap<String, VarAnnotation>,
 
-    /* Used to keep track of the functions inside the program */
+    // Used to keep track of the functions inside the program.
     func_symtable: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
     func_id_counter: usize,
 
-    /* Contains the necessary function information used while parsing statements
-     * inside a function's scope */
+    // Contains the information about the current function if inside a function scope.
     current_func: Option<Rc<FuncAnnotation>>,
 
-    /* Contains the necessary information in order to implement control flow logic in while loops */
-    current_while: Option<WhileScope>,
+    // Contains the necessary information in order to implement control flow logic in loop scopes.
+    current_loop: Option<LoopScope>,
 
-    /* Keeps track of the current scope's local variables */
-    locals: RefCell<AHashMap<String, VarAnnotation>>,
+    // Keeps track of the current scope's local variables.
+    locals: AHashMap<String, VarAnnotation>,
 
-    /* Keeps track whether the currently compiled scope is a statement */
+    // Keeps track whether the currently compiled scope is a statement - used
+    // to perform checks such as wether a `void` function is used inside an expression.
     inside_stmnt: bool,
 
-    /* Whether the interpreter has failed */
+    // Whether the interpreter has encountered an error, so even if an error is
+    // encountered the rest of the script is still statically checked.
     failed: bool,
 }
 
@@ -176,8 +179,8 @@ impl Chalcedony {
             func_symtable,
             func_id_counter: 3,
             current_func: None,
-            current_while: None,
-            locals: RefCell::new(AHashMap::default()),
+            current_loop: None,
+            locals: AHashMap::default(),
             inside_stmnt: false,
             failed: false,
         }
@@ -217,7 +220,7 @@ impl Chalcedony {
         self.func_id_counter += 1;
 
         self.current_func = Some(func.clone());
-        self.locals = RefCell::new(AHashMap::new());
+        self.locals = AHashMap::new();
 
         match self.func_symtable.get_mut(&name) {
             Some(func_bucket) => func_bucket.push(func),
@@ -227,6 +230,7 @@ impl Chalcedony {
         }
     }
 
+    /* receives the proper overloaded function annotation from the passed argument types */
     fn get_function(&self, name: &str, arg_types: &Vec<Type>) -> Option<&FuncAnnotation> {
         let func_bucket = self.func_symtable.get(name)?;
         /* inlining the clippy suggestion does not help due to the Rc inside */
@@ -239,6 +243,7 @@ impl Chalcedony {
         None
     }
 
+    /* retrieves the global variable's id and creates it if it does not exist */
     fn get_global_id(&mut self, node: &NodeVarDef) -> usize {
         if let Some(var) = self.globals.get(&node.name) {
             return var.id;
@@ -250,19 +255,20 @@ impl Chalcedony {
         self.globals.len() - 1
     }
 
+    /* retrieves the local variable's id and creates it if it does not exist */
     fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
-        if let Some(var) = self.locals.borrow().get(&node.name) {
+        if let Some(var) = self.locals.get(&node.name) {
             return var.id;
         }
 
-        let next_id = self.locals.borrow().len();
+        let next_id = self.locals.len();
         self.locals
-            .borrow_mut()
             .insert(node.name.clone(), VarAnnotation::new(next_id, node.ty));
         next_id
     }
 }
 
+/* checks whether the passed arguments match the function annotation */
 fn valid_annotation(args: &Vec<ArgAnnotation>, received: &Vec<Type>) -> bool {
     if args.len() != received.len() {
         return false;

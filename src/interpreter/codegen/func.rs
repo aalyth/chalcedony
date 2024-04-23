@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError};
@@ -18,7 +16,7 @@ impl ToBytecode for NodeFuncDef {
             return Err(CompileError::overwritten_function(self.span).into());
         }
 
-        /* enumerate over the function's arguments */
+        /* enumerate over the function's arguments into a sequence of annotations */
         let mut args = Vec::<ArgAnnotation>::new();
         for (idx, arg) in self.args.iter().enumerate() {
             if arg.ty == Type::Void {
@@ -48,8 +46,8 @@ impl ToBytecode for NodeFuncDef {
             return Err(errors.into());
         }
 
-        /* check whether the function has returned, and if it is a void function, append
-         * a ReturnVoid at the end if there isn't one */
+        // check whether the function has returned, and if it is a void function,
+        // append a `Bytecode::ReturnVoid` at the end if there isn't one
         match self.ret_type {
             Type::Void if body.is_empty() && !returned => {
                 return Err(CompileError::no_default_return_stmnt(self.span).into())
@@ -70,7 +68,7 @@ impl ToBytecode for NodeFuncDef {
         result.append(&mut body);
 
         interpreter.current_func = None;
-        interpreter.locals = RefCell::new(AHashMap::new());
+        interpreter.locals = AHashMap::new();
         Ok(result)
     }
 }
@@ -82,7 +80,6 @@ impl ToBytecode for NodeFuncCall {
             .iter()
             .map(|expr| expr.as_type(interpreter))
             .collect();
-
         let arg_types = match arg_types {
             Ok(ok) => ok,
             Err(err) => return Err(err),
@@ -119,8 +116,8 @@ impl ToBytecode for NodeFuncCall {
         /* push on the stack each of the argument's expression value */
         let mut result = Vec::<Bytecode>::new();
         for (arg, arg_ty, exp) in izip!(self.args, arg_types, annotation.args.clone()) {
-            // NOTE: this is very important to go in before the type check, else
-            // an empty value cast is possible
+            // NOTE: this is very important to go in before the type check,
+            // else an empty value cast is possible
             result.extend(arg.clone().to_bytecode(interpreter)?);
             Type::verify(exp.ty, arg_ty, &mut result, arg.span.clone())?;
         }

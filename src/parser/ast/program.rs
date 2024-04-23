@@ -11,6 +11,10 @@ use crate::parser::{LineReader, TokenReader};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+/// A node in the program, representing an interpretable global unit, i.e. any
+/// statement that could be executed in the global context.
+///
+/// For syntax refer to each individual node.
 pub enum NodeProg {
     VarDef(NodeVarDef),
     FuncDef(NodeFuncDef),
@@ -20,9 +24,10 @@ pub enum NodeProg {
     WhileLoop(NodeWhileLoop),
 }
 
+/* a wrapper for building a node from a single line statement */
 macro_rules! single_line_stmnt {
     ( $enum_type: ident, $node_type: ident, $chunk: ident, $spanner: ident) => {{
-        // SAFETY: the front line is already checked
+        /* SAFETY: the front line is already checked */
         let front_line = $chunk.pop_front().unwrap().into();
         Ok(NodeProg::$enum_type($node_type::new(TokenReader::new(
             front_line,
@@ -31,7 +36,8 @@ macro_rules! single_line_stmnt {
     }};
 }
 
-macro_rules! multi_line_stmnt {
+/* a wrapper for building a node from a multiline statement */
+macro_rules! multiline_stmnt {
     ( $enum_type: ident, $node_type: ident, $chunk: ident, $spanner: ident) => {{
         Ok(NodeProg::$enum_type($node_type::new(LineReader::new(
             $chunk, $spanner,
@@ -57,18 +63,18 @@ impl NodeProg {
                 single_line_stmnt!(VarDef, NodeVarDef, chunk, spanner)
             }
             TokenKind::Keyword(Keyword::Fn) => {
-                multi_line_stmnt!(FuncDef, NodeFuncDef, chunk, spanner)
+                multiline_stmnt!(FuncDef, NodeFuncDef, chunk, spanner)
             }
             TokenKind::Keyword(Keyword::If) => {
-                multi_line_stmnt!(IfStmnt, NodeIfStmnt, chunk, spanner)
+                multiline_stmnt!(IfStmnt, NodeIfStmnt, chunk, spanner)
             }
             TokenKind::Keyword(Keyword::While) => {
-                multi_line_stmnt!(WhileLoop, NodeWhileLoop, chunk, spanner)
+                multiline_stmnt!(WhileLoop, NodeWhileLoop, chunk, spanner)
             }
 
             TokenKind::Identifier(_) => {
                 let Some(peek_2nd) = front_line.tokens.get(1) else {
-                    // by deafult we expect a function call
+                    /* by deafult a function call is expected upon encountering an identifier  */
                     return Err(ParserError::expected_token(
                         TokenKind::Delimiter(Delimiter::OpenPar),
                         front_tok.span.clone(),
@@ -77,9 +83,11 @@ impl NodeProg {
                 };
 
                 match &peek_2nd.kind {
+                    /* a function call */
                     TokenKind::Delimiter(Delimiter::OpenPar) => {
                         single_line_stmnt!(FuncCall, NodeFuncCall, chunk, spanner)
                     }
+                    /* an assignment */
                     TokenKind::Operator(Operator::Eq)
                     | TokenKind::Operator(Operator::AddEq)
                     | TokenKind::Operator(Operator::SubEq)

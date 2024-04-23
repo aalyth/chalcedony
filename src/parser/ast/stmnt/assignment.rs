@@ -5,6 +5,10 @@ use crate::parser::TokenReader;
 
 use crate::common::operators::AssignOprType;
 
+/// The node representing changes to any variable in the source code.
+///
+/// Syntax:
+/// <var_name> <opr> <expression>
 pub struct NodeAssign {
     pub lhs: NodeVarCall,
     pub opr: AssignOprType,

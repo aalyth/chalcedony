@@ -3,15 +3,18 @@ use crate::error::span::Span;
 
 use crate::common::Type;
 
+/// The types of errors that could be encountered during the process of compiling
+/// the Abstract Syntax Tree into bytecode. For each error's meaning refer to
+/// implementation of `std::fmt::Display` for `CompileError`.
 enum CompileErrorKind {
-    UnknownVariable(String),
-    UnknownFunction(String),
+    UnknownVariable(String),           /* var_name */
+    UnknownFunction(String),           /* func_name*/
     InvalidBinOpr(String, Type, Type), /* opr_name, lhs, rhs */
     InvalidUnaryOpr(String, Type),     /* opr_name, val*/
     InvalidType(Type, Type),           /* exp, recv */
     TooManyArguments(usize, usize),    /* exp, recv */
     TooFewArguments(usize, usize),     /* exp, recv */
-    NonVoidFunctionStmnt(Type),
+    NonVoidFunctionStmnt(Type),        /* function's return type*/
     VoidFunctionExpr,
     NoDefaultReturnStmnt,
     MutatingExternalState,

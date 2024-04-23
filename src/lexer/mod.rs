@@ -15,17 +15,20 @@ use char_reader::CharReader;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+/// The structure, used to transform the given script into a series of tokens.
 pub struct Lexer {
-    /* opening delimiters */
+    /// Keeps track of the currently open delimiters - used to check for
+    /// any mismatching delimiters.
     delim_stack: Stack<Token>,
 
-    /* to easily iterate over the source code*/
+    /// The reader, used to iterate over the source and keep track of the current position.
     reader: CharReader,
 
-    /* so errors can be traced to the source code  */
+    /// The spanner object, used to build code snippets to the errror messages.
     spanner: Rc<dyn Spanning>,
 
-    /* clone of the previous token kind */
+    /// The previous parsed token - used to perform checks such as determening
+    /// whether a `-` should be treated as an unary or binary operator.
     prev: Option<TokenKind>,
 }
 
@@ -37,18 +40,21 @@ impl Lexer {
         /* this is so empty lines at the end do not cause errors */
         src.push('\n');
 
-        // NOTE: in the case of adding an inline lexer,
-        // make a function for a lexer from file
+        // NOTE: in the case of implementing an inline lexer, a separate
+        // function must be created
         let mut result = Lexer {
             delim_stack: Stack::<Token>::new(),
             reader: CharReader::new(src),
             spanner: Rc::new(InlineSpanner::new(code)),
             prev: None,
         };
+
         result.remove_trailing_space();
         result
     }
 
+    /// Advances the next code chunk - a code chunk is defined as the next line,
+    /// followed by any lines whose indentation is other than 0.
     fn advance_chunk(&mut self) -> Result<VecDeque<Line>, ChalError> {
         let mut errors = Vec::<ChalError>::new();
         let mut result = VecDeque::<Line>::new();
@@ -83,7 +89,10 @@ impl Lexer {
         Ok(result)
     }
 
-    /* advances the next program node */
+    /// Advances the next interpretable code unit, i.e. a stream of tokens which
+    /// could be built into a `NodeProg` node. A program node does not necessary
+    /// mean a single code chunk - for example an `if` statement with one or more
+    /// `else/elif` branches.
     pub fn advance_prog(&mut self) -> Result<VecDeque<Line>, ChalError> {
         if self.reader.is_empty() {
             return Err(
@@ -122,7 +131,7 @@ impl Lexer {
             }
         }
 
-        /* check for unclosed delimiters */
+        /* check for any unclosed delimiters */
         if !self.delim_stack.is_empty() {
             while let Some(delim) = self.delim_stack.pop() {
                 errors.push(LexerError::unclosed_delimiter(&delim.src, delim.span.clone()).into());
@@ -179,23 +188,23 @@ impl Lexer {
         Ok(Line::new(indent, result))
     }
 
+    /* the internal function, used to build tokens */
     fn advance_tok(
         &mut self,
         src: String,
         start: Position,
         end: Position,
     ) -> Result<Token, ChalError> {
-        /* 1. create the token
-         * 2. match the token:
-         *  * delimiter:
-         *      1. update the delimiter stack
-         *      2. check for delimiter errors
-         *
-         *  * subtraction:
-         *      1. check if the operator is binary or unary
-         *
-         * 3. update the prev token
-         */
+        // 1. create the token
+        // 2. match the token:
+        //  * delimiter:
+        //      1. update the delimiter stack
+        //      2. check for delimiter errors
+        //
+        //  * subtraction:
+        //      1. check whether the operator is binary or unary
+        //
+        // 3. update the prev token
         let mut tok = Token::new(src, self.get_span(start, end))?;
 
         match &tok.kind {
@@ -240,6 +249,7 @@ impl Lexer {
         Ok(tok)
     }
 
+    /* advances the next token in the source code */
     fn advance(&mut self) -> Result<Token, ChalError> {
         let Some(mut current) = self.reader.advance() else {
             return Err(InternalError::new("Lexer::advance(): advancing an empty lexer").into());
@@ -255,23 +265,23 @@ impl Lexer {
         }
         let start = *self.reader.pos();
 
+        /* a comment */
         if current == '#' {
             let _ = self.reader.advance_while(|c: &char| *c != '\n');
             self.reader.advance(); /* remove the \n if there's any */
             return self.advance_tok(String::from("\n"), *self.reader.pos(), *self.reader.pos());
         }
 
+        /* a number */
         if current.is_numeric()
             || (current == '-'
                 && self.reader.peek().is_some()
                 && self.reader.peek().unwrap().is_numeric())
         {
-            /*
-             * check wheather the minus should be interpreted as
-             * a negative int or an operator, example:
-             * 'a-5' -> identifier(a), sub(-), uint(5)
-             * 'a*-5' -> identifier(a), mul(*), int(-5)
-             */
+            // check wheather the minus should be interpreted as a negative int
+            // or an operator, example:
+            // 'a-5' -> identifier(a), sub(-), uint(5)
+            // 'a*-5' -> identifier(a), mul(*), int(-5)
             if current == '-' {
                 match &self.prev {
                     Some(kind) => {
@@ -295,6 +305,7 @@ impl Lexer {
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
+        /* an identifier */
         if current.is_alphabetic() || current == '_' {
             let src = String::from(current)
                 + &self
@@ -303,6 +314,7 @@ impl Lexer {
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
+        /* any operator or special character */
         if is_special(&current) {
             let mut end = start;
 
@@ -332,6 +344,7 @@ impl Lexer {
             return self.advance_tok(String::from(current), start, start);
         }
 
+        /* any string */
         if current == '"' || current == '\'' {
             let mut src =
                 String::from(current) + &self.reader.advance_while(|c: &char| *c != current);

@@ -11,6 +11,10 @@ use crate::parser::TokenReader;
 
 use std::collections::VecDeque;
 
+/// An abstraction, representing a single element in an expression - a value, an
+/// operator or an indirectly computed value (variable / function calls). Instead
+/// of constructing a binary tree of expressions, the `NodeExprInner` nodes are
+/// stored in a list in a Reverse Polish Notation format.
 #[derive(Clone)]
 pub enum NodeExprInner {
     BinOpr(BinOprType),
@@ -20,12 +24,21 @@ pub enum NodeExprInner {
     FuncCall(NodeFuncCall),
 }
 
+/// A series of operations, which result in a single value. The operations themselves
+/// are transformed from a stream of tokens into a single sequence of `inner` nodes
+/// in a Reverse Polish Notation (RPN).
+///
+/// The purpose of using an RPN instead of a Binary Tree is the ease of compilation.
+/// Using RPN means the compilation of the expression boils down to converting
+/// each `inner` node into it's corresponding bytecode instruction.
 #[derive(Clone)]
 pub struct NodeExpr {
     pub expr: VecDeque<NodeExprInner>,
     pub span: Span,
 }
 
+/// Any operator, that could be stored in the operations stack in the Shunting Yard
+/// algorithm. For algorithm reference see `NodeExpr::new()`.
 #[derive(PartialEq)]
 enum Operator {
     Add,
@@ -68,8 +81,9 @@ impl Operator {
             Operator::EqEq => 3,
             Operator::BangEq => 3,
 
-            /* technically the negation and bang operators are right-associative, but having highest
-             * precedence achieves the same result without needing to refactor current code */
+            // technically the negation and bang operators are right-associative,
+            // but having highest precedence achieves the same result without
+            // the need for any additional overhead
             Operator::Bang => 999,
             Operator::Neg => 999,
             Operator::OpenPar => 0,
@@ -132,6 +146,8 @@ impl TryFrom<&lexer::Operator> for Operator {
     }
 }
 
+/// Used to keep track of the previous `NodeExprInner` type in order to check for
+/// any repeated terminals or operators inside the expression.
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 enum PrevType {
     Terminal,
@@ -139,6 +155,7 @@ enum PrevType {
     UnaryOpr,
 }
 
+/* pushes a value onto the output stack and asserts there are no repeated terminals */
 macro_rules! push_terminal {
     ( $terminal:expr, $output:ident, $prev_type:ident, $current_tok:ident ) => {
         if $prev_type == PrevType::Terminal {
@@ -149,10 +166,10 @@ macro_rules! push_terminal {
     };
 }
 
+/* pushes a value onto the output stack and asserts there are no repeated operators */
 macro_rules! push_operator {
     ( $operator:expr, $opr_stack:ident, $prev_type:ident, $current_tok:ident ) => {
         let is_unary = $operator == Operator::Neg || $operator == Operator::Bang;
-        /* we don't care about the previous operator if the current is an unary operator */
         if (!is_unary && $prev_type == PrevType::BinOpr)
             || (is_unary && $prev_type == PrevType::UnaryOpr)
         {
@@ -168,7 +185,12 @@ macro_rules! push_operator {
 }
 
 impl NodeExpr {
-    /* this implementation is based on the Shunting Yard algorithm */
+    /// A modified version of Edsger Dijkstra's Shunting Yard algorithm for parsing
+    /// infix notations into Reverse Polish Notation (RPN). In contrast to the
+    /// original algorithm, this version performs different checks on the input
+    /// such as checking for repeated terminals/operators, invalid syntax structures etc.
+    ///
+    ///
     pub fn new(mut reader: TokenReader) -> Result<NodeExpr, ChalError> {
         let mut output = Stack::<NodeExprInner>::new();
         let mut operators = Stack::<Operator>::new();
@@ -228,6 +250,7 @@ impl NodeExpr {
                         continue;
                     };
 
+                    /* check whether the identifier should be treated as a variable or function call */
                     if let TokenKind::Delimiter(Delimiter::OpenPar) = reader.peek().unwrap().kind {
                         let mut buffer = VecDeque::<Token>::new();
                         buffer.push_back(current.clone());
@@ -245,7 +268,7 @@ impl NodeExpr {
                             }
                             buffer.push_back(current);
                         }
-                        // SAFETY: the buffer should always have at least 1 element in it
+                        /* SAFETY: the buffer should always have at least 1 element in it */
                         let tmp_reader = TokenReader::new(buffer, reader.current());
                         let node = NodeExprInner::FuncCall(NodeFuncCall::new(tmp_reader)?);
                         push_terminal!(node, output, prev_type, current);
@@ -264,9 +287,9 @@ impl NodeExpr {
                     };
 
                     let current_precedence = opr.precedence();
-                    /* NOTE: inside the while we use a greater or equal (>=) check, instead of the usual
-                     * greater than (>), due to the fact that in this implementation, right-associative
-                     * operators (such as +=, -=, *=, etc.) are handled as statements */
+                    // NOTE: inside the while we use a greater or equal (>=) check, instead of the usual
+                    // greater than (>), due to the fact that in this implementation, right-associative
+                    // operators (such as +=, -=, *=, etc.) are handled as `NodeAssign` statements
                     while operators.peek().is_some()
                         && operators.peek().unwrap().precedence() >= current_precedence
                     {
@@ -287,7 +310,7 @@ impl NodeExpr {
                         output.push(opr.try_into().unwrap());
                     }
 
-                    /* remove the OpenPar at the end */
+                    /* remove the `Operator::OpenPar` at the end */
                     operators.pop();
                 }
 
@@ -301,6 +324,7 @@ impl NodeExpr {
             output.push(operators.pop().unwrap().try_into().unwrap());
         }
 
+        /* an expression should always end with a terminal */
         let span = Span::new(start, reader.current().end, reader.spanner());
         if !output.is_empty() && prev_type != PrevType::Terminal {
             return Err(ParserError::invalid_expr_end(span).into());

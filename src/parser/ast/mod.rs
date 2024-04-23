@@ -13,6 +13,7 @@ pub use stmnt::{
 };
 pub use var::{NodeVarCall, NodeVarDef};
 
+/// The node representing a literal value inside the source code.
 #[derive(Clone)]
 pub enum NodeValue {
     Int(i64),

@@ -4,14 +4,16 @@ use crate::lexer::TokenKind;
 
 use super::display_err;
 
-/* the possible errorous token kinds */
+/// The errors types, which can be encountered transforming the source code into a
+/// series of tokens. For each error's meaning refer to implementation of
+/// `std::fmt::Display` for `LexerError`.
 enum LexerErrorKind {
     InvalidIndentation,
     UnclosedString,
-    UnclosedDelimiter(String),
-    UnexpectedClosingDelimiter(String),
-    MismatchingDelimiters(String, String),
-    InvalidGlobalStatement(TokenKind),
+    UnclosedDelimiter(String),             /* delim. character */
+    UnexpectedClosingDelimiter(String),    /* delim. character*/
+    MismatchingDelimiters(String, String), /* open_delim, close_delim */
+    InvalidGlobalStatement(TokenKind), /* a token type, which cannot be converted into a `NodeProgram` */
     InvalidChar(char),
 }
 

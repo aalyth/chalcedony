@@ -4,6 +4,18 @@ use crate::parser::ast::{NodeExpr, NodeStmnt};
 
 use crate::parser::{LineReader, TokenReader};
 
+/// The node representing if statements.
+///
+/// Syntax:
+/// if <condition>:     | header
+///     <statements>    > body
+/// elif <condition>:   | header
+///     <statements>    > body
+/// elif <condition>:   | header
+///     <statements>    > body
+/// ...
+/// else:               | header
+///     <statements>    > body
 pub struct NodeIfStmnt {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
@@ -26,11 +38,6 @@ pub struct NodeElseStmnt {
 
 impl NodeIfStmnt {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
-        /* if statement structure:
-         * if n % 3 == 0:    | header
-         *     print(n)      > body
-         *     count += 1    > body
-         */
         let mut header = reader.advance_reader()?;
         header.expect_exact(TokenKind::Keyword(Keyword::If))?;
 
@@ -52,8 +59,8 @@ impl NodeIfStmnt {
         })?;
 
         let mut branches = Vec::<NodeIfBranch>::new();
-        /* NOTE: this block is guaranteed to be with at most 1 else statement
-         * (refer to LineReader::advance_chunk()) */
+        // NOTE: this block is guaranteed to contain at most 1 `else` statement.
+        // Refer to `LineReader::advance_chunk()` for more details.
         while !reader.is_empty() {
             let next_branch = reader.advance_until(|ln| {
                 let Some(front) = ln.front_tok() else {

@@ -14,6 +14,10 @@ use crate::error::{span::Span, ChalError, InternalError, ParserError};
 use crate::lexer::{Delimiter, Keyword, TokenKind};
 use crate::parser::{LineReader, TokenReader};
 
+/// The node representing a single statement in the program. A statement is a
+/// code unit which does not result in a value.
+///
+/// For syntax refer to individual nodes.
 pub enum NodeStmnt {
     VarDef(NodeVarDef),
     FuncCall(NodeFuncCall),
@@ -23,6 +27,18 @@ pub enum NodeStmnt {
     RetStmnt(NodeRetStmnt),
     ContStmnt(NodeContStmnt),
     BreakStmnt(NodeBreakStmnt),
+}
+
+// Boils down to the `TokenKind::Keyword(Keyword::Continue)`. Can only be used in
+// the context of a loop.
+pub struct NodeContStmnt {
+    pub span: Span,
+}
+
+// Boils down to the `TokenKind::Keyword(Keyword::Break)`. Can only be used in
+// the context of a loop.
+pub struct NodeBreakStmnt {
+    pub span: Span,
 }
 
 macro_rules! single_line_statement {
@@ -43,7 +59,7 @@ macro_rules! single_line_statement {
     }};
 }
 
-macro_rules! multi_line_statement {
+macro_rules! multiline_statement {
     ($reader:ident, $result:ident, $errors:ident, $node_type:ident, $stmnt_type:ident) => {{
         let line_reader_raw = $reader.advance_chunk();
         let Ok(line_reader) = line_reader_raw else {
@@ -70,20 +86,26 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
 
         while let Some(front) = reader.peek_tok() {
             match front.kind {
+                /* single line statements */
                 TokenKind::Keyword(Keyword::Let) => {
                     single_line_statement!(reader, result, errors, NodeVarDef, VarDef);
                 }
-
                 TokenKind::Keyword(Keyword::Return) => {
                     single_line_statement!(reader, result, errors, NodeRetStmnt, RetStmnt);
                 }
-
                 TokenKind::Keyword(Keyword::Continue) => {
                     single_line_statement!(reader, result, errors, NodeContStmnt, ContStmnt);
                 }
-
                 TokenKind::Keyword(Keyword::Break) => {
                     single_line_statement!(reader, result, errors, NodeBreakStmnt, BreakStmnt);
+                }
+
+                /* multiline statements */
+                TokenKind::Keyword(Keyword::If) => {
+                    multiline_statement!(reader, result, errors, NodeIfStmnt, IfStmnt);
+                }
+                TokenKind::Keyword(Keyword::While) => {
+                    multiline_statement!(reader, result, errors, NodeWhileLoop, WhileLoop);
                 }
 
                 TokenKind::Identifier(_) => {
@@ -94,7 +116,9 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                         .into());
                     };
 
-                    // SAFETY: there is always at least 2 elements in the line (the identifer + newline)
+                    // check whether the identifier should be treated as a function
+                    // call or a variable assignment. SAFETY: there are always at
+                    // least 2 elements in the line (the identifer + newline)
                     if let Some(peek) = line.tokens.get(1) {
                         if peek.kind == TokenKind::Delimiter(Delimiter::OpenPar) {
                             let node_reader =
@@ -119,14 +143,6 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                     result.push(NodeStmnt::Assign(node));
                 }
 
-                TokenKind::Keyword(Keyword::If) => {
-                    multi_line_statement!(reader, result, errors, NodeIfStmnt, IfStmnt);
-                }
-
-                TokenKind::Keyword(Keyword::While) => {
-                    multi_line_statement!(reader, result, errors, NodeWhileLoop, WhileLoop);
-                }
-
                 _ => {
                     let front = front.clone();
                     reader.advance();
@@ -142,10 +158,6 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
     }
 }
 
-pub struct NodeContStmnt {
-    pub span: Span,
-}
-
 impl NodeContStmnt {
     fn new(mut reader: TokenReader) -> Result<Self, ChalError> {
         reader.expect_exact(TokenKind::Keyword(Keyword::Continue))?;
@@ -154,10 +166,6 @@ impl NodeContStmnt {
 
         Ok(NodeContStmnt { span })
     }
-}
-
-pub struct NodeBreakStmnt {
-    pub span: Span,
 }
 
 impl NodeBreakStmnt {

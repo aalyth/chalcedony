@@ -3,6 +3,9 @@ use crate::lexer::TokenKind;
 
 use super::display_err;
 
+/// The error types, which could be encountered during the transforming the lexed
+/// stream of tokens into the Abstract Syntax Tree. For each error's meaning refer
+/// to implementation of `std::fmt::Display` for `ParserError`.
 enum ParserErrorKind {
     InvalidToken(TokenKind, TokenKind),
     ExpectedToken(TokenKind),

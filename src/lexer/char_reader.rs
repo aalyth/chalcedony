@@ -2,6 +2,8 @@ use crate::error::span::Position;
 
 use std::collections::VecDeque;
 
+/// The reader abstraciton, used to iterate over the source code, keeping track
+/// of the current position inside the source code.
 pub struct CharReader {
     pos: Position,
     src: VecDeque<char>,

@@ -99,6 +99,7 @@ pub fn is_operator(c: &char) -> bool {
     )
 }
 
+/// The types of tokens which could be built from the source code.
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenKind {
     Int(i64),
@@ -126,7 +127,7 @@ impl TokenKind {
         }
 
         match src {
-            /* TYPES */
+            /* Types */
             "int" => return Ok(TokenKind::Type(Type::Int)),
             "uint" => return Ok(TokenKind::Type(Type::Uint)),
             "float" => return Ok(TokenKind::Type(Type::Float)),
@@ -134,7 +135,7 @@ impl TokenKind {
             "bool" => return Ok(TokenKind::Type(Type::Bool)),
             "void" => return Ok(TokenKind::Type(Type::Void)),
 
-            /* KEYWORDS */
+            /* Keywords */
             "let" => return Ok(TokenKind::Keyword(Keyword::Let)),
             "fn" => return Ok(TokenKind::Keyword(Keyword::Fn)),
             "return" => return Ok(TokenKind::Keyword(Keyword::Return)),
@@ -145,7 +146,7 @@ impl TokenKind {
             "continue" => return Ok(TokenKind::Keyword(Keyword::Continue)),
             "break" => return Ok(TokenKind::Keyword(Keyword::Break)),
 
-            /* DELIMITERS */
+            /* Delimiters */
             "(" => return Ok(TokenKind::Delimiter(Delimiter::OpenPar)),
             ")" => return Ok(TokenKind::Delimiter(Delimiter::ClosePar)),
             "[" => return Ok(TokenKind::Delimiter(Delimiter::OpenBracket)),
@@ -153,7 +154,7 @@ impl TokenKind {
             "{" => return Ok(TokenKind::Delimiter(Delimiter::OpenBrace)),
             "}" => return Ok(TokenKind::Delimiter(Delimiter::CloseBrace)),
 
-            /* SPECIALS */
+            /* Specials */
             "," => return Ok(TokenKind::Special(Special::Comma)),
             "." => return Ok(TokenKind::Special(Special::Dot)),
             ":" => return Ok(TokenKind::Special(Special::Colon)),
@@ -161,7 +162,7 @@ impl TokenKind {
             "->" => return Ok(TokenKind::Special(Special::RightArrow)),
             "=>" => return Ok(TokenKind::Special(Special::BigRightArrow)),
 
-            /* OPERATORS */
+            /* Operators */
             "+" => return Ok(TokenKind::Operator(Operator::Add)),
             "-" => return Ok(TokenKind::Operator(Operator::Sub)),
             "*" => return Ok(TokenKind::Operator(Operator::Mul)),
@@ -196,6 +197,7 @@ impl TokenKind {
             _ => (),
         };
 
+        /* this way digits such as `123_456` are supported */
         let potential_digit = src.replace('_', "");
 
         if let Ok(val) = potential_digit.parse::<u64>() {
@@ -222,6 +224,7 @@ impl TokenKind {
         Ok(TokenKind::Identifier(src.to_string()))
     }
 
+    /* used to perform checks such as checking whether an `-` is unary or binary */
     pub fn is_terminal(&self) -> bool {
         matches!(
             *self,

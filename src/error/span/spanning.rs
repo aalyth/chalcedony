@@ -2,8 +2,12 @@ use crate::error::{color, span::Position, Colors};
 
 use super::Spanning;
 
+/* the length of the shortened code annotation `...` */
 const ELLIPSIS_LEN: usize = 3;
 
+/// A spanner implementation, which builds code snippets, storing the whole source
+/// code into the memory. This at first glance naive approach is sufficiently
+/// efficient in terms of memory and fully optimized in terms of lookup time.
 pub struct InlineSpanner {
     src: Vec<String>,
 }
@@ -56,7 +60,7 @@ impl InlineSpanner {
         InlineSpanner { src: result }
     }
 
-    /* returns the context string and the relative index in the result string of the start position */
+    // Returns the context string and the relative index in the result string of the start position.
     fn context_span(&self, start_: &Position, end_: &Position) -> (String, usize) {
         if start_.ln == 0 || start_.col == 0 {
             panic!("Error: span: context_span: invalid start position.\n");
@@ -140,19 +144,15 @@ impl InlineSpanner {
         (result, res.1)
     }
 
-    /* returns a formatted string, containing the content around the given position
-     *
-     * if successful returns the formated string and the given index of the position
-     * relative to the formated string
-     */
+    // Returns the formatted string, containing the content around the given position
+    // and the given index of the position relative to the formatted string.
     fn context_pos(&self, pos_: &Position) -> (String, usize) {
         self.context_substr(pos_, 0)
     }
 
-    /* similar to context_pos(), but takes the length of the substring, to which the context wraps around
-     *
-     * returns the begining of the substring relative to the context output
-     */
+    // Similar to `context_pos()`, but takes the length of the substring, around
+    // which the context wraps around. Returns the begining of the substring
+    // relative to the context output.
     fn context_substr(&self, pos_: &Position, ctx_len: usize) -> (String, usize) {
         if pos_.ln == 0 || pos_.col == 0 {
             panic!("Error: InlineSpanner::context_substr(): invalid position.");
@@ -202,9 +202,8 @@ impl InlineSpanner {
         }
 
         if curr_line.chars().count() - (pos.col + ctx_len) > 35 {
-            /* same as curr_line[pos.col + len .. pos.col + len + 24]
-             * but works with UTF-8
-             */
+            // same as curr_line[pos.col + len .. pos.col + len + 24]
+            // but works with UTF-8
             let tmp: String = curr_line
                 .chars()
                 .take(pos.col + ctx_len + 34)

@@ -2,6 +2,11 @@ use crate::error::span::Span;
 use crate::error::{ChalError, ParserError};
 use crate::lexer::{Token, TokenKind};
 
+/// The node representing a variable's call. Essentialy boils down to a single
+/// `TokenKind::Identifier()` with the corresponding variable's name inside.
+///
+/// Syntax:
+/// <var_name>
 #[derive(Clone)]
 pub struct NodeVarCall {
     pub name: String,

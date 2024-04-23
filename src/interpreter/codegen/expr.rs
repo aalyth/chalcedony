@@ -10,11 +10,16 @@ use crate::common::Bytecode;
 impl ToBytecode for NodeExpr {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let mut result = Vec::<Bytecode>::new();
+
+        // since the expressions are already parsed into a Reverse Polish Notation,
+        // the only thing needed for their compilation is to convert them to their
+        // appropriate bytecode instructions
         for inner in self.expr {
             interpreter.inside_stmnt = false;
             result.extend(inner.to_bytecode(interpreter)?);
             interpreter.inside_stmnt = true;
         }
+
         Ok(result)
     }
 }

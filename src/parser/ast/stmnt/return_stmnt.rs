@@ -3,6 +3,12 @@ use crate::lexer::{Keyword, TokenKind};
 use crate::parser::ast::NodeExpr;
 use crate::parser::TokenReader;
 
+/// The node representing the returning of value
+///
+/// Syntax:
+/// return <expr>
+///
+/// * where <expr> can be empty for `void` functions
 pub struct NodeRetStmnt {
     pub value: NodeExpr,
     pub span: Span,

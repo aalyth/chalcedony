@@ -4,7 +4,10 @@ use std::fmt;
 use std::ops;
 use std::ptr;
 
-/* an 8-byte ASCII string implementation */
+/// An 8-byte string implementation. The purpose of this structure is to optimize
+/// the memory size of every `CvmObject`, reducing it by 16 bytes compared to
+/// using the Rust's built-in `String` type. Optimizing the memory footprint of
+/// the CVM objects leads to improved speed of the user's programs.
 pub struct PtrString(*const char);
 
 impl PtrString {

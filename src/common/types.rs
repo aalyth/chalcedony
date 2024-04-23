@@ -36,20 +36,21 @@ impl Type {
         Err(CompileError::invalid_type(exp, recv, span).into())
     }
 
+    /// Used to check whether an overloaded function's definition is applicable
+    /// to the passed argument's types.
     pub fn soft_eq(&self, other: &Self) -> bool {
         match (self, other) {
-            /* Universal types */
+            /* universal types */
             (Type::Void, _) | (_, Type::Void) => false,
             (Type::Any, _) => true,
-            /* Actual types */
+            /* actual types */
             (Type::Int, Type::Int)
             | (Type::Uint, Type::Uint)
             | (Type::Float, Type::Float)
             | (Type::Str, Type::Str)
             | (Type::Bool, Type::Bool) => true,
-            /* type casts */
+            /* implicit type casts */
             (Type::Int, Type::Uint) => true,
-            // (Type::Float, Type::Uint) | (Type::Float, Type::Int) => true,
             _ => false,
         }
     }

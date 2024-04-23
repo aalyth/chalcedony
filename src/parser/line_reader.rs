@@ -7,6 +7,8 @@ use std::rc::Rc;
 
 use super::token_reader::TokenReader;
 
+/// An abstraction, used to go over code chunks. For reference to code chunks
+/// refer to the function `Lexer::advance_chunk()`.
 pub struct LineReader {
     src: VecDeque<Line>,
     spanner: Rc<dyn Spanning>,
@@ -97,6 +99,7 @@ impl LineReader {
         Ok(LineReader::new(res, self.spanner.clone()))
     }
 
+    /// Advances the next line and builts a `TokenReader` over it.
     pub fn advance_reader(&mut self) -> Result<TokenReader, ChalError> {
         let Some(next) = self.src.pop_front() else {
             return Err(InternalError::new(

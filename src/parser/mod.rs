@@ -13,6 +13,9 @@ use crate::parser::ast::NodeProg;
 
 use std::rc::Rc;
 
+/// The structure used to go over the lexed stream of tokens and transform them
+/// into the Abstract Syntax Tree. For each possible node refer to `NodeProg` and
+/// each individual node variant inside it.
 pub struct Parser {
     lexer: Lexer,
     spanner: Rc<dyn Spanning>,

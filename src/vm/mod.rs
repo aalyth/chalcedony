@@ -114,13 +114,14 @@ impl Cvm {
                 next_idx
             }
 
+            // TODO: as described in `src/common/bytecode.rs` these bytecode
+            // instructions could be merged with `Set/GetLocal`
             Bytecode::SetArg(arg_id) => {
                 let frame = self.call_stack.peek().expect("expected a stack frame");
                 let value = self.stack.pop().expect("expected a value on the stack");
                 *self.stack.get_mut(frame.stack_len + *arg_id).unwrap() = value;
                 next_idx
             }
-
             Bytecode::GetArg(arg_id) => {
                 let frame = self.call_stack.peek().expect("expected a stack frame");
                 let value = self.stack.get(frame.stack_len + arg_id).unwrap().clone();
@@ -131,8 +132,8 @@ impl Cvm {
             Bytecode::SetLocal(mut var_id) => {
                 let value = self.stack.pop().expect("expected a value on the stack");
 
-                /* since local variables can exist outside of a function scope, a check is
-                 * performed whether there is a call frame */
+                // since local variables can exist outside of a function scope,
+                // a check is required whether there is a call frame
                 if let Some(frame) = self.call_stack.peek() {
                     var_id += frame.stack_len + frame.args_len;
                 }
@@ -190,8 +191,8 @@ impl Cvm {
                     .expect("expected a valid function id")
                     .clone();
 
-                /* NOTE: the arguments to the function call are already in place
-                 * and local variables are automatically handled */
+                // NOTE: the arguments to the function call are already in place
+                // and local variables are automatically handled
 
                 let frame = CvmCallFrame {
                     prev_idx: next_idx,

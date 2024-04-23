@@ -24,6 +24,13 @@ fn get_eval_args(eval_stack: &mut Stack<Type>) -> (Type, Type) {
     (left, right)
 }
 
+/// The types in Chalcedony have the property of trying to perserve their own
+/// type between binary operations. The only downside of this property is the
+/// potentially unexpected rounding to 0 in operations such as:
+/// ```
+/// # the value of `a` becomes 0, not 0.5
+/// let a = 1 / 2
+/// ```
 macro_rules! bin_opr_eval {
     ($stack:ident, $str_handler:ident, $opr_name:expr, $span:ident) => {{
         let (left, right) = get_eval_args($stack);
@@ -119,6 +126,7 @@ fn opr_logical(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<T
     }
 }
 
+// Every comparison operator yields a boolean value.
 macro_rules! opr_cmp_internal {
     ($stack:ident, $cmp_func:ident, $opr_name:expr, $span:ident) => {{
         let right = $stack.pop().expect("expected a type on the eval stack");
@@ -153,7 +161,7 @@ macro_rules! opr_cmp_internal {
     }};
 }
 
-/* matches != and == */
+// Matches the operators `!=` and `==`.
 fn opr_eq(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, ChalError> {
     let cmp_eq = |val: Type, span: &Span| -> Result<Type, ChalError> {
         match val {
@@ -166,7 +174,7 @@ fn opr_eq(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, 
     opr_cmp_internal!(eval_stack, cmp_eq, opr, span)
 }
 
-/* matches lt, gt, lteq, gteq */
+// Matches the operators `<`, `>`, `<=`, `>=`.
 fn opr_cmp(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, ChalError> {
     let cmp_operator = |right: Type, span: &Span| -> Result<Type, ChalError> {
         Err(CompileError::invalid_bin_opr(opr.to_string(), Type::Bool, right, span.clone()).into())
@@ -240,7 +248,7 @@ impl NodeExprInner {
                     }
                 }
 
-                if let Some(var) = interpreter.locals.borrow().get(&node.name) {
+                if let Some(var) = interpreter.locals.get(&node.name) {
                     return Ok(var.ty);
                 }
 

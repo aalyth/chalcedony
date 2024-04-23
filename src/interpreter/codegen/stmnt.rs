@@ -1,7 +1,7 @@
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError};
-use crate::interpreter::{Chalcedony, VarAnnotation, WhileScope};
+use crate::interpreter::{Chalcedony, LoopScope, VarAnnotation};
 use crate::parser::ast::{
     NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExprInner,
     NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeWhileLoop,
@@ -10,23 +10,38 @@ use crate::parser::ast::{
 use crate::common::operators::{AssignOprType, BinOprType};
 use crate::common::{Bytecode, Type};
 
-fn increment_while_scope(interpreter: &mut Chalcedony, val: usize) {
-    if let Some(while_scope) = interpreter.current_while.as_mut() {
-        while_scope.current_length += val;
+/* used for easier manipulation over the current while scope */
+fn increment_loop_scope(interpreter: &mut Chalcedony, val: usize) {
+    if let Some(loop_scope) = interpreter.current_loop.as_mut() {
+        loop_scope.current_length += val;
     }
 }
 
-fn set_while_scope(interpreter: &mut Chalcedony, val: usize) {
-    if let Some(while_scope) = interpreter.current_while.as_mut() {
-        while_scope.current_length = val;
+// Used to default back the previously set scope length. The reason for this is
+// that `NodeStmnt::to_bytecode()` by default increments the current loop's length
+// by the resulting bytecode's length, which would lead to double increments in
+// the nodes `NodeIfStmnt`, `NodeElifStmnt` and `NodeElseStmnt`, `NodeElifStmnt`.
+fn set_loop_scope(interpreter: &mut Chalcedony, val: usize) {
+    if let Some(loop_scope) = interpreter.current_loop.as_mut() {
+        loop_scope.current_length = val;
+    }
+}
+
+fn get_loop_scope_len(interpreter: &mut Chalcedony) -> usize {
+    match interpreter.current_loop.as_ref() {
+        Some(scope) => scope.current_length,
+        None => 0,
     }
 }
 
 impl ToBytecode for NodeStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let result: Vec<Bytecode> = match self {
+            // the reason that `NodeVarDef::to_bytecode()` is not used is due to
+            // `NodeStmnt::VarDef()` represents a local variable, where the
+            // `NodeProg::VarDef()` represents a global variable
             NodeStmnt::VarDef(mut node) => {
-                if interpreter.locals.borrow().contains_key(&node.name) {
+                if interpreter.locals.contains_key(&node.name) {
                     return Err(CompileError::redefining_variable(node.span.clone()).into());
                 }
 
@@ -62,8 +77,7 @@ impl ToBytecode for NodeStmnt {
             NodeStmnt::BreakStmnt(node) => node.to_bytecode(interpreter)?,
         };
 
-        increment_while_scope(interpreter, result.len());
-
+        increment_loop_scope(interpreter, result.len());
         Ok(result)
     }
 }
@@ -79,11 +93,7 @@ impl ToBytecode for NodeIfBranch {
 
 impl ToBytecode for NodeElifStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let prev_while_scope_len = interpreter
-            .current_while
-            .as_ref()
-            .unwrap_or(&WhileScope::default())
-            .current_length;
+        let prev_loop_scope_len = get_loop_scope_len(interpreter);
 
         let mut result = self.condition.clone().to_bytecode(interpreter)?;
 
@@ -95,7 +105,7 @@ impl ToBytecode for NodeElifStmnt {
             self.condition.span.clone(),
         )?;
 
-        increment_while_scope(interpreter, result.len() + 1);
+        increment_loop_scope(interpreter, result.len() + 1);
 
         let body = self.body.to_bytecode(interpreter)?;
 
@@ -103,7 +113,7 @@ impl ToBytecode for NodeElifStmnt {
         result.push(Bytecode::If(body.len() + 1));
         result.extend(body);
 
-        set_while_scope(interpreter, prev_while_scope_len);
+        set_loop_scope(interpreter, prev_loop_scope_len);
 
         Ok(result)
     }
@@ -137,11 +147,7 @@ impl ToBytecode for Vec<NodeStmnt> {
 
 impl ToBytecode for NodeIfStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let prev_while_scope_len = interpreter
-            .current_while
-            .as_ref()
-            .unwrap_or(&WhileScope::default())
-            .current_length;
+        let prev_loop_scope_len = get_loop_scope_len(interpreter);
 
         let mut result = self.condition.clone().to_bytecode(interpreter)?;
         let cond_ty = self.condition.as_type(interpreter)?;
@@ -152,25 +158,25 @@ impl ToBytecode for NodeIfStmnt {
             self.condition.span.clone(),
         )?;
 
-        increment_while_scope(interpreter, result.len() + 1);
+        increment_loop_scope(interpreter, result.len() + 1);
 
         let body = self.body.to_bytecode(interpreter)?;
 
-        increment_while_scope(interpreter, body.len() + 1);
+        increment_loop_scope(interpreter, body.len() + 1);
 
         let mut branches: Vec<Vec<Bytecode>> = Vec::new();
         let mut errors: Vec<ChalError> = Vec::new();
         for branch in self.branches {
             match branch.to_bytecode(interpreter) {
                 Ok(bytecode) => {
-                    increment_while_scope(interpreter, bytecode.len() + 1);
+                    increment_loop_scope(interpreter, bytecode.len() + 1);
                     branches.push(bytecode);
                 }
                 Err(err) => errors.push(err),
             }
         }
 
-        set_while_scope(interpreter, prev_while_scope_len + 1);
+        set_loop_scope(interpreter, prev_loop_scope_len + 1);
 
         if !errors.is_empty() {
             return Err(errors.into());
@@ -206,12 +212,12 @@ impl ToBytecode for NodeIfStmnt {
 
 impl ToBytecode for NodeWhileLoop {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let prev_while_scope = interpreter.current_while.clone();
-        interpreter.current_while = Some(WhileScope::default());
+        let prev_loop_scope = interpreter.current_loop.clone();
+        interpreter.current_loop = Some(LoopScope::default());
 
         /* for some reason nested while loops need an extra len */
-        if prev_while_scope.is_some() {
-            increment_while_scope(interpreter, 1);
+        if prev_loop_scope.is_some() {
+            increment_loop_scope(interpreter, 1);
         }
 
         let mut result = self.condition.clone().to_bytecode(interpreter)?;
@@ -224,7 +230,7 @@ impl ToBytecode for NodeWhileLoop {
             self.condition.span.clone(),
         )?;
 
-        increment_while_scope(interpreter, result.len() + 1);
+        increment_loop_scope(interpreter, result.len() + 1);
 
         let body = self.body.to_bytecode(interpreter)?;
         let body_len = body.len() + 1; // taking into account the jump backwards
@@ -233,7 +239,7 @@ impl ToBytecode for NodeWhileLoop {
         result.extend(body);
 
         let scope = interpreter
-            .current_while
+            .current_loop
             .as_ref()
             .expect("the while scope disappeared");
 
@@ -248,7 +254,7 @@ impl ToBytecode for NodeWhileLoop {
         let dist = -(result.len() as isize) - 1;
         result.push(Bytecode::Jmp(dist));
 
-        interpreter.current_while = prev_while_scope;
+        interpreter.current_loop = prev_loop_scope;
         Ok(result)
     }
 }
@@ -265,7 +271,7 @@ impl ToBytecode for NodeAssign {
         let annotation: VarAnnotation;
         let mut scope = VarScope::Global;
 
-        if let Some(var) = interpreter.locals.borrow().get(&self.lhs.name) {
+        if let Some(var) = interpreter.locals.get(&self.lhs.name) {
             annotation = *var;
             scope = VarScope::Local;
 
@@ -347,15 +353,15 @@ impl ToBytecode for NodeRetStmnt {
         let mut result = self.value.clone().to_bytecode(interpreter)?;
 
         Type::verify(exp_type, recv_type, &mut result, self.value.span)?;
-
         result.push(Bytecode::Return);
+
         Ok(result)
     }
 }
 
 impl ToBytecode for NodeBreakStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let Some(scope) = interpreter.current_while.as_mut() else {
+        let Some(scope) = interpreter.current_loop.as_mut() else {
             return Err(CompileError::control_flow_outside_while(self.span.clone()).into());
         };
         scope.unfinished_breaks.push(scope.current_length);
@@ -365,7 +371,7 @@ impl ToBytecode for NodeBreakStmnt {
 
 impl ToBytecode for NodeContStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let Some(scope) = interpreter.current_while.as_mut() else {
+        let Some(scope) = interpreter.current_loop.as_mut() else {
             return Err(CompileError::control_flow_outside_while(self.span.clone()).into());
         };
         Ok(vec![Bytecode::Jmp(-(scope.current_length as isize))])
