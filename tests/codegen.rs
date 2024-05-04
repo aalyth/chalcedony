@@ -3,8 +3,8 @@ use chalcedony::common::{Bytecode, Type};
 
 use chalcedony::parser::ast::{
     func::Arg, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExpr,
-    NodeExprInner, NodeFuncCall, NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeValue, NodeVarDef,
-    NodeWhileLoop,
+    NodeExprInner, NodeFuncCall, NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeThrow, NodeTryCatch,
+    NodeValue, NodeVarDef, NodeWhileLoop,
 };
 use chalcedony::parser::ast::{NodeAssign, NodeRetStmnt, NodeStmnt, NodeVarCall};
 
@@ -18,6 +18,7 @@ use chalcedony::mocks::{vecdeq, SpanMock};
 #[test]
 fn compile_control_flow() {
     // equivalent to the code:
+    // ```
     // fn ctrl_flow():
     //     let i = 0
     //     while i < 100:
@@ -31,6 +32,7 @@ fn compile_control_flow() {
     //             j += 1
     //             if j % 2 == 1:
     //                 continue
+    // ```
 
     let code = NodeFuncDef {
         name: "ctrl_flow".to_string(),
@@ -253,12 +255,14 @@ fn compile_control_flow() {
 #[test]
 fn compile_if_branching() {
     // equivalent to the code:
+    // ```
     // if 2 > 3:
     //     print("one")
     //  elif 3 > 4:
     //     print("two")
     //  else:
     //     print("default")
+    // ```
 
     let code = NodeIfStmnt {
         condition: NodeExpr {
@@ -345,10 +349,12 @@ fn compile_if_branching() {
 #[test]
 fn compile_function() {
     // equivalent to the code:
+    // ```
     // fn fib(n: int) -> uint:
     //     if n > 2:
     //         return fib(n-2) + fib(n-1)
     //      return 1
+    // ```
 
     let code = NodeFuncDef {
         name: "fib".to_string(),
@@ -454,6 +460,88 @@ fn compile_function() {
 
     let recv = code
         .to_bytecode(&mut interpreter)
+        .expect("did not compile properly");
+
+    assert_eq!(exp, recv);
+}
+
+#[test]
+fn compile_try_catch() {
+    // equivalent to the code:
+    // ```
+    // try:
+    //     print(21 * 2)
+    //     throw 'unexpected error'
+    // catch (exc: exception):
+    //     print('Received the exception: ' + exc)
+    // ```
+
+    let code = NodeTryCatch {
+        try_body: vec![
+            NodeStmnt::FuncCall(NodeFuncCall {
+                name: "print".to_string(),
+                args: vec![NodeExpr {
+                    expr: vecdeq![
+                        NodeExprInner::Value(NodeValue::Uint(21)),
+                        NodeExprInner::Value(NodeValue::Uint(2)),
+                        NodeExprInner::BinOpr(BinOprType::Mul)
+                    ],
+                    span: SpanMock::new(),
+                }],
+                span: SpanMock::new(),
+            }),
+            NodeStmnt::Throw(NodeThrow(NodeExpr {
+                expr: vecdeq![NodeExprInner::Value(NodeValue::Str(
+                    "unexpected error".to_string()
+                ))],
+                span: SpanMock::new(),
+            })),
+        ],
+        try_span: SpanMock::new(),
+        exception_var: NodeVarCall {
+            name: "exc".to_string(),
+            span: SpanMock::new(),
+        },
+        catch_body: vec![NodeStmnt::FuncCall(NodeFuncCall {
+            name: "print".to_string(),
+            args: vec![NodeExpr {
+                expr: vecdeq![
+                    NodeExprInner::Value(NodeValue::Str("Received the exception: ".to_string())),
+                    NodeExprInner::VarCall(NodeVarCall {
+                        name: "exc".to_string(),
+                        span: SpanMock::new()
+                    }),
+                    NodeExprInner::BinOpr(BinOprType::Add)
+                ],
+                span: SpanMock::new(),
+            }],
+            span: SpanMock::new(),
+        })],
+    };
+
+    let exp = vec![
+        // try:
+        Bytecode::TryScope(7),
+        // print(21 * 2)
+        Bytecode::ConstU(21),
+        Bytecode::ConstU(2),
+        Bytecode::Mul,
+        Bytecode::CallFunc(0),
+        // throw "unexpected error"
+        Bytecode::ConstS("unexpected error".to_string().into()),
+        Bytecode::ThrowException,
+        Bytecode::CatchJmp(5),
+        // catch (exc: exception):
+        //     print("Received the exception" + exc)
+        Bytecode::SetLocal(0),
+        Bytecode::ConstS("Received the exception: ".to_string().into()),
+        Bytecode::GetLocal(0),
+        Bytecode::Add,
+        Bytecode::CallFunc(0),
+    ];
+
+    let recv = code
+        .to_bytecode(&mut Chalcedony::new())
         .expect("did not compile properly");
 
     assert_eq!(exp, recv);

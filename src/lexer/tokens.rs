@@ -14,6 +14,9 @@ pub enum Keyword {
     While,
     Continue,
     Break,
+    Try,
+    Catch,
+    Throw,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -134,6 +137,7 @@ impl TokenKind {
             "str" => return Ok(TokenKind::Type(Type::Str)),
             "bool" => return Ok(TokenKind::Type(Type::Bool)),
             "void" => return Ok(TokenKind::Type(Type::Void)),
+            "exception" => return Ok(TokenKind::Type(Type::Exception)),
 
             /* Keywords */
             "let" => return Ok(TokenKind::Keyword(Keyword::Let)),
@@ -145,6 +149,9 @@ impl TokenKind {
             "while" => return Ok(TokenKind::Keyword(Keyword::While)),
             "continue" => return Ok(TokenKind::Keyword(Keyword::Continue)),
             "break" => return Ok(TokenKind::Keyword(Keyword::Break)),
+            "try" => return Ok(TokenKind::Keyword(Keyword::Try)),
+            "catch" => return Ok(TokenKind::Keyword(Keyword::Catch)),
+            "throw" => return Ok(TokenKind::Keyword(Keyword::Throw)),
 
             /* Delimiters */
             "(" => return Ok(TokenKind::Delimiter(Delimiter::OpenPar)),

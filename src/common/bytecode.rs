@@ -17,6 +17,9 @@ pub enum Bytecode {
     ConstS(PtrString),
     /// Pushes `CvmObject::Bool()` on the top of the stack.
     ConstB(bool),
+    /// Converts the top of the stack from a `CvmObject::Str()` into a
+    /// `CvmObject::Exception()`.
+    ThrowException,
 
     /// Converts the top of the stack to a `CvmObjec::Int()`. Used to impicitly
     /// convert types of `Uint` to `Int`.
@@ -97,6 +100,11 @@ pub enum Bytecode {
     If(usize),
     /// Moves the instruction counter forward or backwards `N` instructions.
     Jmp(isize),
+
+    /// Defines the next `N` instructions as guarded within a `try-catch` scope.
+    TryScope(usize),
+    /// Used at the end of the `try` block to jump over the `catch` block.
+    CatchJmp(usize),
 
     /// Pops the top value off the stack and outputs it to `stdout`.
     Print,

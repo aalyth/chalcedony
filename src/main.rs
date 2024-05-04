@@ -11,10 +11,11 @@
 //!            operands.
 //!
 //! To-do list:
-//! [ ] exceptions, try-catch blocks, and unsafe functions (ending with `!`)
+//! [x] exceptions, try-catch blocks, and unsafe functions (ending with `!`)
 //! [ ] lists and functions for them (`set!()`, `get!()`, `push()`, `pop!()`,
 //!     `insert!()` and `remove!())
 //! [ ] `for in` loops over lists and iterators
+//! [ ] constants - variables that could not be changed
 //! [ ] classes and methods
 //! [ ] `len()` function for strings and lists
 //! [ ] generic functions

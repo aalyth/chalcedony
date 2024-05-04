@@ -8,9 +8,11 @@ pub enum CvmObject {
     Float(f64),
     Str(PtrString),
     Bool(bool),
+    Exception(PtrString),
 }
 
 impl CvmObject {
+    /* used for debugging */
     pub fn as_type(&self) -> Type {
         match self {
             CvmObject::Int(_) => Type::Int,
@@ -18,6 +20,7 @@ impl CvmObject {
             CvmObject::Float(_) => Type::Float,
             CvmObject::Str(_) => Type::Str,
             CvmObject::Bool(_) => Type::Bool,
+            CvmObject::Exception(_) => Type::Exception,
         }
     }
 }
@@ -36,6 +39,7 @@ impl std::fmt::Display for CvmObject {
             CvmObject::Float(val) => write!(f, "{}", val),
             CvmObject::Str(val) => write!(f, "{}", val),
             CvmObject::Bool(val) => write!(f, "{}", val),
+            CvmObject::Exception(val) => write!(f, "{}", val),
         }
     }
 }

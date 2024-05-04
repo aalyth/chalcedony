@@ -1,3 +1,7 @@
+//! The final stage of the interpreting process, responsible for transforming
+//! the parsed `Abstract Syntax Tree (AST)` into a stream of bytecode
+//! unstructions, executed by the `Chalcedony Virtual Machine (CVM)`.
+
 mod codegen;
 pub use codegen::ToBytecode;
 
@@ -43,6 +47,7 @@ impl VarAnnotation {
 
 #[derive(Debug, Clone)]
 pub struct FuncAnnotation {
+    is_unsafe: bool,
     id: usize,
     args: Vec<ArgAnnotation>,
     arg_lookup: AHashMap<String, ArgAnnotation>,
@@ -50,12 +55,13 @@ pub struct FuncAnnotation {
 }
 
 impl FuncAnnotation {
-    fn new(id: usize, args: Vec<ArgAnnotation>, ret_type: Type) -> Self {
+    fn new(id: usize, args: Vec<ArgAnnotation>, ret_type: Type, is_unsafe: bool) -> Self {
         let mut arg_lookup = AHashMap::<String, ArgAnnotation>::new();
         for arg in args.clone() {
             arg_lookup.insert(arg.name.clone(), arg);
         }
         FuncAnnotation {
+            is_unsafe,
             id,
             args,
             arg_lookup,
@@ -70,13 +76,17 @@ pub struct LoopScope {
     unfinished_breaks: Vec<usize>,
 }
 
-trait InterpreterVisitor {
-    fn interpret_node(&mut self, _: NodeProg) -> Result<(), ChalError>;
+#[derive(Default, PartialEq)]
+pub enum SafetyScope {
+    #[default]
+    Normal,
+    Try,
+    Catch,
 }
 
 /// The structure representing the interpreter, used to compile the received
-/// Abstract Syntax Tree into a stream of `Bytecode` instructions and respectively
-/// interpret the instructions via the Chalcedony Virtual Machine (CVM).
+/// `AST` into a stream of `Bytecode` instructions and respectively interpret
+/// the instructions via the Chalcedony Virtual Machine (CVM).
 #[derive(Default)]
 pub struct Chalcedony {
     // The virtual machine used to execute the compiled bytecode instructions.
@@ -89,22 +99,33 @@ pub struct Chalcedony {
     func_symtable: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
     func_id_counter: usize,
 
-    // Contains the information about the current function if inside a function scope.
+    // Contains the necessary information about the current function if inside a
+    // function scope.
     current_func: Option<Rc<FuncAnnotation>>,
 
-    // Contains the necessary information in order to implement control flow logic in loop scopes.
+    // Contains the information about the current scope's "safety" type, i.e.
+    // whether it is a `try` block, `catch` block, or a normal block.
+    safety_scope: SafetyScope,
+
+    // Contains the necessary information in order to implement control flow
+    // logic in loop scopes.
     current_loop: Option<LoopScope>,
 
     // Keeps track of the current scope's local variables.
     locals: AHashMap<String, VarAnnotation>,
 
     // Keeps track whether the currently compiled scope is a statement - used
-    // to perform checks such as wether a `void` function is used inside an expression.
+    // to perform checks such as wether a `void` function is used inside an
+    // expression.
     inside_stmnt: bool,
 
     // Whether the interpreter has encountered an error, so even if an error is
     // encountered the rest of the script is still statically checked.
     failed: bool,
+}
+
+trait InterpreterVisitor {
+    fn interpret_node(&mut self, _: NodeProg) -> Result<(), ChalError>;
 }
 
 impl InterpreterVisitor for Chalcedony {
@@ -132,17 +153,27 @@ impl Chalcedony {
         let mut func_symtable = AHashMap::new();
         func_symtable.insert(
             "print".to_string(),
-            vec![Rc::new(FuncAnnotation::new(0, print_args, Type::Void))],
+            vec![Rc::new(FuncAnnotation::new(
+                0,
+                print_args,
+                Type::Void,
+                false,
+            ))],
         );
 
         func_symtable.insert(
             "assert".to_string(),
-            vec![Rc::new(FuncAnnotation::new(1, assert_args, Type::Void))],
+            vec![Rc::new(FuncAnnotation::new(
+                1,
+                assert_args,
+                Type::Void,
+                false,
+            ))],
         );
 
         func_symtable.insert(
             "ftoi".to_string(),
-            vec![Rc::new(FuncAnnotation::new(2, ftoi_args, Type::Int))],
+            vec![Rc::new(FuncAnnotation::new(2, ftoi_args, Type::Int, false))],
         );
 
         let mut vm = Cvm::new();
@@ -179,6 +210,7 @@ impl Chalcedony {
             func_symtable,
             func_id_counter: 3,
             current_func: None,
+            safety_scope: SafetyScope::Normal,
             current_loop: None,
             locals: AHashMap::default(),
             inside_stmnt: false,
@@ -226,7 +258,12 @@ impl Chalcedony {
 
     /* builds the function and sets the currennt function scope */
     fn create_function(&mut self, name: String, args: Vec<ArgAnnotation>, ret: Type) {
-        let func = Rc::new(FuncAnnotation::new(self.func_id_counter, args, ret));
+        let func = Rc::new(FuncAnnotation::new(
+            self.func_id_counter,
+            args,
+            ret,
+            name.ends_with('!'),
+        ));
         self.func_id_counter += 1;
 
         self.current_func = Some(func.clone());
@@ -267,14 +304,22 @@ impl Chalcedony {
 
     /* retrieves the local variable's id and creates it if it does not exist */
     fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
-        if let Some(var) = self.locals.get(&node.name) {
+        self.get_local_id_internal(&node.name, node.ty)
+    }
+
+    fn get_local_id_internal(&mut self, name: &str, ty: Type) -> usize {
+        if let Some(var) = self.locals.get(name) {
             return var.id;
         }
 
         let next_id = self.locals.len();
         self.locals
-            .insert(node.name.clone(), VarAnnotation::new(next_id, node.ty));
+            .insert(name.to_string(), VarAnnotation::new(next_id, ty));
         next_id
+    }
+
+    fn remove_local(&mut self, name: &str) {
+        self.locals.remove(name);
     }
 }
 

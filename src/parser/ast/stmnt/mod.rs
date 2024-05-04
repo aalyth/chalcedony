@@ -1,9 +1,11 @@
 mod assignment;
+mod exceptions;
 mod if_stmnt;
 mod return_stmnt;
 mod while_loop;
 
 pub use assignment::NodeAssign;
+pub use exceptions::{NodeThrow, NodeTryCatch};
 pub use if_stmnt::{NodeElifStmnt, NodeElseStmnt, NodeIfBranch, NodeIfStmnt};
 pub use return_stmnt::NodeRetStmnt;
 pub use while_loop::NodeWhileLoop;
@@ -23,11 +25,15 @@ pub enum NodeStmnt {
     VarDef(NodeVarDef),
     FuncCall(NodeFuncCall),
     Assign(NodeAssign),
+    RetStmnt(NodeRetStmnt),
+
     IfStmnt(NodeIfStmnt),
     WhileLoop(NodeWhileLoop),
-    RetStmnt(NodeRetStmnt),
     ContStmnt(NodeContStmnt),
     BreakStmnt(NodeBreakStmnt),
+
+    TryCatch(NodeTryCatch),
+    Throw(NodeThrow),
 }
 
 /// Boils down to the `TokenKind::Keyword(Keyword::Continue)`. Can only be used
@@ -89,7 +95,7 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
 
         while let Some(front) = reader.peek_tok() {
             match front.kind {
-                /* single line statements */
+                /* Single line statements */
                 TokenKind::Keyword(Keyword::Let) => {
                     single_line_statement!(reader, result, errors, NodeVarDef, VarDef);
                 }
@@ -103,14 +109,24 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                     single_line_statement!(reader, result, errors, NodeBreakStmnt, BreakStmnt);
                 }
 
-                /* multiline statements */
+                TokenKind::Keyword(Keyword::Throw) => {
+                    single_line_statement!(reader, result, errors, NodeThrow, Throw);
+                }
+
+                /* Multiline statements  */
                 TokenKind::Keyword(Keyword::If) => {
                     multiline_statement!(reader, result, errors, NodeIfStmnt, IfStmnt);
                 }
+
                 TokenKind::Keyword(Keyword::While) => {
                     multiline_statement!(reader, result, errors, NodeWhileLoop, WhileLoop);
                 }
 
+                TokenKind::Keyword(Keyword::Catch) => {
+                    multiline_statement!(reader, result, errors, NodeTryCatch, TryCatch);
+                }
+
+                /* Function calls and assignments */
                 TokenKind::Identifier(_) => {
                     let Some(line) = reader.advance() else {
                         panic!("NodeStmnt::parse_body(): could not advance a peeked reader")

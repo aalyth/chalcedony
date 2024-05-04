@@ -58,6 +58,10 @@ impl CharReader {
         result
     }
 
+    pub fn peek_nth(&self, n: usize) -> Option<&char> {
+        self.src.get(n)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.src.is_empty()
     }

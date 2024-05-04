@@ -142,13 +142,14 @@ fn assert_chunks(expected: Vec<VecDeque<Line>>, lexer: &mut Lexer) {
 }
 
 #[test]
+#[should_panic]
 fn lex_invalid_program_chunk() {
     let code = "
 else:
     print('hello world')
 ";
     let mut lexer = Lexer::new(code);
-    lexer.advance_prog().expect_err("expected an error");
+    lexer.advance_prog().expect("this should panic");
 }
 
 #[test]
@@ -283,6 +284,60 @@ else:
             TokenKind::Identifier("print".to_string()),
             TokenKind::Delimiter(Delimiter::OpenPar),
             TokenKind::Str("default".to_string()),
+            TokenKind::Delimiter(Delimiter::ClosePar)
+        )
+    )];
+    assert_chunks(expected, &mut lexer);
+    assert!(lexer.is_empty());
+}
+
+#[test]
+fn lex_try_catch() {
+    let code = "
+try:
+    print(21 * 2)
+    throw 'unexpected error'
+catch (exc: exception):
+    print('Received the exception: ' + exc)
+";
+    let mut lexer = Lexer::new(code);
+    let expected = vec![chunk!(
+        line!(
+            0,
+            TokenKind::Keyword(Keyword::Try),
+            TokenKind::Special(Special::Colon)
+        ),
+        line!(
+            4,
+            TokenKind::Identifier("print".to_string()),
+            TokenKind::Delimiter(Delimiter::OpenPar),
+            TokenKind::Uint(21),
+            TokenKind::Operator(Operator::Mul),
+            TokenKind::Uint(2),
+            TokenKind::Delimiter(Delimiter::ClosePar)
+        ),
+        line!(
+            4,
+            TokenKind::Keyword(Keyword::Throw),
+            TokenKind::Str("unexpected error".to_string())
+        ),
+        line!(
+            0,
+            TokenKind::Keyword(Keyword::Catch),
+            TokenKind::Delimiter(Delimiter::OpenPar),
+            TokenKind::Identifier("exc".to_string()),
+            TokenKind::Special(Special::Colon),
+            TokenKind::Type(Type::Exception),
+            TokenKind::Delimiter(Delimiter::ClosePar),
+            TokenKind::Special(Special::Colon)
+        ),
+        line!(
+            4,
+            TokenKind::Identifier("print".to_string()),
+            TokenKind::Delimiter(Delimiter::OpenPar),
+            TokenKind::Str("Received the exception: ".to_string()),
+            TokenKind::Operator(Operator::Add),
+            TokenKind::Identifier("exc".to_string()),
             TokenKind::Delimiter(Delimiter::ClosePar)
         )
     )];

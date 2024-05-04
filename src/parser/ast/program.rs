@@ -11,6 +11,8 @@ use crate::parser::{LineReader, TokenReader};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+use super::NodeTryCatch;
+
 /// A node in the program, representing an interpretable global unit, i.e. any
 /// statement that could be executed in the global context.
 ///
@@ -23,6 +25,7 @@ pub enum NodeProg {
     Assign(NodeAssign),
     IfStmnt(NodeIfStmnt),
     WhileLoop(NodeWhileLoop),
+    TryCatch(NodeTryCatch),
 }
 
 /* a wrapper for building a node from a single line statement */
@@ -71,6 +74,9 @@ impl NodeProg {
             }
             TokenKind::Keyword(Keyword::While) => {
                 multiline_stmnt!(WhileLoop, NodeWhileLoop, chunk, spanner)
+            }
+            TokenKind::Keyword(Keyword::Try) => {
+                multiline_stmnt!(TryCatch, NodeTryCatch, chunk, spanner)
             }
 
             TokenKind::Identifier(_) => {

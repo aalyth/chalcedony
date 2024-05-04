@@ -49,6 +49,7 @@ pub fn add(cvm: &mut Cvm, current_idx: usize) -> usize {
             CvmObject::Float(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
             CvmObject::Str(rval) => cvm.push(CvmObject::Str(lval + rval)),
             CvmObject::Bool(rval) => cvm.push(CvmObject::Str(lval + rval.to_string().into())),
+            CvmObject::Exception(rval) => cvm.push(CvmObject::Str(lval + rval)),
         }
     }
     apply_bin_operator!(cvm, current_idx, +, add_str)

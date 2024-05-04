@@ -1,3 +1,10 @@
+//! The module representing the first stage of the interpreting process. It is
+//! responsible for converting the source code from a stream of text into a
+//! stream of [`Tokens`].
+//!
+//! This part of the interpreter is arguably the simplest, but it plays the most
+//! fundamental role in the whole `Chalcedony` interpreter.
+
 mod line;
 mod tokens;
 
@@ -68,6 +75,10 @@ impl Lexer {
                     "else" => {}
                     _ => break,
                 },
+                Some('c') => match self.reader.peek_word().as_str() {
+                    "catch" => {}
+                    _ => break,
+                },
                 Some(_) => break,
                 None => break,
             }
@@ -115,7 +126,8 @@ impl Lexer {
 
             TokenKind::Keyword(Keyword::Fn)
             | TokenKind::Keyword(Keyword::If)
-            | TokenKind::Keyword(Keyword::While) => {
+            | TokenKind::Keyword(Keyword::While)
+            | TokenKind::Keyword(Keyword::Try) => {
                 result.push_back(line);
                 result.extend(self.advance_chunk()?);
             }
@@ -139,8 +151,8 @@ impl Lexer {
                 );
             }
         }
-        // NOTE: the delim stack always remains empty after every program node
 
+        // NOTE: the delim stack always remains empty after every program node
         if !errors.is_empty() {
             return Err(errors.into());
         }
@@ -310,10 +322,16 @@ impl Lexer {
 
         /* an identifier */
         if current.is_alphabetic() || current == '_' {
-            let src = String::from(current)
+            let mut src = String::from(current)
                 + &self
                     .reader
                     .advance_while(|c: &char| c.is_alphanumeric() || *c == '_');
+
+            /* only function names can end with a '!' */
+            if self.reader.peek() == Some(&'!') && self.reader.peek_nth(1) == Some(&'(') {
+                src.push(self.reader.advance().unwrap());
+            }
+
             return self.advance_tok(src, start, *self.reader.pos());
         }
 

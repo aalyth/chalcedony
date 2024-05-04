@@ -4,8 +4,8 @@ use chalcedony::common::Type;
 use chalcedony::lexer::{Delimiter, Keyword, Operator, Special, TokenKind};
 use chalcedony::parser::ast::{
     func::Arg, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExpr,
-    NodeExprInner, NodeFuncCall, NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeValue, NodeVarDef,
-    NodeWhileLoop,
+    NodeExprInner, NodeFuncCall, NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeThrow, NodeTryCatch,
+    NodeValue, NodeVarDef, NodeWhileLoop,
 };
 use chalcedony::parser::ast::{NodeRetStmnt, NodeStmnt, NodeVarCall};
 
@@ -364,6 +364,105 @@ fn parse_while_statement() {
                 span: SpanMock::new(),
             }),
         ],
+    };
+
+    assert_eq!(exp, recv);
+}
+
+#[test]
+fn parse_try_catch_block() {
+    // equivalent to the code:
+    // ```
+    // try:
+    //     print(21 * 2)
+    //     throw 'unexpected error'
+    // catch (exc: exception):
+    //     print('Received the exception: ' + exc)
+    // ```
+    let code = line_reader!(
+        line!(
+            0,
+            TokenKind::Keyword(Keyword::Try),
+            TokenKind::Special(Special::Colon)
+        ),
+        line!(
+            4,
+            TokenKind::Identifier("print".to_string()),
+            TokenKind::Delimiter(Delimiter::OpenPar),
+            TokenKind::Uint(21),
+            TokenKind::Operator(Operator::Mul),
+            TokenKind::Uint(2),
+            TokenKind::Delimiter(Delimiter::ClosePar)
+        ),
+        line!(
+            4,
+            TokenKind::Keyword(Keyword::Throw),
+            TokenKind::Str("unexpected error".to_string())
+        ),
+        line!(
+            0,
+            TokenKind::Keyword(Keyword::Catch),
+            TokenKind::Delimiter(Delimiter::OpenPar),
+            TokenKind::Identifier("exc".to_string()),
+            TokenKind::Special(Special::Colon),
+            TokenKind::Type(Type::Exception),
+            TokenKind::Delimiter(Delimiter::ClosePar),
+            TokenKind::Special(Special::Colon)
+        ),
+        line!(
+            4,
+            TokenKind::Identifier("print".to_string()),
+            TokenKind::Delimiter(Delimiter::OpenPar),
+            TokenKind::Str("Received the exception: ".to_string()),
+            TokenKind::Operator(Operator::Add),
+            TokenKind::Identifier("exc".to_string()),
+            TokenKind::Delimiter(Delimiter::ClosePar)
+        )
+    );
+
+    let recv = NodeTryCatch::new(code).expect("did not compile NodeTryCatch");
+
+    let exp = NodeTryCatch {
+        try_body: vec![
+            NodeStmnt::FuncCall(NodeFuncCall {
+                name: "print".to_string(),
+                args: vec![NodeExpr {
+                    expr: vecdeq![
+                        NodeExprInner::Value(NodeValue::Uint(21)),
+                        NodeExprInner::Value(NodeValue::Uint(2)),
+                        NodeExprInner::BinOpr(BinOprType::Mul)
+                    ],
+                    span: SpanMock::new(),
+                }],
+                span: SpanMock::new(),
+            }),
+            NodeStmnt::Throw(NodeThrow(NodeExpr {
+                expr: vecdeq![NodeExprInner::Value(NodeValue::Str(
+                    "unexpected error".to_string()
+                ))],
+                span: SpanMock::new(),
+            })),
+        ],
+        try_span: SpanMock::new(),
+        exception_var: NodeVarCall {
+            name: "exc".to_string(),
+            span: SpanMock::new(),
+        },
+        catch_body: vec![NodeStmnt::FuncCall(NodeFuncCall {
+            name: "print".to_string(),
+            args: vec![NodeExpr {
+                expr: vecdeq![
+                    NodeExprInner::Value(NodeValue::Str("Received the exception: ".to_string())),
+                    NodeExprInner::VarCall(NodeVarCall {
+                        name: "exc".to_string(),
+                        span: SpanMock::new()
+                    }),
+                    NodeExprInner::BinOpr(BinOprType::Add)
+                ],
+                span: SpanMock::new(),
+            }],
+            span: SpanMock::new(),
+        })],
     };
 
     assert_eq!(exp, recv);

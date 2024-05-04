@@ -1,7 +1,7 @@
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError, CompileErrorKind};
-use crate::interpreter::{ArgAnnotation, Chalcedony};
+use crate::interpreter::{ArgAnnotation, Chalcedony, SafetyScope};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 
 use crate::common::{Bytecode, Type};
@@ -96,6 +96,10 @@ impl ToBytecode for NodeFuncCall {
                 CompileError::new(CompileErrorKind::UnknownFunction(self.name), self.span).into(),
             );
         };
+
+        if self.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Catch {
+            return Err(CompileError::new(CompileErrorKind::UnsafeCatch, self.span).into());
+        }
 
         /* check for mismatching number of arguments */
         if annotation.args.len() != self.args.len() {

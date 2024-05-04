@@ -1,3 +1,12 @@
+//! The part of the `Chalcedony` interpreter, responsible for converting the
+//! received stream of tokens into the `Abstract Syntax Tree (AST)`. For details
+//! about the `AST` refer to the [`ast`] module.
+//!
+//! It is important to note that `Chalcedony` does not use any sort of parser
+//! generators or any other form of grammar blueprinting - the whole `parser`
+//! implementation is a custom handwritten parser with a lookup of 2, i.e. any
+//! node inside the `AST` can be computed with at most 2 lookaheads.
+
 pub mod ast;
 mod line_reader;
 mod token_reader;
