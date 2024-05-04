@@ -1,5 +1,5 @@
 use crate::error::span::{Span, Spanning};
-use crate::error::{ChalError, InternalError};
+use crate::error::ChalError;
 use crate::lexer::{Keyword, Line, Token, TokenKind};
 
 use std::collections::VecDeque;
@@ -47,10 +47,7 @@ impl LineReader {
 
         /* we advance at least the first line */
         let Some(front_ln) = self.advance() else {
-            return Err(InternalError::new(
-                "LexerReader::advance_chunk(): advancing an empty reader",
-            )
-            .into());
+            panic!("LexerReader::advance_chunk(): advancing an empty reader");
         };
         result.push_back(front_ln);
 
@@ -66,12 +63,10 @@ impl LineReader {
 
     pub fn advance_chunk(&mut self) -> Result<Self, ChalError> {
         let Some(front) = self.src.front() else {
-            return Err(InternalError::new(
-                "LexerReader::advance_chunk(): advancing an empty reader",
-            )
-            .into());
+            panic!("LexerReader::advance_chunk(): advancing an empty reader");
         };
-        /* NOTE: this line is necessary so front goes out of scope and the borrow checker is happy */
+        // NOTE: this line is necessary so front goes out of scope and the
+        // borrow checker is happy
         let indent = front.indent;
         let cond = |ln: &Line| -> bool { ln.indent <= indent };
 
@@ -102,10 +97,7 @@ impl LineReader {
     /// Advances the next line and builts a `TokenReader` over it.
     pub fn advance_reader(&mut self) -> Result<TokenReader, ChalError> {
         let Some(next) = self.src.pop_front() else {
-            return Err(InternalError::new(
-                "LineReader::advance_reader(): advancing an empty reader",
-            )
-            .into());
+            panic!("LineReader::advance_reader(): advancing an empty reader");
         };
 
         Ok(TokenReader::new(

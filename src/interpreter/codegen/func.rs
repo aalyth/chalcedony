@@ -1,6 +1,6 @@
 use super::ToBytecode;
 
-use crate::error::{ChalError, CompileError};
+use crate::error::{ChalError, CompileError, CompileErrorKind};
 use crate::interpreter::{ArgAnnotation, Chalcedony};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 
@@ -13,14 +13,14 @@ impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let arg_types: Vec<Type> = self.args.iter().map(|arg| arg.ty).collect();
         if interpreter.get_function(&self.name, &arg_types).is_some() {
-            return Err(CompileError::overwritten_function(self.span).into());
+            return Err(CompileError::new(CompileErrorKind::OverwrittenFunction, self.span).into());
         }
 
-        /* enumerate over the function's arguments into a sequence of annotations */
+        // enumerate over the function's arguments to a sequence of annotations
         let mut args = Vec::<ArgAnnotation>::new();
         for (idx, arg) in self.args.iter().enumerate() {
             if arg.ty == Type::Void {
-                return Err(CompileError::void_argument(self.span).into());
+                return Err(CompileError::new(CompileErrorKind::VoidArgument, self.span).into());
             }
             args.push(ArgAnnotation::new(idx, arg.name.clone(), arg.ty));
         }
@@ -46,16 +46,22 @@ impl ToBytecode for NodeFuncDef {
             return Err(errors.into());
         }
 
-        // check whether the function has returned, and if it is a void function,
-        // append a `Bytecode::ReturnVoid` at the end if there isn't one
+        // check whether the function has returned, and if it is a void
+        // functionm, append `Bytecode::ReturnVoid` at the end if there is not
         match self.ret_type {
             Type::Void if body.is_empty() && !returned => {
-                return Err(CompileError::no_default_return_stmnt(self.span).into())
+                return Err(
+                    CompileError::new(CompileErrorKind::NoDefaultReturnStmnt, self.span).into(),
+                )
             }
             Type::Void if !returned => {
                 body.push(Bytecode::ReturnVoid);
             }
-            _ if !returned => return Err(CompileError::no_default_return_stmnt(self.span).into()),
+            _ if !returned => {
+                return Err(
+                    CompileError::new(CompileErrorKind::NoDefaultReturnStmnt, self.span).into(),
+                )
+            }
             _ => {}
         }
 
@@ -86,38 +92,38 @@ impl ToBytecode for NodeFuncCall {
         };
 
         let Some(annotation) = interpreter.get_function(&self.name, &arg_types).cloned() else {
-            return Err(CompileError::unknown_function(self.name, self.span).into());
+            return Err(
+                CompileError::new(CompileErrorKind::UnknownFunction(self.name), self.span).into(),
+            );
         };
 
         /* check for mismatching number of arguments */
         if annotation.args.len() != self.args.len() {
             if annotation.args.len() < self.args.len() {
-                return Err(CompileError::too_many_arguments(
-                    annotation.args.len(),
-                    self.args.len(),
+                return Err(CompileError::new(
+                    CompileErrorKind::TooManyArguments(annotation.args.len(), self.args.len()),
                     self.span,
                 )
                 .into());
             }
-            return Err(CompileError::too_few_arguments(
-                annotation.args.len(),
-                self.args.len(),
+            return Err(CompileError::new(
+                CompileErrorKind::TooFewArguments(annotation.args.len(), self.args.len()),
                 self.span,
             )
             .into());
         }
 
         if annotation.ret_type != Type::Void && interpreter.inside_stmnt {
-            return Err(
-                CompileError::non_void_func_stmnt(annotation.ret_type, self.span.clone()).into(),
-            );
+            return Err(CompileError::new(
+                CompileErrorKind::NonVoidFunctionStmnt(annotation.ret_type),
+                self.span.clone(),
+            )
+            .into());
         }
 
         /* push on the stack each of the argument's expression value */
         let mut result = Vec::<Bytecode>::new();
         for (arg, arg_ty, exp) in izip!(self.args, arg_types, annotation.args.clone()) {
-            // NOTE: this is very important to go in before the type check,
-            // else an empty value cast is possible
             result.extend(arg.clone().to_bytecode(interpreter)?);
             Type::verify(exp.ty, arg_ty, &mut result, arg.span.clone())?;
         }

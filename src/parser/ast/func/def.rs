@@ -6,6 +6,7 @@ use crate::parser::LineReader;
 
 use crate::common::Type;
 
+#[derive(Debug, PartialEq)]
 pub struct Arg {
     pub name: String,
     pub ty: Type,
@@ -15,13 +16,14 @@ pub struct Arg {
 /// header, i.e. the first line of the definition.
 ///
 /// Syntax:
-/// fn <func_name>(<arg1>: <type>, <arg2>: <type>, ...) -> <type>:   | header
-///     <statements>                                                 > body
+/// `fn` \<func_name\>(\<arg\>: \<type\>, ...) -> \<type\>:
+///     \<statements\>
 ///
-/// * implicitly infered `void` return type:
-/// fn <func_name>(<arg1>: <type>, <arg2>: <type>, ...):             | header
-///     <statements>                                                 > body
+/// Syntax for implicitly infered `void` return type:
+/// `fn` \<func_name\>(\<arg\>: \<type\>, ...):
+///     \<statements\>
 ///
+#[derive(Debug, PartialEq)]
 pub struct NodeFuncDef {
     pub name: String,
     pub args: Vec<Arg>,
@@ -32,6 +34,12 @@ pub struct NodeFuncDef {
 
 impl NodeFuncDef {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
+        // header refers to the first line of the function, for example:
+        // fn fib(n: int) -> uint:             | header
+        //     if n > 2:                       > body
+        //         return fib(n-2) + fib(n-1)  > body
+        //     return 1                        > body
+
         let mut header = reader.advance_reader()?;
         let start = header.current().start;
 

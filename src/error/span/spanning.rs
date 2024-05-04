@@ -5,9 +5,10 @@ use super::Spanning;
 /* the length of the shortened code annotation `...` */
 const ELLIPSIS_LEN: usize = 3;
 
-/// A spanner implementation, which builds code snippets, storing the whole source
-/// code into the memory. This at first glance naive approach is sufficiently
-/// efficient in terms of memory and fully optimized in terms of lookup time.
+/// A spanner implementation, which builds code snippets, storing the whole
+/// source code into the memory. This at first glance naive approach is
+/// sufficiently efficient in terms of memory and fully optimized in terms of
+/// lookup time.
 pub struct InlineSpanner {
     src: Vec<String>,
 }
@@ -60,7 +61,8 @@ impl InlineSpanner {
         InlineSpanner { src: result }
     }
 
-    // Returns the context string and the relative index in the result string of the start position.
+    // Returns the context string and the relative index in the result string
+    // of the start position.
     fn context_span(&self, start_: &Position, end_: &Position) -> (String, usize) {
         if start_.ln == 0 || start_.col == 0 {
             panic!("Error: span: context_span: invalid start position.\n");
@@ -144,8 +146,9 @@ impl InlineSpanner {
         (result, res.1)
     }
 
-    // Returns the formatted string, containing the content around the given position
-    // and the given index of the position relative to the formatted string.
+    // Returns the formatted string, containing the content around the given
+    // position and the given index of the position relative to the formatted
+    // string.
     fn context_pos(&self, pos_: &Position) -> (String, usize) {
         self.context_substr(pos_, 0)
     }

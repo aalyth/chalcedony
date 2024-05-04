@@ -6,8 +6,9 @@ use crate::parser::{LineReader, TokenReader};
 /// The structure representing a while loop.
 ///
 /// Syntax:
-/// while <condition>:    | header
-///     <statments>       > body
+/// `while` \<condition\>:
+///     \<statments\>
+#[derive(Debug, PartialEq)]
 pub struct NodeWhileLoop {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,

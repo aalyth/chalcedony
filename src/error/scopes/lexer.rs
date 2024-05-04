@@ -4,16 +4,20 @@ use crate::lexer::TokenKind;
 
 use super::display_err;
 
-/// The errors types, which can be encountered transforming the source code into a
-/// series of tokens. For each error's meaning refer to implementation of
+/// The errors types, which can be encountered transforming the source code into
+/// a series of tokens. For each error's meaning refer to implementation of
 /// `std::fmt::Display` for `LexerError`.
-enum LexerErrorKind {
+pub enum LexerErrorKind {
     InvalidIndentation,
     UnclosedString,
-    UnclosedDelimiter(String),             /* delim. character */
-    UnexpectedClosingDelimiter(String),    /* delim. character*/
-    MismatchingDelimiters(String, String), /* open_delim, close_delim */
-    InvalidGlobalStatement(TokenKind), /* a token type, which cannot be converted into a `NodeProgram` */
+    /// `<delim-literal>`
+    UnclosedDelimiter(String),
+    /// `<delim-literal>`
+    UnexpectedClosingDelimiter(String),
+    /// `<open-delim-literal>`, `<close-delim-literal>`
+    MismatchingDelimiters(String, String),
+    /// `<token-type>`
+    InvalidGlobalStatement(TokenKind),
     InvalidChar(char),
 }
 
@@ -23,43 +27,8 @@ pub struct LexerError {
 }
 
 impl LexerError {
-    fn new(kind: LexerErrorKind, span: Span) -> Self {
+    pub fn new(kind: LexerErrorKind, span: Span) -> Self {
         LexerError { kind, span }
-    }
-
-    pub fn unclosed_string(span: Span) -> Self {
-        LexerError::new(LexerErrorKind::UnclosedString, span)
-    }
-
-    pub fn invalid_indentation(span: Span) -> Self {
-        LexerError::new(LexerErrorKind::InvalidIndentation, span)
-    }
-
-    pub fn unclosed_delimiter(del: &str, span: Span) -> Self {
-        let del = del.to_string();
-        LexerError::new(LexerErrorKind::UnclosedDelimiter(del), span)
-    }
-
-    pub fn unexpected_closing_delimiter(del: &str, span: Span) -> Self {
-        let del = del.to_string();
-        LexerError::new(LexerErrorKind::UnexpectedClosingDelimiter(del), span)
-    }
-
-    pub fn mismatching_delimiters(open_del: &str, close_del: &str, span: Span) -> Self {
-        let open_del = open_del.to_string();
-        let close_del = close_del.to_string();
-        LexerError::new(
-            LexerErrorKind::MismatchingDelimiters(open_del, close_del),
-            span,
-        )
-    }
-
-    pub fn invalid_global_statement(token_kind: TokenKind, span: Span) -> Self {
-        LexerError::new(LexerErrorKind::InvalidGlobalStatement(token_kind), span)
-    }
-
-    pub fn invalid_char(chr: char, span: Span) -> Self {
-        LexerError::new(LexerErrorKind::InvalidChar(chr), span)
     }
 }
 

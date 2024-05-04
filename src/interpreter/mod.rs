@@ -1,5 +1,5 @@
 mod codegen;
-use codegen::ToBytecode;
+pub use codegen::ToBytecode;
 
 mod type_eval;
 
@@ -212,6 +212,16 @@ impl Chalcedony {
                 eprint!("{}", err);
             }
         }
+    }
+
+    // Used for tests to get the id of the next function so even if the standard
+    // library changes, the proper function id is used.
+    pub fn get_next_func_id(&self) -> usize {
+        self.func_id_counter
+    }
+
+    pub fn execute(&mut self, code: Vec<Bytecode>) {
+        self.vm.execute(code)
     }
 
     /* builds the function and sets the currennt function scope */

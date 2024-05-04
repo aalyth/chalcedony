@@ -45,7 +45,7 @@ impl std::cmp::PartialEq for CvmObject {
         match (self, other) {
             (CvmObject::Int(lval), CvmObject::Int(rval)) => lval == rval,
             (CvmObject::Uint(lval), CvmObject::Uint(rval)) => lval == rval,
-            /* due to floating imprecisions, they are checked with precision of 10^12 */
+            // due to float imprecisions, they are checked up to 10^12 precision
             (CvmObject::Float(lval), CvmObject::Float(rval)) => {
                 (lval - rval).abs() < 0.000_000_000_000_1
             }

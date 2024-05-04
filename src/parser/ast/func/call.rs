@@ -11,8 +11,8 @@ use std::collections::VecDeque;
 /// function call from the function name to the closing parenthesis.
 ///
 /// Syntax:
-/// <func_name>(<expr>, <expr>, ...)
-#[derive(Clone)]
+/// \<func_name\>(\<expr\>, \<expr\>, ...)
+#[derive(Clone, Debug, PartialEq)]
 pub struct NodeFuncCall {
     pub name: String,
     pub args: Vec<NodeExpr>,

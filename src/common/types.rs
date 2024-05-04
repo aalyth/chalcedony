@@ -1,6 +1,8 @@
 use super::Bytecode;
-use crate::error::{span::Span, ChalError, CompileError};
+use crate::error::{span::Span, ChalError, CompileError, CompileErrorKind};
 
+/// The structure, representing a type inside the interpreter. Used to assert
+/// the type strictness of the script before it's execution.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Type {
     Int,
@@ -13,7 +15,8 @@ pub enum Type {
 }
 
 impl Type {
-    /* NOTE: it is very important that this function goes after value calls inside the result */
+    /// NOTE: it is very important that this function goes after value calls
+    /// inside the result.
     pub fn verify(
         exp: Type,
         recv: Type,
@@ -33,7 +36,7 @@ impl Type {
             return Ok(());
         }
 
-        Err(CompileError::invalid_type(exp, recv, span).into())
+        Err(CompileError::new(CompileErrorKind::InvalidType(exp, recv), span).into())
     }
 
     /// Used to check whether an overloaded function's definition is applicable

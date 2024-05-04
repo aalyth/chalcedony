@@ -1,37 +1,43 @@
-use crate::error::{span::Span, ChalError, InternalError};
+use crate::error::{span::Span, ChalError};
 use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{NodeExpr, NodeStmnt};
 
 use crate::parser::{LineReader, TokenReader};
 
-/// The node representing if statements.
+/// The node representing `if` conditionals.
 ///
 /// Syntax:
-/// if <condition>:     | header
-///     <statements>    > body
-/// elif <condition>:   | header
-///     <statements>    > body
-/// elif <condition>:   | header
-///     <statements>    > body
+/// `if` \<condition\>:
+///     \<statements\>
+/// `elif` \<condition\>:
+///     \<statements\>
+/// `elif` \<condition\>:
+///     \<statements\>
 /// ...
-/// else:               | header
-///     <statements>    > body
+/// `else`:
+///     \<statements\>
+// NOTE: header refers to the first line of each statment, i.e.
+// `if <condition>:`, `elif <condition>:` or `else:`.
+#[derive(Debug, PartialEq)]
 pub struct NodeIfStmnt {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
     pub branches: Vec<NodeIfBranch>,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum NodeIfBranch {
     Elif(NodeElifStmnt),
     Else(NodeElseStmnt),
 }
 
+#[derive(Debug, PartialEq)]
 pub struct NodeElifStmnt {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct NodeElseStmnt {
     pub body: Vec<NodeStmnt>,
 }
@@ -87,10 +93,7 @@ impl NodeIfStmnt {
 impl NodeIfBranch {
     pub fn new(reader: LineReader) -> Result<Self, ChalError> {
         let Some(front_tok) = reader.peek_tok() else {
-            return Err(InternalError::new(
-                "NodeIFBranch::new(): generating an if branch from an empty reader",
-            )
-            .into());
+            panic!("NodeIfBranch::new(): generating an if branch from an empty reader");
         };
 
         match front_tok.kind {
@@ -100,7 +103,7 @@ impl NodeIfBranch {
             TokenKind::Keyword(Keyword::Else) => {
                 Ok(NodeIfBranch::Else(NodeElseStmnt::new(reader)?))
             }
-            _ => Err(InternalError::new("NodeIfBranch::new(): advancing a non-if branch").into()),
+            _ => panic!("NodeIfBranch::new(): advancing a non-if branch"),
         }
     }
 }

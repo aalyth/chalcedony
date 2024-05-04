@@ -7,7 +7,7 @@ pub use line::Line;
 pub use tokens::{Delimiter, Keyword, Operator, Special, Token, TokenKind};
 
 use crate::error::span::{InlineSpanner, Position, Span, Spanning};
-use crate::error::{ChalError, InternalError, LexerError};
+use crate::error::{ChalError, LexerError, LexerErrorKind};
 use crate::lexer::tokens::{is_operator, is_special};
 use crate::utils::Stack;
 use char_reader::CharReader;
@@ -21,7 +21,8 @@ pub struct Lexer {
     /// any mismatching delimiters.
     delim_stack: Stack<Token>,
 
-    /// The reader, used to iterate over the source and keep track of the current position.
+    /// The reader, used to iterate over the source and keep track of the
+    /// current position.
     reader: CharReader,
 
     /// The spanner object, used to build code snippets to the errror messages.
@@ -91,13 +92,11 @@ impl Lexer {
 
     /// Advances the next interpretable code unit, i.e. a stream of tokens which
     /// could be built into a `NodeProg` node. A program node does not necessary
-    /// mean a single code chunk - for example an `if` statement with one or more
-    /// `else/elif` branches.
+    /// mean a single code chunk - for example an `if` statement with one or
+    /// more `else/elif` branches.
     pub fn advance_prog(&mut self) -> Result<VecDeque<Line>, ChalError> {
         if self.reader.is_empty() {
-            return Err(
-                InternalError::new("Lexer::advance_prog(): advancing an empty lexer").into(),
-            );
+            panic!("Lexer::advance_prog(): advancing an empty lexer")
         }
 
         let mut result = VecDeque::<Line>::new();
@@ -123,8 +122,8 @@ impl Lexer {
 
             invalid => {
                 self.remove_trailing_space();
-                return Err(LexerError::invalid_global_statement(
-                    invalid.clone(),
+                return Err(LexerError::new(
+                    LexerErrorKind::InvalidGlobalStatement(invalid.clone()),
                     front.span.clone(),
                 )
                 .into());
@@ -134,10 +133,13 @@ impl Lexer {
         /* check for any unclosed delimiters */
         if !self.delim_stack.is_empty() {
             while let Some(delim) = self.delim_stack.pop() {
-                errors.push(LexerError::unclosed_delimiter(&delim.src, delim.span.clone()).into());
+                errors.push(
+                    LexerError::new(LexerErrorKind::UnclosedDelimiter(delim.src), delim.span)
+                        .into(),
+                );
             }
         }
-        /* NOTE: the delim stack always remains empty after every program ndoe */
+        // NOTE: the delim stack always remains empty after every program node
 
         if !errors.is_empty() {
             return Err(errors.into());
@@ -149,9 +151,7 @@ impl Lexer {
 
     fn advance_line(&mut self) -> Result<Line, ChalError> {
         if self.reader.is_empty() {
-            return Err(
-                InternalError::new("Lexer::advance_line(): advancing an empty lexer").into(),
-            );
+            panic!("Lexer::advance_line(): advancing an empty lexer")
         }
 
         let indent_raw = self.reader.advance_while(|c: &char| *c == ' ');
@@ -161,7 +161,13 @@ impl Lexer {
 
         if indent % 4 != 0 {
             let pos = self.reader.pos();
-            errors.push(LexerError::invalid_indentation(self.get_span(*pos, *pos)).into());
+            errors.push(
+                LexerError::new(
+                    LexerErrorKind::InvalidIndentation,
+                    self.get_span(*pos, *pos),
+                )
+                .into(),
+            );
         }
 
         let mut result = VecDeque::<Token>::new();
@@ -215,24 +221,23 @@ impl Lexer {
             /* only closing delimiters match here */
             TokenKind::Delimiter(close_delim) => {
                 let Some(open_delim) = self.delim_stack.pop() else {
-                    return Err(LexerError::unexpected_closing_delimiter(
-                        &tok.src,
-                        tok.span.clone(),
+                    return Err(LexerError::new(
+                        LexerErrorKind::UnexpectedClosingDelimiter(tok.src),
+                        tok.span,
                     )
                     .into());
                 };
 
                 if open_delim.kind != TokenKind::Delimiter(close_delim.inverse()) {
-                    return Err(LexerError::mismatching_delimiters(
-                        &open_delim.src,
-                        &tok.src,
+                    return Err(LexerError::new(
+                        LexerErrorKind::MismatchingDelimiters(open_delim.src, tok.src),
                         self.get_span(open_delim.span.start, start),
                     )
                     .into());
                 }
             }
 
-            /* here '-' operators are checked whether they are binary or unary */
+            // here '-' operators are checked whether they are binary or unary
             TokenKind::Operator(Operator::Sub) => match self.prev {
                 Some(TokenKind::Operator(_))
                 | Some(TokenKind::Delimiter(Delimiter::OpenPar))
@@ -250,16 +255,14 @@ impl Lexer {
     }
 
     /* advances the next token in the source code */
-    fn advance(&mut self) -> Result<Token, ChalError> {
+    pub fn advance(&mut self) -> Result<Token, ChalError> {
         let Some(mut current) = self.reader.advance() else {
-            return Err(InternalError::new("Lexer::advance(): advancing an empty lexer").into());
+            panic!("Lexer::advance(): advancing an empty lexer")
         };
 
         while current == ' ' {
             let Some(curr) = self.reader.advance() else {
-                return Err(
-                    InternalError::new("Lexer::advance(): advancing an empty lexer").into(),
-                );
+                panic!("Lexer::advance(): advancing an empty lexer")
             };
             current = curr;
         }
@@ -338,8 +341,9 @@ impl Lexer {
             return self.advance_tok(buffer, start, end);
         }
 
-        // NOTE: the position of the newline is actually wrong - it is on the start of the next
-        // line, but that doesn't matter since it's only purpose is for end of line checks
+        // NOTE: the position of the newline is actually wrong - it is on the
+        // start of the next line, but that doesn't matter since it's only
+        // purpose is for end of line checks
         if current == '\n' {
             return self.advance_tok(String::from(current), start, start);
         }
@@ -349,14 +353,18 @@ impl Lexer {
             let mut src =
                 String::from(current) + &self.reader.advance_while(|c: &char| *c != current);
             if let Some(c) = self.reader.advance() {
-                /* adds the '"' at the end */
+                /* adds the `"` at the end */
                 src.push(c);
             }
 
             return self.advance_tok(src, start, *self.reader.pos());
         }
 
-        Err(LexerError::invalid_char(current, self.get_span(start, start)).into())
+        Err(LexerError::new(
+            LexerErrorKind::InvalidChar(current),
+            self.get_span(start, start),
+        )
+        .into())
     }
 
     fn remove_trailing_space(&mut self) {

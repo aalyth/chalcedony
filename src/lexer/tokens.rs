@@ -1,5 +1,5 @@
 use crate::error::span::Span;
-use crate::error::{ChalError, InternalError, LexerError};
+use crate::error::{ChalError, LexerError, LexerErrorKind};
 
 use crate::common::Type;
 
@@ -120,7 +120,7 @@ pub enum TokenKind {
 impl TokenKind {
     fn new(src: &str, span: &Span) -> Result<TokenKind, ChalError> {
         if src.is_empty() {
-            return Err(InternalError::new("TokenKind::new(): lexing an empty string").into());
+            panic!("TokenKind::new(): lexing an empty string")
         }
         if src == "\n" {
             return Ok(TokenKind::Newline);
@@ -218,7 +218,7 @@ impl TokenKind {
             return Ok(TokenKind::Str(src[1..src.len() - 1].to_string()));
         }
         if src.starts_with('"') || src.starts_with('\'') {
-            return Err(LexerError::unclosed_string(span.clone()).into());
+            return Err(LexerError::new(LexerErrorKind::UnclosedString, span.clone()).into());
         }
 
         Ok(TokenKind::Identifier(src.to_string()))
@@ -237,7 +237,7 @@ impl TokenKind {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
@@ -252,10 +252,7 @@ impl Token {
 
     pub fn into_neg(self) -> Result<Self, ChalError> {
         if self.kind != TokenKind::Operator(Operator::Sub) {
-            return Err(InternalError::new(
-                "Token::into_neg(): trying to convert a non-subtraction token into unary negation",
-            )
-            .into());
+            panic!("Token::into_neg(): trying to convert a non-sub token into unary negation")
         }
 
         Ok(Token {

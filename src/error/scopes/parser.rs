@@ -3,12 +3,15 @@ use crate::lexer::TokenKind;
 
 use super::display_err;
 
-/// The error types, which could be encountered during the transforming the lexed
-/// stream of tokens into the Abstract Syntax Tree. For each error's meaning refer
-/// to implementation of `std::fmt::Display` for `ParserError`.
-enum ParserErrorKind {
+/// The error types, which could be encountered during the transforming the
+/// lexed stream of tokens into the Abstract Syntax Tree. For each error's
+/// meaning refer to implementation of `std::fmt::Display` for `ParserError`.
+pub enum ParserErrorKind {
+    /// `<exp-type>`, `<recv-type>`
     InvalidToken(TokenKind, TokenKind),
+    /// `<token-type>`
     ExpectedToken(TokenKind),
+    /// `<token-type>`
     UnexpectedToken(TokenKind),
     InvalidAssignmentOperator,
     RepeatedExprTerminal,
@@ -24,44 +27,8 @@ pub struct ParserError {
 }
 
 impl ParserError {
-    fn new(kind: ParserErrorKind, span: Span) -> Self {
+    pub fn new(kind: ParserErrorKind, span: Span) -> Self {
         ParserError { kind, span }
-    }
-
-    pub fn invalid_token(expected: TokenKind, received: TokenKind, span: Span) -> Self {
-        ParserError::new(ParserErrorKind::InvalidToken(expected, received), span)
-    }
-
-    pub fn expected_token(expected: TokenKind, span: Span) -> Self {
-        ParserError::new(ParserErrorKind::ExpectedToken(expected), span)
-    }
-
-    pub fn unexpected_token(kind: TokenKind, span: Span) -> Self {
-        ParserError::new(ParserErrorKind::UnexpectedToken(kind), span)
-    }
-
-    pub fn invalid_assignment_operator(span: Span) -> Self {
-        ParserError::new(ParserErrorKind::InvalidAssignmentOperator, span)
-    }
-
-    pub fn repeated_expr_terminal(span: Span) -> Self {
-        ParserError::new(ParserErrorKind::RepeatedExprTerminal, span)
-    }
-
-    pub fn repeated_expr_operator(span: Span) -> Self {
-        ParserError::new(ParserErrorKind::RepeatedExprOperator, span)
-    }
-
-    pub fn invalid_statement(span: Span) -> Self {
-        ParserError::new(ParserErrorKind::InvalidStatement, span)
-    }
-
-    pub fn invalid_expr_end(span: Span) -> Self {
-        ParserError::new(ParserErrorKind::InvalidExprEnd, span)
-    }
-
-    pub fn empty_expr(span: Span) -> Self {
-        ParserError::new(ParserErrorKind::EmptyExpr, span)
     }
 }
 

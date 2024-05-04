@@ -1,34 +1,55 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOprType {
-    Add, // +
-    Sub, // -
-    Mul, // *
-    Div, // /
-    Mod, // %
+    /// +
+    Add,
+    /// -
+    Sub,
+    /// *
+    Mul,
+    /// /
+    Div,
+    /// %
+    Mod,
 
-    And, // &&
-    Or,  // ||
+    /// &&
+    And,
+    /// ||
+    Or,
 
-    Lt,     // <
-    Gt,     // >
-    LtEq,   // <=
-    GtEq,   // >=
-    EqEq,   // ==
-    BangEq, // !=
+    /// <
+    Lt,
+    /// >
+    Gt,
+    /// <=
+    LtEq,
+    /// >=
+    GtEq,
+    /// ==
+    EqEq,
+    /// !=
+    BangEq,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnaryOprType {
-    Neg,  // - (negative)
-    Bang, // !
+    /// - (negative)
+    Neg,
+    /// !
+    Bang,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AssignOprType {
-    Eq,    // =
-    AddEq, // +=
-    SubEq, // -=
-    MulEq, // *=
-    DivEq, // /=
-    ModEq, // %=
+    /// =
+    Eq,
+    /// +=
+    AddEq,
+    /// -=
+    SubEq,
+    /// *=
+    MulEq,
+    /// /=
+    DivEq,
+    /// %=
+    ModEq,
 }

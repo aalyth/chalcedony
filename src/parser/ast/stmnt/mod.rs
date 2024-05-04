@@ -10,7 +10,7 @@ pub use while_loop::NodeWhileLoop;
 
 use super::{NodeFuncCall, NodeVarDef};
 
-use crate::error::{span::Span, ChalError, InternalError, ParserError};
+use crate::error::{span::Span, ChalError, ParserError, ParserErrorKind};
 use crate::lexer::{Delimiter, Keyword, TokenKind};
 use crate::parser::{LineReader, TokenReader};
 
@@ -18,6 +18,7 @@ use crate::parser::{LineReader, TokenReader};
 /// code unit which does not result in a value.
 ///
 /// For syntax refer to individual nodes.
+#[derive(Debug, PartialEq)]
 pub enum NodeStmnt {
     VarDef(NodeVarDef),
     FuncCall(NodeFuncCall),
@@ -29,14 +30,16 @@ pub enum NodeStmnt {
     BreakStmnt(NodeBreakStmnt),
 }
 
-// Boils down to the `TokenKind::Keyword(Keyword::Continue)`. Can only be used in
-// the context of a loop.
+/// Boils down to the `TokenKind::Keyword(Keyword::Continue)`. Can only be used
+/// in the context of a loop.
+#[derive(Debug, PartialEq)]
 pub struct NodeContStmnt {
     pub span: Span,
 }
 
-// Boils down to the `TokenKind::Keyword(Keyword::Break)`. Can only be used in
-// the context of a loop.
+/// Boils down to the `TokenKind::Keyword(Keyword::Break)`. Can only be used in
+/// the context of a loop.
+#[derive(Debug, PartialEq)]
 pub struct NodeBreakStmnt {
     pub span: Span,
 }
@@ -110,10 +113,7 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
 
                 TokenKind::Identifier(_) => {
                     let Some(line) = reader.advance() else {
-                        return Err(InternalError::new(
-                            "NodeStmnt::parse_body(): could not advance a peeked reader",
-                        )
-                        .into());
+                        panic!("NodeStmnt::parse_body(): could not advance a peeked reader")
                     };
 
                     // check whether the identifier should be treated as a function
@@ -146,7 +146,9 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                 _ => {
                     let front = front.clone();
                     reader.advance();
-                    errors.push(ParserError::invalid_statement(front.span).into())
+                    errors.push(
+                        ParserError::new(ParserErrorKind::InvalidStatement, front.span).into(),
+                    )
                 }
             }
         }

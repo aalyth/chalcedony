@@ -9,8 +9,9 @@ use crate::common::Type;
 /// that is being created.
 ///
 /// Syntax:
-/// let <var_name> = <expression>
-/// let <var_name>: <type> = <expression>
+/// let \<var_name\> = \<expression\>
+/// let \<var_name\>: \<type\> = \<expression\>
+#[derive(Debug, PartialEq)]
 pub struct NodeVarDef {
     pub ty: Type,
     pub name: String,
@@ -22,9 +23,8 @@ impl NodeVarDef {
     pub fn new(mut reader: TokenReader) -> Result<NodeVarDef, ChalError> {
         reader.expect_exact(TokenKind::Keyword(Keyword::Let))?;
 
-        let lhs_tok = reader.expect(TokenKind::Identifier("".to_string()))?;
-        let name = lhs_tok.src;
-        let span = lhs_tok.span;
+        let name = reader.expect_ident()?;
+        let span = reader.current();
 
         let mut ty = Type::Any;
         if reader

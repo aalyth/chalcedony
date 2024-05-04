@@ -1,5 +1,5 @@
 mod expr;
-mod func;
+pub mod func;
 mod program;
 mod stmnt;
 mod var;
@@ -14,7 +14,7 @@ pub use stmnt::{
 pub use var::{NodeVarCall, NodeVarDef};
 
 /// The node representing a literal value inside the source code.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum NodeValue {
     Int(i64),
     Uint(u64),
