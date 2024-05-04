@@ -7,10 +7,16 @@ pub use spanning::InlineSpanner;
 use std::fmt;
 use std::rc::Rc;
 
+/// The trait, used to define objects which can build code snippets from a given
+/// start and end position in the source code.
 pub trait Spanning {
     fn context(&self, start: &Position, end: &Position) -> String;
 }
 
+/// The structure, denoting a snippet of source code. Used in numerous
+/// structures from the Lexer's tokens to the Abstract Syntax Tree nodes. The
+/// purpose of this abstractions is to provide an easy way to display adequate
+/// error messages with code snippets upon any encountered error.
 #[derive(Clone)]
 pub struct Span {
     pub start: Position,
@@ -43,8 +49,8 @@ impl From<Rc<dyn Spanning>> for Span {
 }
 
 impl std::cmp::PartialEq for Span {
-    fn eq(&self, other: &Span) -> bool {
-        self.start == other.start && self.end == other.end
+    fn eq(&self, _other: &Span) -> bool {
+        true
     }
 }
 

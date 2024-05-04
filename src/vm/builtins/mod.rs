@@ -1,3 +1,6 @@
+//! The module containing the built-in operations inside the `CVM` - mostly the
+//! binary and unary operations between [`CvmObjects`].
+
 pub mod bin_opr;
 pub mod un_opr;
 

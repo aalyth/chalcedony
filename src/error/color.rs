@@ -32,7 +32,3 @@ pub fn err(msg: &str) -> String {
 pub fn warn(msg: &str) -> String {
     format!("{}: {}", color(Colors::Yellow, "warning"), msg)
 }
-
-pub fn internal(msg: &str) -> String {
-    format!("{}: {}", color(Colors::Blue, "internal"), msg)
-}

@@ -4,7 +4,10 @@ use std::fmt;
 use std::ops;
 use std::ptr;
 
-/* an 8-byte ASCII string implementation */
+/// An 8-byte string implementation. The purpose of this structure is to
+/// optimize the memory size of every `CvmObject`, reducing it by 16 bytes
+/// compared to using the Rust's built-in `String` type. Optimizing the memory
+/// footprint of the CVM objects leads to improved speed of the user's programs.
 pub struct PtrString(*const char);
 
 impl PtrString {
@@ -127,7 +130,8 @@ impl fmt::Debug for PtrString {
 impl From<String> for PtrString {
     fn from(val: String) -> PtrString {
         unsafe {
-            // SAFETY: the error value is upon isize overflow, which would be extremely rare
+            // SAFETY: the error value is upon isize overflow, which would be an
+            // extremely rare case
             let layout = Layout::array::<*const char>(val.len() + 1)
                 .expect("Error: creating a string with size greater than isize::MAX");
 

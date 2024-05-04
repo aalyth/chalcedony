@@ -4,6 +4,14 @@ use crate::parser::{ast::NodeExpr, TokenReader};
 
 use crate::common::Type;
 
+/// The node representing the creation of a variable. The `span` refers to
+/// the span of the object at the left side of the expression, i.e. the variable
+/// that is being created.
+///
+/// Syntax:
+/// let \<var_name\> = \<expression\>
+/// let \<var_name\>: \<type\> = \<expression\>
+#[derive(Debug, PartialEq)]
 pub struct NodeVarDef {
     pub ty: Type,
     pub name: String,
@@ -13,13 +21,10 @@ pub struct NodeVarDef {
 
 impl NodeVarDef {
     pub fn new(mut reader: TokenReader) -> Result<NodeVarDef, ChalError> {
-        /* let a = 5      */
-        /* let b: int = 3 */
         reader.expect_exact(TokenKind::Keyword(Keyword::Let))?;
 
-        let lhs_tok = reader.expect(TokenKind::Identifier("".to_string()))?;
-        let name = lhs_tok.src;
-        let span = lhs_tok.span;
+        let name = reader.expect_ident()?;
+        let span = reader.current();
 
         let mut ty = Type::Any;
         if reader

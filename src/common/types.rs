@@ -1,6 +1,8 @@
 use super::Bytecode;
-use crate::error::{span::Span, ChalError, CompileError};
+use crate::error::{span::Span, ChalError, CompileError, CompileErrorKind};
 
+/// The structure, representing a type inside the interpreter. Used to assert
+/// the type strictness of the script before it's execution.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Type {
     Int,
@@ -14,7 +16,8 @@ pub enum Type {
 }
 
 impl Type {
-    /* NOTE: it is very important that this function goes after value calls inside the result */
+    /// NOTE: it is very important that this function goes after value calls
+    /// inside the result.
     pub fn verify(
         exp: Type,
         recv: Type,
@@ -34,21 +37,23 @@ impl Type {
             return Ok(());
         }
 
-        Err(CompileError::invalid_type(exp, recv, span).into())
+        Err(CompileError::new(CompileErrorKind::InvalidType(exp, recv), span).into())
     }
 
+    /// Used to check whether an overloaded function's definition is applicable
+    /// to the passed argument's types.
     pub fn soft_eq(&self, other: &Self) -> bool {
         match (self, other) {
-            /* Universal types */
+            /* universal types */
             (Type::Void, _) | (_, Type::Void) => false,
             (Type::Any, _) => true,
-            /* Actual types */
+            /* actual types */
             (Type::Int, Type::Int)
             | (Type::Uint, Type::Uint)
             | (Type::Float, Type::Float)
             | (Type::Str, Type::Str)
             | (Type::Bool, Type::Bool) => true,
-            /* type casts */
+            /* implicit type casts */
             (Type::Int, Type::Uint) => true,
             _ => false,
         }

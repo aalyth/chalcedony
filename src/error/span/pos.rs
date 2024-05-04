@@ -1,3 +1,5 @@
+/// A position inside the source code. Used to build code snippets inside
+/// any encountered error.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Position {
     pub ln: usize,

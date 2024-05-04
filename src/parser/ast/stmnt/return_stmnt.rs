@@ -3,6 +3,13 @@ use crate::lexer::{Keyword, TokenKind};
 use crate::parser::ast::NodeExpr;
 use crate::parser::TokenReader;
 
+/// The node representing the returning of value
+///
+/// Syntax:
+/// `return` \<expr\>
+///
+/// N.B.: \<expr\> can be empty for `void` functions
+#[derive(Debug, PartialEq)]
 pub struct NodeRetStmnt {
     pub value: NodeExpr,
     pub span: Span,
@@ -13,9 +20,14 @@ impl NodeRetStmnt {
         let span = reader.current();
         reader.expect_exact(TokenKind::Keyword(Keyword::Return))?;
 
+        let value: NodeExpr;
         let value_raw = reader.advance_until(|tk| *tk == TokenKind::Newline)?;
-        let value_reader = TokenReader::new(value_raw, reader.current());
-        let value = NodeExpr::new(value_reader)?;
+        if !value_raw.is_empty() {
+            let value_reader = TokenReader::new(value_raw, reader.current());
+            value = NodeExpr::new(value_reader)?;
+        } else {
+            value = NodeExpr::empty(reader.current());
+        }
 
         Ok(NodeRetStmnt { value, span })
     }

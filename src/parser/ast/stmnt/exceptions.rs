@@ -5,6 +5,24 @@ use crate::lexer::{Delimiter, Keyword, Special, TokenKind};
 use crate::parser::ast::{NodeExpr, NodeVarCall};
 use crate::parser::{LineReader, TokenReader};
 
+/// The structure, denoting a `try-catch` block. Any exceptions received under
+/// the `try` block will be handled inside the `catch` block.
+///
+/// Chalcedony introduces the concept of `unsafety` inside scripting languages.
+/// Functions which can raise an exception, which is not guarded inside a `try-
+/// catch` block, must end with a `!` at the edn (e.g. `tg!()`). Thus calling
+/// a potentially errorous function is easily distinguishable and enforced by
+/// the interpreter itself.
+///
+/// Syntax:
+/// `try`:
+///     \<statements\>
+/// `catch`(\<var-name\>: exception):
+///     \<safe-statements\>
+///
+/// where `<safe-statements>` denotes the use of any code, which does not have
+/// the potential to raise any exception.
+#[derive(Debug, PartialEq)]
 pub struct NodeTryCatch {
     pub try_body: Vec<NodeStmnt>,
     pub try_span: Span,
@@ -12,6 +30,46 @@ pub struct NodeTryCatch {
     pub catch_body: Vec<NodeStmnt>,
 }
 
+/// The structure, denoting the raising of an exception.
+///
+/// Exceptions in Chalcedony are similar to the `error` type in GoLang. Both
+/// types boil down to the usage of strings, e.g.:
+/// ```go
+/// package main
+///
+/// import ("errors", "fmt")
+///
+/// func example() (res int, err error) {
+///     err = errors.New("some invalid value")
+///     return
+/// }
+///
+/// func main() {
+///     res, err := example()
+///     if err != nil {
+///         fmt.Printf("Encountered the error: %v", err)
+///     }
+/// }
+/// ```
+///
+/// In Chalcedony a similar result can be expressed in a quite similar manner:
+/// ```
+/// fn example!() -> int:
+///     throw "some invalid value"
+///     return 0
+///
+/// try:
+///     let res = example!()
+/// catch (exc: exception):
+///     print("Encountered the error: " + exc)
+/// ```
+///
+/// <br> <br>
+/// Syntax:
+/// `throw` \<str-expr\>
+///
+/// where `<str-expr>` means an expression, which results in a string
+#[derive(Debug, PartialEq)]
 pub struct NodeThrow(pub NodeExpr);
 
 impl NodeTryCatch {

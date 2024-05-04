@@ -1,5 +1,5 @@
 use crate::error::span::{Span, Spanning};
-use crate::error::{ChalError, InternalError, ParserError};
+use crate::error::{ChalError, ParserError, ParserErrorKind};
 use crate::lexer::{Keyword, Line, Token, TokenKind};
 
 use std::collections::VecDeque;
@@ -7,6 +7,8 @@ use std::rc::Rc;
 
 use super::token_reader::TokenReader;
 
+/// An abstraction, used to go over code chunks. For reference to code chunks
+/// refer to the function `Lexer::advance_chunk()`.
 pub struct LineReader {
     src: VecDeque<Line>,
     spanner: Rc<dyn Spanning>,
@@ -45,10 +47,7 @@ impl LineReader {
 
         /* we advance at least the first line */
         let Some(front_ln) = self.advance() else {
-            return Err(InternalError::new(
-                "LexerReader::advance_chunk(): advancing an empty reader",
-            )
-            .into());
+            panic!("LexerReader::advance_chunk(): advancing an empty reader");
         };
         result.push_back(front_ln);
 
@@ -64,12 +63,10 @@ impl LineReader {
 
     pub fn advance_chunk(&mut self) -> Result<Self, ChalError> {
         let Some(front) = self.src.front() else {
-            return Err(InternalError::new(
-                "LexerReader::advance_chunk(): advancing an empty reader",
-            )
-            .into());
+            panic!("LexerReader::advance_chunk(): advancing an empty reader");
         };
-        /* NOTE: this line is necessary so front goes out of scope and the borrow checker is happy */
+        // NOTE: this line is necessary so front goes out of scope and the
+        // borrow checker is happy
         let indent = front.indent;
         let cond = |ln: &Line| -> bool { ln.indent <= indent };
 
@@ -101,12 +98,10 @@ impl LineReader {
         Ok(LineReader::new(res, self.spanner.clone()))
     }
 
+    /// Advances the next line and builts a `TokenReader` over it.
     pub fn advance_reader(&mut self) -> Result<TokenReader, ChalError> {
         let Some(next) = self.src.pop_front() else {
-            return Err(InternalError::new(
-                "LineReader::advance_reader(): advancing an empty reader",
-            )
-            .into());
+            panic!("LineReader::advance_reader(): advancing an empty reader");
         };
 
         Ok(TokenReader::new(
@@ -141,15 +136,17 @@ impl LineReader {
         let cond = |ln: &Line| -> bool { ln.indent <= indent };
 
         let Some(peek) = self.peek_tok() else {
-            return Err(ParserError::expected_token(
-                TokenKind::Keyword(Keyword::Catch),
+            return Err(ParserError::new(
+                ParserErrorKind::ExpectedToken(TokenKind::Keyword(Keyword::Catch)),
                 current_span.clone(),
             )
             .into());
         };
 
         if peek.kind != TokenKind::Keyword(Keyword::Catch) {
-            return Err(ParserError::missing_catch_block(current_span.clone()).into());
+            return Err(
+                ParserError::new(ParserErrorKind::MissingCatchBlock, current_span.clone()).into(),
+            );
         }
 
         self.advance_until(cond)

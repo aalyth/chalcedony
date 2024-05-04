@@ -1,5 +1,9 @@
+//! The final stage of the interpreting process, responsible for transforming
+//! the parsed `Abstract Syntax Tree (AST)` into a stream of bytecode
+//! unstructions, executed by the `Chalcedony Virtual Machine (CVM)`.
+
 mod codegen;
-use codegen::ToBytecode;
+pub use codegen::ToBytecode;
 
 mod type_eval;
 
@@ -10,11 +14,10 @@ use crate::vm::Cvm;
 
 use crate::common::{Bytecode, Type};
 
-use std::cell::RefCell;
 use std::iter::zip;
 use std::rc::Rc;
 
-/* ahash is the fastest hashing algorithm in terms of hashing strings (faster than fxhash) */
+/* ahash is the fastest hashing algorithm in terms of hashing strings */
 use ahash::AHashMap;
 
 #[derive(Debug, Clone)]
@@ -68,7 +71,7 @@ impl FuncAnnotation {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct WhileScope {
+pub struct LoopScope {
     current_length: usize,
     unfinished_breaks: Vec<usize>,
 }
@@ -81,35 +84,43 @@ pub enum SafetyScope {
     Catch,
 }
 
+/// The structure representing the interpreter, used to compile the received
+/// `AST` into a stream of `Bytecode` instructions and respectively interpret
+/// the instructions via the Chalcedony Virtual Machine (CVM).
 #[derive(Default)]
 pub struct Chalcedony {
-    /* The virtual machine used to execute the resulting bytecode*/
+    // The virtual machine used to execute the compiled bytecode instructions.
     vm: Cvm,
 
-    /* Used to keep track of the globally declared variables */
+    // Used to keep track of the globally declared variables.
     globals: AHashMap<String, VarAnnotation>,
 
-    /* Used to keep track of the functions inside the program */
+    // Used to keep track of the functions inside the program.
     func_symtable: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
     func_id_counter: usize,
 
-    /* Contains the necessary function information used while parsing statements
-     * inside a function's scope */
+    // Contains the necessary information about the current function if inside a
+    // function scope.
     current_func: Option<Rc<FuncAnnotation>>,
 
-    /* Determines the way exceptions are compiled */
+    // Contains the information about the current scope's "safety" type, i.e.
+    // whether it is a `try` block, `catch` block, or a normal block.
     safety_scope: SafetyScope,
 
-    /* Contains the necessary information in order to implement control flow logic in while loops */
-    current_while: Option<WhileScope>,
+    // Contains the necessary information in order to implement control flow
+    // logic in loop scopes.
+    current_loop: Option<LoopScope>,
 
-    /* Keeps track of the current scope's local variables */
-    locals: RefCell<AHashMap<String, VarAnnotation>>,
+    // Keeps track of the current scope's local variables.
+    locals: AHashMap<String, VarAnnotation>,
 
-    /* Keeps track whether the currently compiled scope is a statement */
+    // Keeps track whether the currently compiled scope is a statement - used
+    // to perform checks such as wether a `void` function is used inside an
+    // expression.
     inside_stmnt: bool,
 
-    /* Whether the interpreter has failed */
+    // Whether the interpreter has encountered an error, so even if an error is
+    // encountered the rest of the script is still statically checked.
     failed: bool,
 }
 
@@ -199,9 +210,9 @@ impl Chalcedony {
             func_symtable,
             func_id_counter: 3,
             current_func: None,
-            current_while: None,
             safety_scope: SafetyScope::Normal,
-            locals: RefCell::new(AHashMap::default()),
+            current_loop: None,
+            locals: AHashMap::default(),
             inside_stmnt: false,
             failed: false,
         }
@@ -235,6 +246,16 @@ impl Chalcedony {
         }
     }
 
+    // Used for tests to get the id of the next function so even if the standard
+    // library changes, the proper function id is used.
+    pub fn get_next_func_id(&self) -> usize {
+        self.func_id_counter
+    }
+
+    pub fn execute(&mut self, code: Vec<Bytecode>) {
+        self.vm.execute(code)
+    }
+
     /* builds the function and sets the currennt function scope */
     fn create_function(&mut self, name: String, args: Vec<ArgAnnotation>, ret: Type) {
         let func = Rc::new(FuncAnnotation::new(
@@ -246,7 +267,7 @@ impl Chalcedony {
         self.func_id_counter += 1;
 
         self.current_func = Some(func.clone());
-        self.locals = RefCell::new(AHashMap::new());
+        self.locals = AHashMap::new();
 
         match self.func_symtable.get_mut(&name) {
             Some(func_bucket) => func_bucket.push(func),
@@ -256,6 +277,7 @@ impl Chalcedony {
         }
     }
 
+    /* receives the proper overloaded function annotation from the passed argument types */
     fn get_function(&self, name: &str, arg_types: &Vec<Type>) -> Option<&FuncAnnotation> {
         let func_bucket = self.func_symtable.get(name)?;
         /* inlining the clippy suggestion does not help due to the Rc inside */
@@ -268,6 +290,7 @@ impl Chalcedony {
         None
     }
 
+    /* retrieves the global variable's id and creates it if it does not exist */
     fn get_global_id(&mut self, node: &NodeVarDef) -> usize {
         if let Some(var) = self.globals.get(&node.name) {
             return var.id;
@@ -279,27 +302,28 @@ impl Chalcedony {
         self.globals.len() - 1
     }
 
+    /* retrieves the local variable's id and creates it if it does not exist */
     fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
         self.get_local_id_internal(&node.name, node.ty)
     }
 
     fn get_local_id_internal(&mut self, name: &str, ty: Type) -> usize {
-        if let Some(var) = self.locals.borrow().get(name) {
+        if let Some(var) = self.locals.get(name) {
             return var.id;
         }
 
-        let next_id = self.locals.borrow().len();
+        let next_id = self.locals.len();
         self.locals
-            .borrow_mut()
-            .insert(name.to_owned(), VarAnnotation::new(next_id, ty));
+            .insert(name.to_string(), VarAnnotation::new(next_id, ty));
         next_id
     }
 
     fn remove_local(&mut self, name: &str) {
-        self.locals.borrow_mut().remove(name);
+        self.locals.remove(name);
     }
 }
 
+/* checks whether the passed arguments match the function annotation */
 fn valid_annotation(args: &Vec<ArgAnnotation>, received: &Vec<Type>) -> bool {
     if args.len() != received.len() {
         return false;

@@ -1,12 +1,13 @@
+//! The module containing all error types which could be encountered during the
+//! first 3 stages of interpreting: lexing, parsing, and compiling to bytecode.
+
 mod compile;
-mod internal;
 mod lexer;
 mod parser;
 
-pub use compile::CompileError;
-pub use internal::InternalError;
-pub use lexer::LexerError;
-pub use parser::ParserError;
+pub use compile::{CompileError, CompileErrorKind};
+pub use lexer::{LexerError, LexerErrorKind};
+pub use parser::{ParserError, ParserErrorKind};
 
 use super::err;
 

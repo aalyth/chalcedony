@@ -7,19 +7,30 @@ macro_rules! apply_bin_operator {
     ( $cvm:ident, $current_idx:ident, $opr:tt, $str_opr_handler:ident ) => {{
         let (left, right) = get_operands($cvm);
         match (left, right) {
-            (CvmObject::Int(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Int(lval $opr rval)),
-            (CvmObject::Int(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Int(lval $opr (rval as i64))),
-            (CvmObject::Int(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Int(lval $opr (rval as i64))),
+            (CvmObject::Int(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Int(lval $opr rval)),
+            (CvmObject::Int(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Int(lval $opr (rval as i64))),
+            (CvmObject::Int(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Int(lval $opr (rval as i64))),
 
-            (CvmObject::Uint(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Int((lval as i64) $opr rval)),
-            (CvmObject::Uint(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Uint(lval $opr rval)),
-            (CvmObject::Uint(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Int((lval as i64) $opr (rval as i64))),
+            (CvmObject::Uint(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Int((lval as i64) $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Uint(lval $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Int((lval as i64) $opr (rval as i64))),
 
-            (CvmObject::Float(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Float(lval $opr (rval as f64))),
-            (CvmObject::Float(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Float(lval $opr (rval as f64))),
-            (CvmObject::Float(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Float(lval $opr rval)),
+            (CvmObject::Float(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Float(lval $opr (rval as f64))),
+            (CvmObject::Float(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Float(lval $opr (rval as f64))),
+            (CvmObject::Float(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Float(lval $opr rval)),
 
-            (CvmObject::Str(lval), right) => $str_opr_handler($cvm, lval.clone(), right),
+            (CvmObject::Str(lval), right)
+                => $str_opr_handler($cvm, lval.clone(), right),
+
             (left, right) => panic!(
                 "unchecked invalid binary operation - {:?} and {:?}",
                 left.as_type(),
@@ -79,25 +90,41 @@ macro_rules! apply_logic_operator {
     ( $cvm:ident, $current_idx:ident, $opr:tt ) => {{
         let (left, right) = get_operands($cvm);
         match (left, right) {
-            (CvmObject::Int(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
-            (CvmObject::Int(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
-            (CvmObject::Int(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0.0))),
-            (CvmObject::Int(lval), CvmObject::Bool(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr rval)),
+            (CvmObject::Int(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
+            (CvmObject::Int(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
+            (CvmObject::Int(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0.0))),
+            (CvmObject::Int(lval), CvmObject::Bool(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0) $opr rval)),
 
-            (CvmObject::Uint(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
-            (CvmObject::Uint(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
-            (CvmObject::Uint(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0.0))),
-            (CvmObject::Uint(lval), CvmObject::Bool(rval)) => $cvm.push(CvmObject::Bool((lval != 0) $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
+            (CvmObject::Uint(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0))),
+            (CvmObject::Uint(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0) $opr (rval != 0.0))),
+            (CvmObject::Uint(lval), CvmObject::Bool(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0) $opr rval)),
 
-            (CvmObject::Float(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval != 0.0) $opr (rval != 0))),
-            (CvmObject::Float(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool((lval != 0.0) $opr (rval != 0))),
-            (CvmObject::Float(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval != 0.0) $opr (rval != 0.0))),
-            (CvmObject::Float(lval), CvmObject::Bool(rval)) => $cvm.push(CvmObject::Bool((lval != 0.0) $opr rval)),
+            (CvmObject::Float(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0.0) $opr (rval != 0))),
+            (CvmObject::Float(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0.0) $opr (rval != 0))),
+            (CvmObject::Float(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0.0) $opr (rval != 0.0))),
+            (CvmObject::Float(lval), CvmObject::Bool(rval))
+                => $cvm.push(CvmObject::Bool((lval != 0.0) $opr rval)),
 
-            (CvmObject::Bool(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval != 0))),
-            (CvmObject::Bool(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval != 0))),
-            (CvmObject::Bool(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval != 0.0))),
-            (CvmObject::Bool(lval), CvmObject::Bool(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
+            (CvmObject::Bool(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr (rval != 0))),
+            (CvmObject::Bool(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr (rval != 0))),
+            (CvmObject::Bool(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr (rval != 0.0))),
+            (CvmObject::Bool(lval), CvmObject::Bool(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr rval)),
 
             (left, right) => panic!(
                 "unchecked invalid logic operation - {:?} and {:?}",
@@ -113,22 +140,38 @@ macro_rules! apply_comp_operator {
     ( $cvm:ident, $current_idx:ident, $opr:tt, $bool_opr_handler:ident ) => {{
         let (left, right) = get_operands($cvm);
         match (left, right) {
-            (CvmObject::Int(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
-            (CvmObject::Int(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval as i64))),
-            (CvmObject::Int(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval as f64) $opr rval)),
-            (left @ CvmObject::Int(_), CvmObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
+            (CvmObject::Int(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr rval)),
+            (CvmObject::Int(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr (rval as i64))),
+            (CvmObject::Int(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Bool((lval as f64) $opr rval)),
 
-            (CvmObject::Uint(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool((lval as i64) $opr rval)),
-            (CvmObject::Uint(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
-            (CvmObject::Uint(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool((lval as f64) $opr rval)),
-            (left @ CvmObject::Uint(_), CvmObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
+            (left @ CvmObject::Int(_), CvmObject::Bool(rval))
+                => $bool_opr_handler($cvm, rval, left),
 
-            (CvmObject::Float(lval), CvmObject::Int(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval as f64))),
-            (CvmObject::Float(lval), CvmObject::Uint(rval)) => $cvm.push(CvmObject::Bool(lval $opr (rval as f64))),
-            (CvmObject::Float(lval), CvmObject::Float(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
-            (left @ CvmObject::Float(_), CvmObject::Bool(rval)) => $bool_opr_handler($cvm, rval, left),
+            (CvmObject::Uint(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Bool((lval as i64) $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr rval)),
+            (CvmObject::Uint(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Bool((lval as f64) $opr rval)),
 
-            (CvmObject::Str(lval), CvmObject::Str(rval)) => $cvm.push(CvmObject::Bool(lval $opr rval)),
+            (left @ CvmObject::Uint(_), CvmObject::Bool(rval))
+                => $bool_opr_handler($cvm, rval, left),
+
+            (CvmObject::Float(lval), CvmObject::Int(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr (rval as f64))),
+            (CvmObject::Float(lval), CvmObject::Uint(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr (rval as f64))),
+            (CvmObject::Float(lval), CvmObject::Float(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr rval)),
+
+            (left @ CvmObject::Float(_), CvmObject::Bool(rval))
+                => $bool_opr_handler($cvm, rval, left),
+
+            (CvmObject::Str(lval), CvmObject::Str(rval))
+                => $cvm.push(CvmObject::Bool(lval $opr rval)),
             (CvmObject::Bool(lval), right) => $bool_opr_handler($cvm, lval, right),
 
             (left, right) => panic!(

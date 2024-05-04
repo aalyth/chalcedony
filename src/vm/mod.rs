@@ -1,3 +1,13 @@
+//! The `Chalcedony Virtual Machine (CVM)`, responsible for the execution of the
+//! compiled bytecode instructions.
+//!
+//! An integral part of the virtual machine is that it avoids the usage of
+//! denoting runtime errors - the philosophy of Chalcedony is that the code
+//! should've been checked during it's compilation, not during it's execution.
+//!
+//! With regards to the implementation, CVM is a stack-based virtual machine,
+//! meaning all expressions are computed on the [`stack`].
+
 mod builtins;
 mod object;
 
@@ -128,13 +138,14 @@ impl Cvm {
                 next_idx
             }
 
+            // TODO: as described in `src/common/bytecode.rs` these bytecode
+            // instructions could be merged with `Set/GetLocal`
             Bytecode::SetArg(arg_id) => {
                 let frame = self.call_stack.peek().expect("expected a stack frame");
                 let value = self.stack.pop().expect("expected a value on the stack");
                 *self.stack.get_mut(frame.stack_len + *arg_id).unwrap() = value;
                 next_idx
             }
-
             Bytecode::GetArg(arg_id) => {
                 let frame = self.call_stack.peek().expect("expected a stack frame");
                 let value = self.stack.get(frame.stack_len + arg_id).unwrap().clone();
@@ -145,8 +156,8 @@ impl Cvm {
             Bytecode::SetLocal(mut var_id) => {
                 let value = self.stack.pop().expect("expected a value on the stack");
 
-                /* since local variables can exist outside of a function scope, a check is
-                 * performed whether there is a call frame */
+                // since local variables can exist outside of a function scope,
+                // a check is required whether there is a call frame
                 if let Some(frame) = self.call_stack.peek() {
                     var_id += frame.stack_len + frame.args_len;
                 }
@@ -204,8 +215,8 @@ impl Cvm {
                     .expect("expected a valid function id")
                     .clone();
 
-                /* NOTE: the arguments to the function call are already in place
-                 * and local variables are automatically handled */
+                // NOTE: the arguments to the function call are already in place
+                // and local variables are automatically handled
 
                 let frame = CvmCallFrame {
                     prev_idx: next_idx,
@@ -225,12 +236,14 @@ impl Cvm {
                 let frame = self.call_stack.pop().unwrap();
                 self.stack.truncate(frame.stack_len);
                 self.stack.push(value);
+                self.catch_idx = frame.catch_idx;
                 frame.prev_idx
             }
 
             Bytecode::ReturnVoid => {
                 let frame = self.call_stack.pop().unwrap();
                 self.stack.truncate(frame.stack_len);
+                self.catch_idx = frame.catch_idx;
                 frame.prev_idx
             }
 

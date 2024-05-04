@@ -1,10 +1,15 @@
-use crate::error::{ChalError, ParserError};
+use crate::error::{ChalError, ParserError, ParserErrorKind};
 use crate::lexer::{Operator, Token, TokenKind};
 use crate::parser::ast::{NodeExpr, NodeVarCall};
 use crate::parser::TokenReader;
 
 use crate::common::operators::AssignOprType;
 
+/// The node representing changes to any variable in the source code.
+///
+/// Syntax:
+/// \<var_name\> \<opr\> \<expression\>
+#[derive(Debug, PartialEq)]
 pub struct NodeAssign {
     pub lhs: NodeVarCall,
     pub opr: AssignOprType,
@@ -24,7 +29,9 @@ impl IntoAssignmentOpr for Token {
             TokenKind::Operator(Operator::MulEq) => Ok(AssignOprType::MulEq),
             TokenKind::Operator(Operator::DivEq) => Ok(AssignOprType::DivEq),
             TokenKind::Operator(Operator::ModEq) => Ok(AssignOprType::ModEq),
-            _ => Err(ParserError::invalid_assignment_operator(self.span).into()),
+            _ => {
+                Err(ParserError::new(ParserErrorKind::InvalidAssignmentOperator, self.span).into())
+            }
         }
     }
 }
