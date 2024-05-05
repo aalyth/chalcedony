@@ -294,14 +294,14 @@ impl ToBytecode for NodeAssign {
         }
 
         if let Some(var) = interpreter.locals.get(&self.lhs.name) {
-            annotation = var.clone();
+            annotation = *var;
             scope = VarScope::Local;
 
         /* check whether the interpreter is compiling inside a function scope */
         } else if let Some(func) = interpreter.current_func.clone() {
             /* check whether the variable is an argument */
             if let Some(arg) = func.arg_lookup.get(&self.lhs.name) {
-                annotation = VarAnnotation::new(arg.id, arg.ty.clone(), false);
+                annotation = VarAnnotation::new(arg.id, arg.ty, false);
                 scope = VarScope::Arg;
 
             /* the variable is global, but is mutated inside a statement */
@@ -315,7 +315,7 @@ impl ToBytecode for NodeAssign {
 
         /* the interpreter is in the global scope*/
         } else if let Some(var) = interpreter.globals.get(&self.lhs.name) {
-            annotation = var.clone();
+            annotation = *var;
         } else {
             /* this is necessary for the proper compilation */
             unreachable!();

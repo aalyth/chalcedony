@@ -47,7 +47,7 @@ pub struct Cvm {
 
 macro_rules! push_constant {
     ($cvm:ident, $type:ident, $val:ident, $next_idx:ident) => {{
-        $cvm.stack.push(CvmObject::$type(*$val));
+        $cvm.stack.push(CvmObject::$type($val));
         $next_idx
     }};
 }
@@ -74,11 +74,15 @@ impl Cvm {
 
     #[inline(always)]
     fn execute_next(&mut self, current_idx: usize, code: &[Bytecode]) -> usize {
-        let next_instr: &Bytecode;
+        let next_instr: Bytecode;
         if let Some(frame) = self.call_stack.peek() {
-            next_instr = frame.code.get(current_idx).expect("invalid current idx");
+            next_instr = frame
+                .code
+                .get(current_idx)
+                .expect("invalid current idx")
+                .clone();
         } else {
-            next_instr = code.get(current_idx).expect("invalid current idx");
+            next_instr = code.get(current_idx).expect("invalid current idx").clone();
         }
         let next_idx = current_idx + 1;
         match next_instr {
@@ -121,16 +125,16 @@ impl Cvm {
 
             Bytecode::SetGlobal(var_id) => {
                 let var_value = self.stack.pop().expect("expected a value on the stack");
-                while *var_id >= self.globals.len() {
+                while var_id >= self.globals.len() {
                     self.globals.push(CvmObject::Int(0));
                 }
-                *self.globals.get_mut(*var_id).unwrap() = var_value;
+                *self.globals.get_mut(var_id).unwrap() = var_value;
                 next_idx
             }
             Bytecode::GetGlobal(var_id) => {
                 let var_value = self
                     .globals
-                    .get(*var_id)
+                    .get(var_id)
                     .expect("expected a valid variable id")
                     .clone();
                 self.stack.push(var_value);
@@ -182,7 +186,7 @@ impl Cvm {
 
             Bytecode::CreateFunc(arg_count) => {
                 let func_obj = CvmFunctionObject {
-                    arg_count: *arg_count,
+                    arg_count,
                     code: Rc::new(code[next_idx..].into()),
                 };
                 self.functions.push(Rc::new(func_obj));
@@ -192,7 +196,7 @@ impl Cvm {
             Bytecode::CallFunc(func_id) => {
                 let func_obj = self
                     .functions
-                    .get(*func_id)
+                    .get(func_id)
                     .expect("expected a valid function id")
                     .clone();
 
