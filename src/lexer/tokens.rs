@@ -17,6 +17,8 @@ pub enum Keyword {
     Try,
     Catch,
     Throw,
+    Import,
+    Const,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -152,6 +154,8 @@ impl TokenKind {
             "try" => return Ok(TokenKind::Keyword(Keyword::Try)),
             "catch" => return Ok(TokenKind::Keyword(Keyword::Catch)),
             "throw" => return Ok(TokenKind::Keyword(Keyword::Throw)),
+            "import" => return Ok(TokenKind::Keyword(Keyword::Import)),
+            "const" => return Ok(TokenKind::Keyword(Keyword::Const)),
 
             /* Delimiters */
             "(" => return Ok(TokenKind::Delimiter(Delimiter::OpenPar)),

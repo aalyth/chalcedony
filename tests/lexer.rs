@@ -30,7 +30,7 @@ fn lex_basic() {
     ];
 
     let code = "identifier123+(-someOtherIdent) [  4  - 12__14  , a *   -15] -> 'hello world 412'";
-    let mut lexer = Lexer::new(code);
+    let mut lexer = Lexer::new(code, None);
 
     for exp in expected {
         let tok = lexer.advance().expect("expected an ok token");
@@ -53,7 +53,7 @@ while i > 0:
 if __name__ == '__main__':
     print('hello world')
     ";
-    let mut lexer = Lexer::new(code);
+    let mut lexer = Lexer::new(code, None);
 
     let expected = vec![
         chunk!(
@@ -148,14 +148,14 @@ fn lex_invalid_program_chunk() {
 else:
     print('hello world')
 ";
-    let mut lexer = Lexer::new(code);
+    let mut lexer = Lexer::new(code, None);
     lexer.advance_prog().expect("this should panic");
 }
 
 #[test]
 fn lex_var_def() {
     let code = "let a: bool = (fib(10) - 40) > 3";
-    let mut lexer = Lexer::new(code);
+    let mut lexer = Lexer::new(code, None);
     let expected = vec![chunk!(line!(
         0,
         TokenKind::Keyword(Keyword::Let),
@@ -186,7 +186,7 @@ fn fib(a: uint) -> uint:
         return fib(a - 2) + fib(a - 1)
     return 1
 ";
-    let mut lexer = Lexer::new(code);
+    let mut lexer = Lexer::new(code, None);
     let expected = vec![chunk!(
         line!(
             0,
@@ -242,7 +242,7 @@ elif 3 > 4:
 else:
     print('default')
 ";
-    let mut lexer = Lexer::new(code);
+    let mut lexer = Lexer::new(code, None);
     let expected = vec![chunk!(
         line!(
             0,
@@ -300,7 +300,7 @@ try:
 catch (exc: exception):
     print('Received the exception: ' + exc)
 ";
-    let mut lexer = Lexer::new(code);
+    let mut lexer = Lexer::new(code, None);
     let expected = vec![chunk!(
         line!(
             0,

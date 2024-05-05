@@ -6,11 +6,13 @@ pub mod func;
 pub mod stmnt;
 pub mod var;
 
-use crate::common::Bytecode;
-use crate::error::ChalError;
-use crate::parser::ast::NodeProg;
+use crate::common::{Bytecode, Type};
+use crate::error::{ChalError, CompileError, CompileErrorKind};
+use crate::parser::ast::{NodeImport, NodeProg};
 
 use super::Chalcedony;
+
+use std::path::Path;
 
 pub trait ToBytecode {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError>;
@@ -26,6 +28,30 @@ impl ToBytecode for NodeProg {
             NodeProg::IfStmnt(node) => node.to_bytecode(interpreter),
             NodeProg::WhileLoop(node) => node.to_bytecode(interpreter),
             NodeProg::TryCatch(node) => node.to_bytecode(interpreter),
+            NodeProg::Import(node) => node.to_bytecode(interpreter),
         }
+    }
+}
+
+impl ToBytecode for NodeImport {
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
+        if !Path::new(&self.path).exists() {
+            return Err(
+                CompileError::new(CompileErrorKind::ScriptNotFound(self.path), self.span).into(),
+            );
+        }
+        let script_const_id = interpreter.get_global_id_internal("__name__", Type::Str, true);
+        interpreter.vm.execute(vec![
+            Bytecode::ConstS(self.path.clone().into()),
+            Bytecode::SetGlobal(script_const_id),
+        ]);
+
+        interpreter.interpret_script(self.path);
+
+        interpreter.vm.execute(vec![
+            Bytecode::ConstS("__main__".to_string().into()),
+            Bytecode::SetGlobal(script_const_id),
+        ]);
+        Ok(Vec::new())
     }
 }

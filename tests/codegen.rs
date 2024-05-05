@@ -47,6 +47,7 @@ fn compile_control_flow() {
                     expr: vecdeq![NodeExprInner::Value(NodeValue::Uint(0))],
                     span: SpanMock::new(),
                 },
+                is_const: false,
                 span: SpanMock::new(),
             }),
             // while i < 100:
@@ -121,6 +122,7 @@ fn compile_control_flow() {
                             expr: vecdeq![NodeExprInner::Value(NodeValue::Uint(0))],
                             span: SpanMock::new(),
                         },
+                        is_const: false,
                         span: SpanMock::new(),
                     }),
                     // while j < 10:

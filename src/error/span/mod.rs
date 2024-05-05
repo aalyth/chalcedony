@@ -9,8 +9,13 @@ use std::rc::Rc;
 
 /// The trait, used to define objects which can build code snippets from a given
 /// start and end position in the source code.
+///
+/// The filename is an optional part of the `Spanning` since it could be used in
+/// a context such as a shell, in which case the code does not originate from a
+/// script, but from the user's input.
 pub trait Spanning {
     fn context(&self, start: &Position, end: &Position) -> String;
+    fn filename(&self) -> Option<String>;
 }
 
 /// The structure, denoting a snippet of source code. Used in numerous

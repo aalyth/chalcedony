@@ -13,6 +13,10 @@ impl Spanning for SpanMock {
     fn context(&self, _: &Position, _: &Position) -> String {
         "a mocked value".to_string()
     }
+
+    fn filename(&self) -> Option<String> {
+        None
+    }
 }
 
 impl SpanMock {

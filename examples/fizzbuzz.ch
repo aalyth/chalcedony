@@ -13,15 +13,14 @@ fn fizzbuzz(n: uint) -> str:
 
     return  "" + n
 
-fn __test__() -> void:
+if __name__ == '__main__':
+    let i = 1
+    while i <= 30:
+        print(fizzbuzz(i))
+        i += 1
+
     assert("fizz", fizzbuzz(9))
     assert("buzz", fizzbuzz(10))
     assert("fizzbuzz", fizzbuzz(75))
     assert("47", fizzbuzz(47))
 
-let i = 1
-while i <= 30:
-    print(fizzbuzz(i))
-    i += 1
-
-__test__()

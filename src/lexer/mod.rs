@@ -20,6 +20,7 @@ use crate::utils::Stack;
 use char_reader::CharReader;
 
 use std::collections::VecDeque;
+use std::fs;
 use std::rc::Rc;
 
 /// The structure, used to transform the given script into a series of tokens.
@@ -41,7 +42,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn new(code: &str) -> Self {
+    pub fn new(code: &str, filename: Option<String>) -> Self {
         /* convert tabs to 4 spaces */
         let mut src = str::replace(code, "\t", "    ");
 
@@ -53,12 +54,19 @@ impl Lexer {
         let mut result = Lexer {
             delim_stack: Stack::<Token>::new(),
             reader: CharReader::new(src),
-            spanner: Rc::new(InlineSpanner::new(code)),
+            spanner: Rc::new(InlineSpanner::new(code, filename)),
             prev: None,
         };
 
         result.remove_trailing_space();
         result
+    }
+
+    pub fn from_file(filename: String) -> Option<Self> {
+        let Ok(script) = fs::read_to_string(filename.clone()) else {
+            return None;
+        };
+        Some(Self::new(&script, Some(filename)))
     }
 
     /// Advances the next code chunk - a code chunk is defined as the next line,
@@ -122,7 +130,10 @@ impl Lexer {
         let front = line.front_tok().unwrap().clone();
 
         match front.kind {
-            TokenKind::Keyword(Keyword::Let) | TokenKind::Identifier(_) => result.push_back(line),
+            TokenKind::Keyword(Keyword::Let)
+            | TokenKind::Identifier(_)
+            | TokenKind::Keyword(Keyword::Import)
+            | TokenKind::Keyword(Keyword::Const) => result.push_back(line),
 
             TokenKind::Keyword(Keyword::Fn)
             | TokenKind::Keyword(Keyword::If)

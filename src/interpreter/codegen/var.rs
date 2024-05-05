@@ -27,7 +27,7 @@ impl ToBytecode for NodeVarCall {
 // variables, i.e. it is called only from `NodeProg::VarDef(NodeVarDef)`.
 impl ToBytecode for NodeVarDef {
     fn to_bytecode(mut self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        if interpreter.locals.contains_key(&self.name) {
+        if var_exists(&self.name, interpreter) {
             return Err(
                 CompileError::new(CompileErrorKind::RedefiningVariable, self.span.clone()).into(),
             );

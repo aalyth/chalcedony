@@ -31,10 +31,16 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new(code: &str) -> Parser {
-        let lexer = Lexer::new(code);
+    pub fn new(code: &str) -> Self {
+        let lexer = Lexer::new(code, None);
         let spanner = lexer.spanner();
         Parser { lexer, spanner }
+    }
+
+    pub fn from_file(filename: String) -> Option<Self> {
+        let lexer = Lexer::from_file(filename)?;
+        let spanner = lexer.spanner();
+        Some(Parser { lexer, spanner })
     }
 
     pub fn advance(&mut self) -> Result<NodeProg, ChalError> {

@@ -122,7 +122,7 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                     multiline_statement!(reader, result, errors, NodeWhileLoop, WhileLoop);
                 }
 
-                TokenKind::Keyword(Keyword::Catch) => {
+                TokenKind::Keyword(Keyword::Try) => {
                     multiline_statement!(reader, result, errors, NodeTryCatch, TryCatch);
                 }
 

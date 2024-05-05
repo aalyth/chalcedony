@@ -301,7 +301,7 @@ impl ToBytecode for NodeAssign {
         } else if let Some(func) = interpreter.current_func.clone() {
             /* check whether the variable is an argument */
             if let Some(arg) = func.arg_lookup.get(&self.lhs.name) {
-                annotation = VarAnnotation::new(arg.id, arg.ty.clone());
+                annotation = VarAnnotation::new(arg.id, arg.ty.clone(), false);
                 scope = VarScope::Arg;
 
             /* check whether the variable is a local variable */
@@ -319,6 +319,12 @@ impl ToBytecode for NodeAssign {
         } else {
             /* this is necessary for the proper compilation */
             unreachable!();
+        }
+
+        if annotation.is_const {
+            return Err(
+                CompileError::new(CompileErrorKind::MutatingConstant, self.lhs.span).into(),
+            );
         }
 
         let mut result = Vec::<Bytecode>::new();
@@ -429,7 +435,8 @@ impl ToBytecode for NodeTryCatch {
             .into());
         }
         /* create the variable, holding the exception */
-        let exc_id = interpreter.get_local_id_internal(&self.exception_var.name, Type::Exception);
+        let exc_id =
+            interpreter.get_local_id_internal(&self.exception_var.name, Type::Exception, false);
         let mut catch_body = vec![Bytecode::SetLocal(exc_id)];
         catch_body.extend(self.catch_body.to_bytecode(interpreter)?);
         interpreter.remove_local(&self.exception_var.name);

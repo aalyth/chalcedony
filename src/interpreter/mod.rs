@@ -7,7 +7,7 @@ pub use codegen::ToBytecode;
 
 mod type_eval;
 
-use crate::error::ChalError;
+use crate::error::{err, ChalError};
 use crate::parser::ast::{NodeProg, NodeVarDef};
 use crate::parser::Parser;
 use crate::vm::Cvm;
@@ -37,11 +37,12 @@ impl ArgAnnotation {
 struct VarAnnotation {
     id: usize,
     ty: Type,
+    is_const: bool,
 }
 
 impl VarAnnotation {
-    fn new(id: usize, ty: Type) -> Self {
-        VarAnnotation { id, ty }
+    fn new(id: usize, ty: Type, is_const: bool) -> Self {
+        VarAnnotation { id, ty, is_const }
     }
 }
 
@@ -204,7 +205,7 @@ impl Chalcedony {
             vm.execute(builtin);
         }
 
-        Chalcedony {
+        let mut res = Chalcedony {
             vm,
             globals: AHashMap::new(),
             func_symtable,
@@ -215,15 +216,37 @@ impl Chalcedony {
             locals: AHashMap::default(),
             inside_stmnt: false,
             failed: false,
-        }
+        };
+
+        let script_const_id = res.get_global_id_internal("__name__", Type::Str, true);
+        res.vm.execute(vec![
+            Bytecode::ConstS("__main__".to_string().into()),
+            Bytecode::SetGlobal(script_const_id),
+        ]);
+
+        res
     }
 
     pub fn interpret(&mut self, code: &str) {
         let mut parser = Parser::new(code);
+        self.interpret_internal(&mut parser);
+    }
 
+    pub fn interpret_script(&mut self, filename: String) {
+        let Some(mut parser) = Parser::from_file(filename.clone()) else {
+            eprintln!(
+                "{}",
+                err(&format!("could not open the script `{}`", filename))
+            );
+            std::process::exit(1);
+        };
+        self.interpret_internal(&mut parser);
+    }
+
+    fn interpret_internal(&mut self, parser: &mut Parser) {
         let mut errors = Vec::<ChalError>::new();
-
         self.failed = false;
+
         while !parser.is_empty() {
             match parser.advance() {
                 Ok(node) => {
@@ -292,29 +315,33 @@ impl Chalcedony {
 
     /* retrieves the global variable's id and creates it if it does not exist */
     fn get_global_id(&mut self, node: &NodeVarDef) -> usize {
-        if let Some(var) = self.globals.get(&node.name) {
+        self.get_global_id_internal(&node.name, node.ty, node.is_const)
+    }
+
+    fn get_global_id_internal(&mut self, name: &str, ty: Type, is_const: bool) -> usize {
+        if let Some(var) = self.globals.get(name) {
             return var.id;
         }
         self.globals.insert(
-            node.name.clone(),
-            VarAnnotation::new(self.globals.len(), node.ty),
+            name.to_string(),
+            VarAnnotation::new(self.globals.len(), ty, is_const),
         );
         self.globals.len() - 1
     }
 
     /* retrieves the local variable's id and creates it if it does not exist */
     fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
-        self.get_local_id_internal(&node.name, node.ty)
+        self.get_local_id_internal(&node.name, node.ty, node.is_const)
     }
 
-    fn get_local_id_internal(&mut self, name: &str, ty: Type) -> usize {
+    fn get_local_id_internal(&mut self, name: &str, ty: Type, is_const: bool) -> usize {
         if let Some(var) = self.locals.get(name) {
             return var.id;
         }
 
         let next_id = self.locals.len();
         self.locals
-            .insert(name.to_string(), VarAnnotation::new(next_id, ty));
+            .insert(name.to_string(), VarAnnotation::new(next_id, ty, is_const));
         next_id
     }
 

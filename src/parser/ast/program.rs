@@ -26,6 +26,36 @@ pub enum NodeProg {
     IfStmnt(NodeIfStmnt),
     WhileLoop(NodeWhileLoop),
     TryCatch(NodeTryCatch),
+    Import(NodeImport),
+}
+
+/// The node denoting the import of another script.
+///
+/// Syntax:
+/// `import` \<path\>
+///
+/// where `<path>` is a string literal
+#[derive(Debug)]
+pub struct NodeImport {
+    pub path: String,
+    pub span: Span,
+}
+
+impl NodeImport {
+    pub fn new(mut reader: TokenReader) -> Result<Self, ChalError> {
+        let start = reader.current().start;
+        reader.expect_exact(TokenKind::Keyword(Keyword::Import))?;
+
+        let TokenKind::Str(path) = reader.expect(TokenKind::Str(String::new()))?.kind else {
+            unreachable!()
+        };
+        let end = reader.current().end;
+
+        Ok(NodeImport {
+            path,
+            span: Span::new(start, end, reader.spanner()),
+        })
+    }
 }
 
 /* a wrapper for building a node from a single line statement */
@@ -63,9 +93,13 @@ impl NodeProg {
         let front_tok = front_line.front_tok().unwrap();
 
         match front_tok.kind {
-            TokenKind::Keyword(Keyword::Let) => {
+            TokenKind::Keyword(Keyword::Let) | TokenKind::Keyword(Keyword::Const) => {
                 single_line_stmnt!(VarDef, NodeVarDef, chunk, spanner)
             }
+            TokenKind::Keyword(Keyword::Import) => {
+                single_line_stmnt!(Import, NodeImport, chunk, spanner)
+            }
+
             TokenKind::Keyword(Keyword::Fn) => {
                 multiline_stmnt!(FuncDef, NodeFuncDef, chunk, spanner)
             }

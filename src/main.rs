@@ -10,19 +10,27 @@
 //!            of the operator being between the two operands, it is after the
 //!            operands.
 //!
+//! Optimizations:
+//! [ ] reduce Bytecode instructions size (using unions instead of a big enum)
+//! [ ] remove the `arg_count` field from the `Cvm::CallFrame` struct
+//!
 //! To-do list:
+//! [x] function overloading
 //! [x] exceptions, try-catch blocks, and unsafe functions (ending with `!`)
+//! [x] script importing and the `__main__` constant working
 //! [ ] lists and functions for them (`set!()`, `get!()`, `push()`, `pop!()`,
 //!     `insert!()` and `remove!())
 //! [ ] `for in` loops over lists and iterators
-//! [ ] constants - variables that could not be changed
+//! [x] constants - variables that could not be changed
 //! [ ] classes and methods
 //! [ ] `len()` function for strings and lists
 //! [ ] generic functions
+//! [ ] hashmaps and  functions for them (`get!()`, `set!()`, etc.)
 //! [ ] functions for type casts (such as `ftoi()`, `itou()`, `stoi!()`, etc.)
 //! [ ] `std` functions such as `constains(list, el)`, `sort(list)`, `sin()`,
 //!     `cos()`, `round()`, etc.
 //! [ ] short circuit logic operators
+//! [ ] a Chalcedony `shell` for direct execution of user commands
 
 use chalcedony::interpreter::Chalcedony;
 
@@ -30,7 +38,6 @@ extern crate ahash;
 extern crate itertools;
 
 use std::env;
-use std::fs;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -39,11 +46,6 @@ fn main() {
         std::process::exit(1);
     }
 
-    let Ok(script) = fs::read_to_string(args[1].clone()) else {
-        eprintln!("Error: could not open the passed script");
-        std::process::exit(1);
-    };
-
     let mut interpreter = Chalcedony::new();
-    interpreter.interpret(&script);
+    interpreter.interpret_script(args[1].clone());
 }

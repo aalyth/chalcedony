@@ -13,7 +13,7 @@ mod var;
 
 pub use expr::{NodeExpr, NodeExprInner};
 pub use func::{NodeFuncCall, NodeFuncDef};
-pub use program::NodeProg;
+pub use program::{NodeImport, NodeProg};
 pub use stmnt::{
     NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeIfBranch,
     NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeThrow, NodeTryCatch, NodeWhileLoop,

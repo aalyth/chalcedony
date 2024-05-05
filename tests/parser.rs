@@ -55,6 +55,7 @@ fn parse_var_def() {
             ],
             span: SpanMock::new(),
         },
+        is_const: false,
         span: SpanMock::new(),
     };
 

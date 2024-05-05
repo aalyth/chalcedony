@@ -11,6 +11,7 @@ const ELLIPSIS_LEN: usize = 3;
 /// lookup time.
 pub struct InlineSpanner {
     src: Vec<String>,
+    filename: Option<String>,
 }
 
 impl Spanning for InlineSpanner {
@@ -45,10 +46,14 @@ impl Spanning for InlineSpanner {
 
         result
     }
+
+    fn filename(&self) -> Option<String> {
+        self.filename.clone()
+    }
 }
 
 impl InlineSpanner {
-    pub fn new(src_code: &str) -> InlineSpanner {
+    pub fn new(src_code: &str, filename: Option<String>) -> InlineSpanner {
         let mut result = Vec::<String>::new();
         result.push("".to_string());
         for i in src_code.chars() {
@@ -58,7 +63,10 @@ impl InlineSpanner {
                 _ => result[end_pos].push(i),
             }
         }
-        InlineSpanner { src: result }
+        InlineSpanner {
+            src: result,
+            filename,
+        }
     }
 
     // Returns the context string and the relative index in the result string

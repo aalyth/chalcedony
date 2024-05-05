@@ -23,6 +23,8 @@ pub enum CompileErrorKind {
     TooFewArguments(usize, usize),
     /// `<func-return-type>`
     NonVoidFunctionStmnt(Type),
+    /// `<filename>`
+    ScriptNotFound(String),
     VoidFunctionExpr,
     NoDefaultReturnStmnt,
     MutatingExternalState,
@@ -35,6 +37,7 @@ pub enum CompileErrorKind {
     NestedTryCatch,
     UnsafeCatch,
     ThrowInSafeFunc,
+    MutatingConstant,
 }
 
 pub struct CompileError {
@@ -101,6 +104,11 @@ impl std::fmt::Display for CompileError {
                 display_err(&self.span, f, msg)
             }
 
+            CompileErrorKind::ScriptNotFound(name) => {
+                let msg = &format!("could not find the script `{:?}`", name);
+                display_err(&self.span, f, msg)
+            }
+
             CompileErrorKind::VoidFunctionExpr => display_err(
                 &self.span,
                 f,
@@ -153,6 +161,10 @@ impl std::fmt::Display for CompileError {
 
             CompileErrorKind::ThrowInSafeFunc => {
                 display_err(&self.span, f, "unguarded `throw` statements are only allowed in unsafe functions (ending with `!`)")
+            }
+
+            CompileErrorKind::MutatingConstant => {
+                display_err(&self.span, f, "mutating a constant variable")
             }
         }
     }
