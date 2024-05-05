@@ -12,7 +12,7 @@
 //!
 //! Optimizations:
 //! [ ] reduce Bytecode instructions size (using unions instead of a big enum)
-//! [ ] remove the `arg_count` field from the `Cvm::CallFrame` struct
+//! [x] remove the `arg_count` field from the `Cvm::CallFrame` struct
 //!
 //! To-do list:
 //! [x] function overloading

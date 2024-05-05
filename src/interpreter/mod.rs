@@ -182,7 +182,7 @@ impl Chalcedony {
         let mut builtins = Vec::<Vec<Bytecode>>::new();
         let print = vec![
             Bytecode::CreateFunc(1),
-            Bytecode::GetArg(0),
+            Bytecode::GetLocal(0),
             Bytecode::Print,
             Bytecode::ReturnVoid,
         ];
@@ -193,7 +193,7 @@ impl Chalcedony {
         ];
         let ftoi = vec![
             Bytecode::CreateFunc(1),
-            Bytecode::GetArg(0),
+            Bytecode::GetLocal(0),
             Bytecode::CastI,
             Bytecode::Return,
         ];
@@ -335,11 +335,15 @@ impl Chalcedony {
     }
 
     fn get_local_id_internal(&mut self, name: &str, ty: Type, is_const: bool) -> usize {
+        let mut arg_count = 0;
+        if let Some(func) = &self.current_func {
+            arg_count = func.args.len();
+        }
         if let Some(var) = self.locals.get(name) {
             return var.id;
         }
 
-        let next_id = self.locals.len();
+        let next_id = self.locals.len() + arg_count;
         self.locals
             .insert(name.to_string(), VarAnnotation::new(next_id, ty, is_const));
         next_id

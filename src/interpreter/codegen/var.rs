@@ -10,7 +10,7 @@ impl ToBytecode for NodeVarCall {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         if let Some(func) = interpreter.current_func.clone() {
             if let Some(var) = func.arg_lookup.get(&self.name) {
-                return Ok(vec![Bytecode::GetArg(var.id)]);
+                return Ok(vec![Bytecode::GetLocal(var.id)]);
             }
         }
         if let Some(var) = interpreter.locals.get(&self.name) {

@@ -29,7 +29,6 @@ struct CvmFunctionObject {
 #[derive(Debug, Default)]
 struct CvmCallFrame {
     prev_idx: usize,
-    args_len: usize,
     stack_len: usize,
     catch_idx: Option<usize>,
 
@@ -138,30 +137,12 @@ impl Cvm {
                 next_idx
             }
 
-            // TODO: as described in `src/common/bytecode.rs` these bytecode
-            // instructions could be merged with `Set/GetLocal`
-            Bytecode::SetArg(arg_id) => {
-                let frame = self.call_stack.peek().expect("expected a stack frame");
-                let value = self.stack.pop().expect("expected a value on the stack");
-                *self.stack.get_mut(frame.stack_len + *arg_id).unwrap() = value;
-                next_idx
-            }
-            Bytecode::GetArg(arg_id) => {
-                let frame = self.call_stack.peek().expect("expected a stack frame");
-                let value = self.stack.get(frame.stack_len + arg_id).unwrap().clone();
-                self.stack.push(value);
-                next_idx
-            }
-
             Bytecode::SetLocal(mut var_id) => {
-                let value = self.stack.pop().expect("expected a value on the stack");
-
-                // since local variables can exist outside of a function scope,
-                // a check is required whether there is a call frame
                 if let Some(frame) = self.call_stack.peek() {
-                    var_id += frame.stack_len + frame.args_len;
+                    var_id += frame.stack_len;
                 }
 
+                let value = self.stack.pop().expect("expected a value on the stack");
                 if let Some(var) = self.stack.get_mut(var_id) {
                     *var = value;
                 } else {
@@ -174,7 +155,7 @@ impl Cvm {
             }
             Bytecode::GetLocal(mut var_id) => {
                 if let Some(frame) = self.call_stack.peek() {
-                    var_id += frame.stack_len + frame.args_len;
+                    var_id += frame.stack_len;
                 }
                 let value = self.stack.get(var_id).unwrap().clone();
                 self.stack.push(value);
@@ -221,7 +202,6 @@ impl Cvm {
                 let frame = CvmCallFrame {
                     prev_idx: next_idx,
                     stack_len: self.stack.len() - func_obj.arg_count,
-                    args_len: func_obj.arg_count,
                     code: func_obj.code.clone(),
                     catch_idx: self.catch_idx,
                 };

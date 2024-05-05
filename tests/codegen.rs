@@ -439,16 +439,16 @@ fn compile_function() {
         // fn fib(n: int) -> uint:
         Bytecode::CreateFunc(1),
         // if n > 2:
-        Bytecode::GetArg(0),
+        Bytecode::GetLocal(0),
         Bytecode::ConstU(2),
         Bytecode::Gt,
         Bytecode::If(11),
         // return fib(n-2) + fib(n-1)
-        Bytecode::GetArg(0),
+        Bytecode::GetLocal(0),
         Bytecode::ConstU(2),
         Bytecode::Sub,
         Bytecode::CallFunc(fib_id),
-        Bytecode::GetArg(0),
+        Bytecode::GetLocal(0),
         Bytecode::ConstU(1),
         Bytecode::Sub,
         Bytecode::CallFunc(fib_id),

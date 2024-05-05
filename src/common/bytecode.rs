@@ -60,32 +60,15 @@ pub enum Bytecode {
     /// Sets/gets variables from the CVM's globals hashmap.
     SetGlobal(usize),
     GetGlobal(usize),
-    /// Sets/gets variables at the position:
-    /// ```
-    /// cvm.call_stack.top().unwrap().stack_length + idx
-    /// ```
-    SetArg(usize),
-    GetArg(usize),
-    /// Sets/gets variables at the position:
-    /// ```
-    /// let top_frame = cvm.call_stack.top().unwrap();
-    /// top_frame.stack_length + top_frame.args_len + idx
-    /// ```
-    ///
-    /// TODO: these bytecode instructions could be merged with the argument ones
-    /// where the local variables' ids are tailored to the nubmer of function
-    /// arguments.
+    /// Sets/gets variables at the position on the stack.
     SetLocal(usize),
     GetLocal(usize),
 
     /// Creates a new function, whose body is the remaining of the passed
     /// bytecode instructions. The argument describes the number of arguments
     /// the function has.
-    ///
-    /// TODO: implementing the optimization for local variables' ids could
-    /// remove the need to store the number of arguments the function takes.
     CreateFunc(usize),
-    /// Calls the function with the given index. The function's arguments must
+    /// Calls the function with the given id. The function's arguments must
     /// already be present at the top N positions on the stack.
     CallFunc(usize),
 

@@ -304,7 +304,7 @@ impl ToBytecode for NodeAssign {
                 annotation = VarAnnotation::new(arg.id, arg.ty.clone(), false);
                 scope = VarScope::Arg;
 
-            /* check whether the variable is a local variable */
+            /* the variable is global, but is mutated inside a statement */
             } else {
                 return Err(CompileError::new(
                     CompileErrorKind::MutatingExternalState,
@@ -355,8 +355,7 @@ impl ToBytecode for NodeAssign {
         Type::verify(annotation.ty, rhs_ty, &mut result, self.rhs.span)?;
 
         match scope {
-            VarScope::Arg => result.push(Bytecode::SetArg(annotation.id)),
-            VarScope::Local => result.push(Bytecode::SetLocal(annotation.id)),
+            VarScope::Arg | VarScope::Local => result.push(Bytecode::SetLocal(annotation.id)),
             VarScope::Global => result.push(Bytecode::SetGlobal(annotation.id)),
         }
 
@@ -438,6 +437,7 @@ impl ToBytecode for NodeTryCatch {
         let exc_id =
             interpreter.get_local_id_internal(&self.exception_var.name, Type::Exception, false);
         let mut catch_body = vec![Bytecode::SetLocal(exc_id)];
+
         catch_body.extend(self.catch_body.to_bytecode(interpreter)?);
         interpreter.remove_local(&self.exception_var.name);
 
