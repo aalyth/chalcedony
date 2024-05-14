@@ -12,7 +12,7 @@ mod builtins;
 mod object;
 
 use builtins::{add, and, assert, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
-use object::CvmObject;
+use object::{CvmObject, Gc};
 
 use crate::common::Bytecode;
 use crate::error::unhandled_exception;
@@ -94,6 +94,13 @@ impl Cvm {
                 next_idx
             }
             Bytecode::ConstB(val) => push_constant!(self, Bool, val, next_idx),
+            Bytecode::ConstObj(el_count) => {
+                self.stack.push(CvmObject::Instance(Gc::new(vec![
+                    CvmObject::default();
+                    el_count
+                ])));
+                next_idx
+            }
 
             Bytecode::ThrowException => {
                 let obj = self.stack.pop().expect("expected a value on the stack");
@@ -163,6 +170,53 @@ impl Cvm {
                 }
                 let value = self.stack.get(var_id).unwrap().clone();
                 self.stack.push(value);
+                next_idx
+            }
+
+            Bytecode::GetAttr(attr_id) => {
+                let CvmObject::Instance(obj) =
+                    self.stack.pop().expect("expected a value on the stack")
+                else {
+                    panic!("calling `GetAttr` on a non-object")
+                };
+
+                let obj = obj.get_ref();
+                self.stack
+                    .push(obj.borrow().data.get(attr_id).unwrap().clone());
+
+                next_idx
+            }
+
+            Bytecode::SetAttr(attr_id) => {
+                let val = self.stack.pop().expect("expected a value on the stack");
+                let CvmObject::Instance(dest_obj) =
+                    self.stack.top().expect("expected a value on the stack")
+                else {
+                    panic!("calling `SetAttr` on a non-object");
+                };
+
+                let dest_obj = dest_obj.get_ref();
+                let mut dest_obj = dest_obj.borrow_mut();
+
+                /* dest_obj = val_obj */
+                if let CvmObject::Instance(val_obj) = val {
+                    let val_obj = val_obj.get_ref();
+
+                    // The `depth > 0` check is so if an inline object is set as
+                    // an object's attribute, the subobject is not deallocated
+                    // right after the parent object's initialization.
+                    if dest_obj.depth <= val_obj.borrow().depth && dest_obj.depth > 0 {
+                        *dest_obj.data.get_mut(attr_id).unwrap() =
+                            CvmObject::Instance(Gc::Weak(Rc::downgrade(&val_obj)));
+                    } else {
+                        *dest_obj.data.get_mut(attr_id).unwrap() =
+                            CvmObject::Instance(Gc::Strong(val_obj.clone()));
+                        dest_obj.depth = val_obj.borrow().depth;
+                    }
+                } else {
+                    *dest_obj.data.get_mut(attr_id).unwrap() = val;
+                }
+
                 next_idx
             }
 

@@ -16,7 +16,7 @@ pub struct NodeWhileLoop {
 
 impl NodeWhileLoop {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
-        let mut header = reader.advance_reader()?;
+        let mut header = reader.advance_reader();
         header.expect_exact(TokenKind::Keyword(Keyword::While))?;
 
         let cond_raw = header.advance_until(|tk| {

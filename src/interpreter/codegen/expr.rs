@@ -1,6 +1,6 @@
 use super::ToBytecode;
 
-use crate::error::ChalError;
+use crate::error::{ChalError, CompileError, CompileErrorKind};
 use crate::interpreter::Chalcedony;
 use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue};
 
@@ -60,9 +60,72 @@ impl ToBytecode for NodeExprInner {
                 NodeValue::Bool(val) => Ok(vec![Bytecode::ConstB(val)]),
             },
 
-            NodeExprInner::VarCall(node) => node.to_bytecode(interpreter),
+            NodeExprInner::Resolution(node) => node.to_bytecode(interpreter),
 
-            NodeExprInner::FuncCall(node) => node.to_bytecode(interpreter),
+            NodeExprInner::InlineClass(mut node) => {
+                // TODO: try to remove the clone
+                let Some(class) = interpreter.namespaces.get(&node.class).cloned() else {
+                    return Err(CompileError::new(
+                        CompileErrorKind::UnknownClass(node.class),
+                        node.span,
+                    )
+                    .into());
+                };
+
+                if node.members.len() < class.members.len() {
+                    let mut missing_members = Vec::<String>::new();
+                    for member in class.members.into_keys() {
+                        if !node.members.contains_key(&member) {
+                            missing_members.push(member);
+                        }
+                    }
+
+                    return Err(CompileError::new(
+                        CompileErrorKind::MissingMembers(missing_members),
+                        node.span,
+                    )
+                    .into());
+                }
+
+                if node.members.len() > class.members.len() {
+                    for member in class.members.keys() {
+                        node.members.remove(member);
+                    }
+                    let undefined_members = node.members.into_keys().collect();
+                    return Err(CompileError::new(
+                        CompileErrorKind::UndefinedMembers(undefined_members),
+                        node.span,
+                    )
+                    .into());
+                }
+
+                let mut result = Vec::<Bytecode>::new();
+                result.push(Bytecode::ConstObj(node.members.len()));
+
+                for (member, (expr, span)) in node.members.into_iter() {
+                    let Some(annotation) = class.members.get(&member) else {
+                        return Err(CompileError::new(
+                            CompileErrorKind::UnknownMember(member.clone()),
+                            node.span,
+                        )
+                        .into());
+                    };
+
+                    let expr_ty = expr.as_type(interpreter)?;
+                    if annotation.ty != expr_ty {
+                        return Err(CompileError::new(
+                            CompileErrorKind::InvalidType(annotation.ty.clone(), expr_ty),
+                            span.clone(),
+                        )
+                        .into());
+                    }
+
+                    result.extend(expr.to_bytecode(interpreter)?);
+                    result.push(Bytecode::SetAttr(annotation.id));
+                }
+
+                Ok(result)
+            }
         }
     }
 }

@@ -80,11 +80,7 @@ impl LineReader {
             return Ok(LineReader::new(res, self.spanner.clone()));
         };
 
-        let Some(front_tok) = front_ln.front_tok() else {
-            panic!("LineReader::advance_chunk(): parsed an empty line")
-        };
-
-        match front_tok.kind {
+        match front_ln.peek_kind().expect("empty line") {
             TokenKind::Keyword(Keyword::If) => res.extend(self.advance_if_branches(indent)?),
             TokenKind::Keyword(Keyword::Try) => {
                 /* SAFETY: there is at least 1 line in the result */
@@ -99,15 +95,12 @@ impl LineReader {
     }
 
     /// Advances the next line and builts a `TokenReader` over it.
-    pub fn advance_reader(&mut self) -> Result<TokenReader, ChalError> {
+    pub fn advance_reader(&mut self) -> TokenReader {
         let Some(next) = self.src.pop_front() else {
             panic!("LineReader::advance_reader(): advancing an empty reader");
         };
 
-        Ok(TokenReader::new(
-            next.into(),
-            Span::from(self.spanner.clone()),
-        ))
+        TokenReader::new(next.into(), Span::from(self.spanner.clone()))
     }
 
     fn advance_if_branches(&mut self, indent: u64) -> Result<VecDeque<Line>, ChalError> {

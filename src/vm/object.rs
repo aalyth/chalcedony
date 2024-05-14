@@ -1,6 +1,74 @@
 use crate::common::Type;
 use crate::utils::PtrString;
 
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
+
+#[derive(Debug)]
+pub struct GcInner<Data> {
+    pub data: Data,
+    pub depth: usize,
+}
+
+impl<Data> GcInner<Data> {
+    pub fn new(data: Data) -> Self {
+        GcInner { data, depth: 0 }
+    }
+}
+
+// This implementation of an RC-based Garbage Collection could be optimized a
+// bit, reimplementing a custom modified version of Reference Counted (RC)
+// pointers, but the benefits of such optimization are in a matter of bytes.
+#[derive(Debug)]
+pub enum Gc<Data> {
+    Strong(Rc<RefCell<GcInner<Data>>>),
+    Weak(Weak<RefCell<GcInner<Data>>>),
+}
+
+impl<Data> Gc<Data> {
+    pub fn new(data: Data) -> Self {
+        Gc::Strong(Rc::new(RefCell::new(GcInner::new(data))))
+    }
+
+    pub fn get_ref(&self) -> Rc<RefCell<GcInner<Data>>> {
+        match self {
+            Gc::Strong(obj_ref) => obj_ref.clone(),
+            Gc::Weak(weak_ref) => weak_ref
+                .upgrade()
+                .expect("weak ref to a deallocated object"),
+        }
+    }
+}
+
+impl<Data> Clone for Gc<Data> {
+    fn clone(&self) -> Self {
+        let obj = self.get_ref();
+        obj.borrow_mut().depth += 1;
+        Gc::Strong(obj.clone())
+    }
+}
+
+impl<Data> Drop for Gc<Data> {
+    fn drop(&mut self) {
+        // This warning is not relevant to the current implementation. Using
+        // value references instead of actual values still achieves the expected
+        // result - decrementing the RC's strong reference count.
+        #[allow(dropping_references)]
+        match self {
+            Gc::Strong(obj) => {
+                obj.borrow_mut().depth -= 1;
+                drop(obj)
+            }
+            Gc::Weak(weak) => {
+                if let Some(obj) = weak.upgrade() {
+                    obj.borrow_mut().depth -= 1;
+                }
+                drop(weak)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum CvmObject {
     Int(i64),
@@ -9,6 +77,8 @@ pub enum CvmObject {
     Str(PtrString),
     Bool(bool),
     Exception(PtrString),
+    /* an instance of a class */
+    Instance(Gc<Vec<CvmObject>>),
 }
 
 impl CvmObject {
@@ -21,6 +91,7 @@ impl CvmObject {
             CvmObject::Str(_) => Type::Str,
             CvmObject::Bool(_) => Type::Bool,
             CvmObject::Exception(_) => Type::Exception,
+            CvmObject::Instance(_) => Type::Custom(Box::new("Object".to_string())),
         }
     }
 }
@@ -40,6 +111,16 @@ impl std::fmt::Display for CvmObject {
             CvmObject::Str(val) => write!(f, "{}", val),
             CvmObject::Bool(val) => write!(f, "{}", val),
             CvmObject::Exception(val) => write!(f, "{}", val),
+            CvmObject::Instance(obj) => {
+                let obj = obj.get_ref();
+                let obj = obj.borrow();
+                write!(f, "{{")?;
+                for val in &*obj.data {
+                    write!(f, "{}, ", val)?;
+                }
+                /* `\x08` is the same as `\b` */
+                write!(f, "\x08\x08}}")
+            }
         }
     }
 }

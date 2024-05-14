@@ -17,6 +17,9 @@ pub enum Bytecode {
     ConstS(PtrString),
     /// Pushes `CvmObject::Bool()` on the top of the stack.
     ConstB(bool),
+    /// Pushes `CvmObject::Object()` on the top of the stack with preallocated
+    /// `N` elements inside;
+    ConstObj(usize),
     /// Converts the top of the stack from a `CvmObject::Str()` into a
     /// `CvmObject::Exception()`.
     ThrowException,
@@ -63,6 +66,9 @@ pub enum Bytecode {
     /// Sets/gets variables at the position on the stack.
     SetLocal(usize),
     GetLocal(usize),
+    /// Sets/gets the attribute with `id` at from the top of the stack.
+    SetAttr(usize),
+    GetAttr(usize),
 
     /// Creates a new function, whose body is the remaining of the passed
     /// bytecode instructions. The argument describes the number of arguments

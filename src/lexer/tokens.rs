@@ -19,6 +19,7 @@ pub enum Keyword {
     Throw,
     Import,
     Const,
+    Class,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -26,6 +27,7 @@ pub enum Special {
     Comma,         // ,
     Dot,           // .
     Colon,         // :
+    Resolution,    // ::
     SemiColon,     // ;
     Newline,       // \n
     RightArrow,    // ->
@@ -92,7 +94,7 @@ impl Delimiter {
 pub fn is_special(c: &char) -> bool {
     match *c {
         '(' | ')' | '[' | ']' | '{' | '}' | ':' | ';' | '+' | '-' | '*' | '/' | '%' | '=' | '<'
-        | '>' | '!' | ',' | '&' | '|' => true,
+        | '>' | '!' | ',' | '&' | '|' | '.' => true,
         _ => false,
     }
 }
@@ -156,6 +158,7 @@ impl TokenKind {
             "throw" => return Ok(TokenKind::Keyword(Keyword::Throw)),
             "import" => return Ok(TokenKind::Keyword(Keyword::Import)),
             "const" => return Ok(TokenKind::Keyword(Keyword::Const)),
+            "class" => return Ok(TokenKind::Keyword(Keyword::Class)),
 
             /* Delimiters */
             "(" => return Ok(TokenKind::Delimiter(Delimiter::OpenPar)),
@@ -169,6 +172,7 @@ impl TokenKind {
             "," => return Ok(TokenKind::Special(Special::Comma)),
             "." => return Ok(TokenKind::Special(Special::Dot)),
             ":" => return Ok(TokenKind::Special(Special::Colon)),
+            "::" => return Ok(TokenKind::Special(Special::Resolution)),
             ";" => return Ok(TokenKind::Special(Special::SemiColon)),
             "->" => return Ok(TokenKind::Special(Special::RightArrow)),
             "=>" => return Ok(TokenKind::Special(Special::BigRightArrow)),
