@@ -22,12 +22,18 @@ pub enum Bytecode {
     ThrowException,
 
     /// Converts the top of the stack to a `CvmObjec::Int()`. Used to impicitly
-    /// convert types of `Uint` to `Int`.
+    /// convert types of `Uint` to `Int` and for the builtins `utoi()`,
+    /// `ftoi()`.
     CastI,
 
     /// Converts the top of the stack to a `CvmObjec::Float()`. Used to
-    /// impicitly convert types of `Uint` and `Int` to `Float`.
+    /// impicitly convert types of `Uint` and `Int` to `Float` and for the
+    /// builtins `itof()`, `utof()`.
     CastF,
+
+    // Converts the top of the stack to a `CvmObject::Uint()`. Used for the
+    // builtins `itou()` and `ftou()`.
+    CastU,
 
     /// Pops the top 2 operators off the stack and performs the corresponding
     /// binary operation. The result is then pushed back on the stack.

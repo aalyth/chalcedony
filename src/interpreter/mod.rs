@@ -15,13 +15,14 @@ use crate::vm::Cvm;
 use crate::common::{Bytecode, Type};
 
 use std::iter::zip;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 /* ahash is the fastest hashing algorithm in terms of hashing strings */
 use ahash::AHashMap;
 
 #[derive(Debug, Clone)]
-struct ArgAnnotation {
+pub struct ArgAnnotation {
     id: usize,
     ty: Type,
     name: String,
@@ -71,6 +72,13 @@ impl FuncAnnotation {
     }
 }
 
+pub struct BuiltinAnnotation {
+    pub args: Vec<ArgAnnotation>,
+    pub ret_type: Type,
+    pub is_unsafe: bool,
+    pub bytecode: Vec<Bytecode>,
+}
+
 #[derive(Default, Clone, Debug)]
 pub struct LoopScope {
     current_length: usize,
@@ -85,6 +93,22 @@ pub enum SafetyScope {
     Catch,
 }
 
+#[derive(Default, Clone, Debug)]
+pub enum ScriptPath {
+    #[default]
+    Main,
+    Import(PathBuf),
+}
+
+impl ScriptPath {
+    fn as_string(&self) -> String {
+        match self {
+            Self::Main => "__main__".to_string(),
+            Self::Import(path) => path.to_str().unwrap().to_string(),
+        }
+    }
+}
+
 /// The structure representing the interpreter, used to compile the received
 /// `AST` into a stream of `Bytecode` instructions and respectively interpret
 /// the instructions via the Chalcedony Virtual Machine (CVM).
@@ -93,8 +117,13 @@ pub struct Chalcedony {
     // The virtual machine used to execute the compiled bytecode instructions.
     vm: Cvm,
 
+    current_path: ScriptPath,
+
     // Used to keep track of the globally declared variables.
     globals: AHashMap<String, VarAnnotation>,
+
+    // A lookup for the builtin pre-compiled functions.
+    builtins: AHashMap<String, Vec<BuiltinAnnotation>>,
 
     // Used to keep track of the functions inside the program.
     func_symtable: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
@@ -142,74 +171,13 @@ impl InterpreterVisitor for Chalcedony {
 
 impl Chalcedony {
     pub fn new() -> Self {
-        let print_args = vec![ArgAnnotation::new(0, "output".to_string(), Type::Any)];
-
-        let assert_args = vec![
-            ArgAnnotation::new(0, "exp".to_string(), Type::Any),
-            ArgAnnotation::new(1, "recv".to_string(), Type::Any),
-        ];
-
-        let ftoi_args = vec![ArgAnnotation::new(0, "val".to_string(), Type::Float)];
-
-        let mut func_symtable = AHashMap::new();
-        func_symtable.insert(
-            "print".to_string(),
-            vec![Rc::new(FuncAnnotation::new(
-                0,
-                print_args,
-                Type::Void,
-                false,
-            ))],
-        );
-
-        func_symtable.insert(
-            "assert".to_string(),
-            vec![Rc::new(FuncAnnotation::new(
-                1,
-                assert_args,
-                Type::Void,
-                false,
-            ))],
-        );
-
-        func_symtable.insert(
-            "ftoi".to_string(),
-            vec![Rc::new(FuncAnnotation::new(2, ftoi_args, Type::Int, false))],
-        );
-
-        let mut vm = Cvm::new();
-
-        let mut builtins = Vec::<Vec<Bytecode>>::new();
-        let print = vec![
-            Bytecode::CreateFunc(1),
-            Bytecode::GetLocal(0),
-            Bytecode::Print,
-            Bytecode::ReturnVoid,
-        ];
-        let assert = vec![
-            Bytecode::CreateFunc(2),
-            Bytecode::Assert,
-            Bytecode::ReturnVoid,
-        ];
-        let ftoi = vec![
-            Bytecode::CreateFunc(1),
-            Bytecode::GetLocal(0),
-            Bytecode::CastI,
-            Bytecode::Return,
-        ];
-
-        builtins.push(print);
-        builtins.push(assert);
-        builtins.push(ftoi);
-        for builtin in builtins {
-            vm.execute(builtin);
-        }
-
         let mut res = Chalcedony {
-            vm,
+            vm: Cvm::new(),
+            current_path: ScriptPath::Main,
             globals: AHashMap::new(),
-            func_symtable,
-            func_id_counter: 3,
+            builtins: get_builtins(),
+            func_symtable: AHashMap::new(),
+            func_id_counter: 0,
             current_func: None,
             safety_scope: SafetyScope::Normal,
             current_loop: None,
@@ -300,6 +268,18 @@ impl Chalcedony {
         }
     }
 
+    fn get_builtin(&self, name: &str, arg_types: &Vec<Type>) -> Option<&BuiltinAnnotation> {
+        let bucket = self.builtins.get(name)?;
+        /* inlining the clippy suggestion does not help due to the Rc inside */
+        #[allow(clippy::manual_find)]
+        for annotation in bucket {
+            if valid_annotation(&annotation.args, arg_types) {
+                return Some(annotation);
+            }
+        }
+        None
+    }
+
     /* receives the proper overloaded function annotation from the passed argument types */
     fn get_function(&self, name: &str, arg_types: &Vec<Type>) -> Option<&FuncAnnotation> {
         let func_bucket = self.func_symtable.get(name)?;
@@ -367,4 +347,81 @@ fn valid_annotation(args: &Vec<ArgAnnotation>, received: &Vec<Type>) -> bool {
     }
 
     true
+}
+
+macro_rules! builtin_map {
+    ($($key:expr => $value:expr),* $(,)?) => {{
+        AHashMap::from([$(($key.to_string(), $value),)*])
+    }};
+}
+
+// Used to keep the code for initializing the interpreter clean.
+#[inline(always)]
+fn get_builtins() -> AHashMap<String, Vec<BuiltinAnnotation>> {
+    let print = BuiltinAnnotation {
+        args: vec![ArgAnnotation::new(0, "val".to_string(), Type::Any)],
+        ret_type: Type::Void,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::Print],
+    };
+
+    let assert = BuiltinAnnotation {
+        args: vec![
+            ArgAnnotation::new(0, "exp".to_string(), Type::Any),
+            ArgAnnotation::new(1, "recv".to_string(), Type::Any),
+        ],
+        ret_type: Type::Void,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::Assert],
+    };
+
+    let utoi = BuiltinAnnotation {
+        args: vec![ArgAnnotation::new(0, "val".to_string(), Type::Uint)],
+        ret_type: Type::Int,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::CastI],
+    };
+    let ftoi = BuiltinAnnotation {
+        args: vec![ArgAnnotation::new(0, "val".to_string(), Type::Float)],
+        ret_type: Type::Int,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::CastI],
+    };
+
+    let itou = BuiltinAnnotation {
+        args: vec![ArgAnnotation::new(0, "val".to_string(), Type::Int)],
+        ret_type: Type::Uint,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::CastU],
+    };
+    let ftou = BuiltinAnnotation {
+        args: vec![ArgAnnotation::new(0, "val".to_string(), Type::Float)],
+        ret_type: Type::Uint,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::CastU],
+    };
+
+    let itof = BuiltinAnnotation {
+        args: vec![ArgAnnotation::new(0, "val".to_string(), Type::Int)],
+        ret_type: Type::Float,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::CastF],
+    };
+    let utof = BuiltinAnnotation {
+        args: vec![ArgAnnotation::new(0, "val".to_string(), Type::Uint)],
+        ret_type: Type::Float,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::CastF],
+    };
+
+    builtin_map!(
+    "print" => vec![print],
+    "assert" => vec![assert],
+    "utoi" => vec![utoi],
+    "ftoi" => vec![ftoi],
+    "itou" => vec![itou],
+    "ftou" => vec![ftou],
+    "itof" => vec![itof],
+    "utof" => vec![utof],
+    )
 }

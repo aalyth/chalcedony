@@ -1,7 +1,9 @@
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError, CompileErrorKind};
-use crate::interpreter::{ArgAnnotation, Chalcedony, SafetyScope};
+use crate::interpreter::{
+    ArgAnnotation, BuiltinAnnotation, Chalcedony, FuncAnnotation, SafetyScope,
+};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 
 use crate::common::{Bytecode, Type};
@@ -12,7 +14,9 @@ use ahash::AHashMap;
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let arg_types: Vec<Type> = self.args.iter().map(|arg| arg.ty).collect();
-        if interpreter.get_function(&self.name, &arg_types).is_some() {
+        if interpreter.get_function(&self.name, &arg_types).is_some()
+            || interpreter.get_builtin(&self.name, &arg_types).is_some()
+        {
             return Err(CompileError::new(CompileErrorKind::OverwrittenFunction, self.span).into());
         }
 
@@ -79,6 +83,33 @@ impl ToBytecode for NodeFuncDef {
     }
 }
 
+#[derive(Default)]
+struct RawFuncAnnotation {
+    args: Vec<ArgAnnotation>,
+    ret_type: Type,
+    bytecode: Vec<Bytecode>,
+}
+
+impl From<&BuiltinAnnotation> for RawFuncAnnotation {
+    fn from(value: &BuiltinAnnotation) -> Self {
+        RawFuncAnnotation {
+            args: value.args.clone(),
+            ret_type: value.ret_type,
+            bytecode: value.bytecode.clone(),
+        }
+    }
+}
+
+impl From<&FuncAnnotation> for RawFuncAnnotation {
+    fn from(value: &FuncAnnotation) -> Self {
+        RawFuncAnnotation {
+            args: value.args.clone(),
+            ret_type: value.ret_type,
+            bytecode: vec![Bytecode::CallFunc(value.id)],
+        }
+    }
+}
+
 impl ToBytecode for NodeFuncCall {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let arg_types: Result<Vec<Type>, ChalError> = self
@@ -91,30 +122,24 @@ impl ToBytecode for NodeFuncCall {
             Err(err) => return Err(err),
         };
 
-        let Some(annotation) = interpreter.get_function(&self.name, &arg_types).cloned() else {
+        let mut annotation = RawFuncAnnotation::default();
+
+        if let Some(ann) = interpreter.get_builtin(&self.name, &arg_types) {
+            annotation = ann.into();
+        }
+
+        if let Some(ann) = interpreter.get_function(&self.name, &arg_types) {
+            annotation = ann.into();
+
+        /* if the annotation is not of a builtin*/
+        } else if annotation.bytecode.is_empty() {
             return Err(
                 CompileError::new(CompileErrorKind::UnknownFunction(self.name), self.span).into(),
             );
-        };
+        }
 
         if self.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Catch {
             return Err(CompileError::new(CompileErrorKind::UnsafeCatch, self.span).into());
-        }
-
-        /* check for mismatching number of arguments */
-        if annotation.args.len() != self.args.len() {
-            if annotation.args.len() < self.args.len() {
-                return Err(CompileError::new(
-                    CompileErrorKind::TooManyArguments(annotation.args.len(), self.args.len()),
-                    self.span,
-                )
-                .into());
-            }
-            return Err(CompileError::new(
-                CompileErrorKind::TooFewArguments(annotation.args.len(), self.args.len()),
-                self.span,
-            )
-            .into());
         }
 
         if annotation.ret_type != Type::Void && interpreter.inside_stmnt {
@@ -127,13 +152,14 @@ impl ToBytecode for NodeFuncCall {
 
         /* push on the stack each of the argument's expression value */
         let mut result = Vec::<Bytecode>::new();
-        for (arg, arg_ty, exp) in izip!(self.args, arg_types, annotation.args.clone()) {
+        for (arg, arg_ty, exp) in izip!(self.args, arg_types, annotation.args) {
             result.extend(arg.clone().to_bytecode(interpreter)?);
+            /* used for the implicit type casts */
             Type::verify(exp.ty, arg_ty, &mut result, arg.span.clone())?;
         }
 
         /* complete the function call instruction */
-        result.push(Bytecode::CallFunc(annotation.id));
+        result.extend(annotation.bytecode);
 
         Ok(result)
     }

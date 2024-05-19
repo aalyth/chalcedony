@@ -323,7 +323,7 @@ fn compile_if_branching() {
         Bytecode::If(3),
         // print("one")
         Bytecode::ConstS("one".to_string().into()),
-        Bytecode::CallFunc(0), /* print is a builtin function with id 0 */
+        Bytecode::Print,
         Bytecode::Jmp(10),
         // elif 3 > 4:
         Bytecode::ConstU(3),
@@ -332,12 +332,12 @@ fn compile_if_branching() {
         Bytecode::If(3),
         // print("two")
         Bytecode::ConstS("two".to_string().into()),
-        Bytecode::CallFunc(0), /* print */
+        Bytecode::Print,
         Bytecode::Jmp(3),
         // else:
         //     print("default")
         Bytecode::ConstS("default".to_string().into()),
-        Bytecode::CallFunc(0), /* print*/
+        Bytecode::Print,
         Bytecode::Nop,
     ];
 
@@ -528,7 +528,7 @@ fn compile_try_catch() {
         Bytecode::ConstU(21),
         Bytecode::ConstU(2),
         Bytecode::Mul,
-        Bytecode::CallFunc(0),
+        Bytecode::Print,
         // throw "unexpected error"
         Bytecode::ConstS("unexpected error".to_string().into()),
         Bytecode::ThrowException,
@@ -539,7 +539,7 @@ fn compile_try_catch() {
         Bytecode::ConstS("Received the exception: ".to_string().into()),
         Bytecode::GetLocal(0),
         Bytecode::Add,
-        Bytecode::CallFunc(0),
+        Bytecode::Print,
     ];
 
     let recv = code

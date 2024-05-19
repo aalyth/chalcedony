@@ -105,20 +105,28 @@ impl Cvm {
             }
 
             Bytecode::CastI => {
-                let obj = self.stack.pop().expect("expected a value on the stack");
-                let CvmObject::Uint(val) = obj else {
-                    panic!("casting non-uint to int")
+                match self.stack.pop().expect("expected a value on the stack") {
+                    CvmObject::Uint(val) => self.stack.push(CvmObject::Int(val as i64)),
+                    CvmObject::Float(val) => self.stack.push(CvmObject::Int(val as i64)),
+                    _ => panic!("invalid cast to Int"),
                 };
-                self.stack.push(CvmObject::Int(val as i64));
                 next_idx
             }
 
             Bytecode::CastF => {
-                let obj = self.stack.pop().expect("expected a value on the stack");
-                match obj {
+                match self.stack.pop().expect("expected a value on the stack") {
                     CvmObject::Int(val) => self.stack.push(CvmObject::Float(val as f64)),
                     CvmObject::Uint(val) => self.stack.push(CvmObject::Float(val as f64)),
-                    _ => panic!("casting non-uint or int to float"),
+                    _ => panic!("invalid cast to Float"),
+                }
+                next_idx
+            }
+
+            Bytecode::CastU => {
+                match self.stack.pop().expect("expected a value on the stack") {
+                    CvmObject::Int(val) => self.stack.push(CvmObject::Uint(val as u64)),
+                    CvmObject::Float(val) => self.stack.push(CvmObject::Uint(val as u64)),
+                    _ => panic!("invalid cast to Uint"),
                 }
                 next_idx
             }

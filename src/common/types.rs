@@ -3,7 +3,7 @@ use crate::error::{span::Span, ChalError, CompileError, CompileErrorKind};
 
 /// The structure, representing a type inside the interpreter. Used to assert
 /// the type strictness of the script before it's execution.
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy, Default)]
 pub enum Type {
     Int,
     Uint,
@@ -11,6 +11,7 @@ pub enum Type {
     Str,
     Bool,
     Any,
+    #[default]
     Void,
     Exception,
 }

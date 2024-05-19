@@ -10,9 +10,9 @@ use crate::common::{Bytecode, Type};
 use crate::error::{ChalError, CompileError, CompileErrorKind};
 use crate::parser::ast::{NodeImport, NodeProg};
 
-use super::Chalcedony;
+use super::{Chalcedony, ScriptPath};
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub trait ToBytecode {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError>;
@@ -35,21 +35,35 @@ impl ToBytecode for NodeProg {
 
 impl ToBytecode for NodeImport {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        if !Path::new(&self.path).exists() {
-            return Err(
-                CompileError::new(CompileErrorKind::ScriptNotFound(self.path), self.span).into(),
-            );
+        let script_path = match &interpreter.current_path {
+            ScriptPath::Main => PathBuf::from(self.path.clone()),
+            ScriptPath::Import(parent) => parent.join(&self.path),
+        };
+
+        if !script_path.exists() {
+            return Err(CompileError::new(
+                CompileErrorKind::ScriptNotFound(script_path.to_str().unwrap().to_string()),
+                self.span,
+            )
+            .into());
         }
+
+        let parent_path = interpreter.current_path.clone();
+        interpreter.current_path =
+            ScriptPath::Import(script_path.parent().unwrap_or(Path::new("")).into());
+
         let script_const_id = interpreter.get_global_id_internal("__name__", Type::Str, true);
         interpreter.vm.execute(vec![
-            Bytecode::ConstS(self.path.clone().into()),
+            Bytecode::ConstS(interpreter.current_path.as_string().into()),
             Bytecode::SetGlobal(script_const_id),
         ]);
 
         interpreter.interpret_script(self.path);
 
+        interpreter.current_path = parent_path;
+
         interpreter.vm.execute(vec![
-            Bytecode::ConstS("__main__".to_string().into()),
+            Bytecode::ConstS(interpreter.current_path.as_string().into()),
             Bytecode::SetGlobal(script_const_id),
         ]);
         Ok(Vec::new())

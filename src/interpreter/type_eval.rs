@@ -301,6 +301,17 @@ impl NodeExprInner {
                     Ok(ok) => ok,
                     Err(err) => return Err(err),
                 };
+                if let Some(builtin) = interpreter.get_function(&node.name, &arg_types) {
+                    if builtin.ret_type == Type::Void {
+                        return Err(CompileError::new(
+                            CompileErrorKind::VoidFunctionExpr,
+                            node.span.clone(),
+                        )
+                        .into());
+                    }
+                    return Ok(builtin.ret_type);
+                }
+
                 if let Some(func) = interpreter.get_function(&node.name, &arg_types) {
                     if func.ret_type == Type::Void {
                         return Err(CompileError::new(

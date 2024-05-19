@@ -17,10 +17,6 @@ pub enum CompileErrorKind {
     InvalidUnaryOpr(String, Type),
     /// `<exp-type>`, `<recv-type>`
     InvalidType(Type, Type),
-    /// `<exp-type>`, `<recv-type>`
-    TooManyArguments(usize, usize),
-    /// `<exp-type>`, `<recv-type>`
-    TooFewArguments(usize, usize),
     /// `<func-return-type>`
     NonVoidFunctionStmnt(Type),
     /// `<filename>`
@@ -81,20 +77,6 @@ impl std::fmt::Display for CompileError {
                 let msg = &format!(
                     "invalid expression type (expected {:?}, received {:?})",
                     exp, recv
-                );
-                display_err(&self.span, f, msg)
-            }
-
-            CompileErrorKind::TooManyArguments(exp, recv) => {
-                let msg = &format!(
-                    "too many arguments to function call (expected {exp}, received {recv})"
-                );
-                display_err(&self.span, f, msg)
-            }
-
-            CompileErrorKind::TooFewArguments(exp, recv) => {
-                let msg = &format!(
-                    "too few arguments to function call (expected {exp}, received {recv})"
                 );
                 display_err(&self.span, f, msg)
             }

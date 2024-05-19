@@ -11,10 +11,14 @@
 //!            operands.
 //!
 //! Optimizations:
-//! [ ] reduce Bytecode instructions size (using unions instead of a big enum)
+//! [-] reduce Bytecode instructions size (using unions instead of a big enum);
+//!     N.B.: tried and it does not work - smaller instructions does not indeed
+//!     mean a faster execution; the used method was the same as in python - the
+//!     global constants are stored in a list inside the VM and the bytecode
+//!     constants boil down to a clone() of the value at the given index
 //! [x] remove the `arg_count` field from the `Cvm::CallFrame` struct
 //!
-//! To-do list:
+//! Future ideas:
 //! [x] function overloading
 //! [x] exceptions, try-catch blocks, and unsafe functions (ending with `!`)
 //! [x] script importing and the `__main__` constant working
@@ -27,8 +31,6 @@
 //! [ ] generic functions
 //! [ ] hashmaps and  functions for them (`get!()`, `set!()`, etc.)
 //! [ ] functions for type casts (such as `ftoi()`, `itou()`, `stoi!()`, etc.)
-//! [ ] `std` functions such as `constains(list, el)`, `sort(list)`, `sin()`,
-//!     `cos()`, `round()`, etc.
 //! [ ] short circuit logic operators
 //! [ ] a Chalcedony `shell` for direct execution of user commands
 
