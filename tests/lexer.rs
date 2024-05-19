@@ -68,20 +68,20 @@ if __name__ == '__main__':
                 TokenKind::Delimiter(Delimiter::ClosePar),
                 TokenKind::Special(Special::RightArrow),
                 TokenKind::Type(Type::Int),
-                TokenKind::Special(Special::Colon)
+                TokenKind::Special(Special::Colon),
             ),
             line!(
                 4,
                 TokenKind::Keyword(Keyword::Return),
-                TokenKind::Identifier("a".to_string())
-            )
+                TokenKind::Identifier("a".to_string()),
+            ),
         ),
         chunk!(line!(
             0,
             TokenKind::Keyword(Keyword::Let),
             TokenKind::Identifier("i".to_string()),
             TokenKind::Operator(Operator::Eq),
-            TokenKind::Uint(14)
+            TokenKind::Uint(14),
         )),
         chunk!(
             line!(
@@ -90,14 +90,14 @@ if __name__ == '__main__':
                 TokenKind::Identifier("i".to_string()),
                 TokenKind::Operator(Operator::Gt),
                 TokenKind::Uint(0),
-                TokenKind::Special(Special::Colon)
+                TokenKind::Special(Special::Colon),
             ),
             line!(
                 4,
                 TokenKind::Identifier("i".to_string()),
                 TokenKind::Operator(Operator::SubEq),
-                TokenKind::Uint(1)
-            )
+                TokenKind::Uint(1),
+            ),
         ),
         chunk!(
             line!(
@@ -106,15 +106,15 @@ if __name__ == '__main__':
                 TokenKind::Identifier("__name__".to_string()),
                 TokenKind::Operator(Operator::EqEq),
                 TokenKind::Str("__main__".to_string()),
-                TokenKind::Special(Special::Colon)
+                TokenKind::Special(Special::Colon),
             ),
             line!(
                 4,
                 TokenKind::Identifier("print".to_string()),
                 TokenKind::Delimiter(Delimiter::OpenPar),
                 TokenKind::Str("hello world".to_string()),
-                TokenKind::Delimiter(Delimiter::ClosePar)
-            )
+                TokenKind::Delimiter(Delimiter::ClosePar),
+            ),
         ),
     ];
 
@@ -172,7 +172,7 @@ fn lex_var_def() {
         TokenKind::Uint(40),
         TokenKind::Delimiter(Delimiter::ClosePar),
         TokenKind::Operator(Operator::Gt),
-        TokenKind::Uint(3)
+        TokenKind::Uint(3),
     ))];
     assert_chunks(expected, &mut lexer);
     assert!(lexer.is_empty());
@@ -199,7 +199,7 @@ fn fib(a: uint) -> uint:
             TokenKind::Delimiter(Delimiter::ClosePar),
             TokenKind::Special(Special::RightArrow),
             TokenKind::Type(Type::Uint),
-            TokenKind::Special(Special::Colon)
+            TokenKind::Special(Special::Colon),
         ),
         line!(
             4,
@@ -207,7 +207,7 @@ fn fib(a: uint) -> uint:
             TokenKind::Identifier("a".to_string()),
             TokenKind::Operator(Operator::Gt),
             TokenKind::Uint(2),
-            TokenKind::Special(Special::Colon)
+            TokenKind::Special(Special::Colon),
         ),
         line!(
             8,
@@ -224,9 +224,9 @@ fn fib(a: uint) -> uint:
             TokenKind::Identifier("a".to_string()),
             TokenKind::Operator(Operator::Sub),
             TokenKind::Uint(1),
-            TokenKind::Delimiter(Delimiter::ClosePar)
+            TokenKind::Delimiter(Delimiter::ClosePar),
         ),
-        line!(4, TokenKind::Keyword(Keyword::Return), TokenKind::Uint(1))
+        line!(4, TokenKind::Keyword(Keyword::Return), TokenKind::Uint(1)),
     )];
     assert_chunks(expected, &mut lexer);
     assert!(lexer.is_empty());
@@ -250,14 +250,14 @@ else:
             TokenKind::Uint(2),
             TokenKind::Operator(Operator::Gt),
             TokenKind::Uint(3),
-            TokenKind::Special(Special::Colon)
+            TokenKind::Special(Special::Colon),
         ),
         line!(
             4,
             TokenKind::Identifier("print".to_string()),
             TokenKind::Delimiter(Delimiter::OpenPar),
             TokenKind::Str("one".to_string()),
-            TokenKind::Delimiter(Delimiter::ClosePar)
+            TokenKind::Delimiter(Delimiter::ClosePar),
         ),
         line!(
             0,
@@ -265,27 +265,27 @@ else:
             TokenKind::Uint(3),
             TokenKind::Operator(Operator::Gt),
             TokenKind::Uint(4),
-            TokenKind::Special(Special::Colon)
+            TokenKind::Special(Special::Colon),
         ),
         line!(
             4,
             TokenKind::Identifier("print".to_string()),
             TokenKind::Delimiter(Delimiter::OpenPar),
             TokenKind::Str("two".to_string()),
-            TokenKind::Delimiter(Delimiter::ClosePar)
+            TokenKind::Delimiter(Delimiter::ClosePar),
         ),
         line!(
             0,
             TokenKind::Keyword(Keyword::Else),
-            TokenKind::Special(Special::Colon)
+            TokenKind::Special(Special::Colon),
         ),
         line!(
             4,
             TokenKind::Identifier("print".to_string()),
             TokenKind::Delimiter(Delimiter::OpenPar),
             TokenKind::Str("default".to_string()),
-            TokenKind::Delimiter(Delimiter::ClosePar)
-        )
+            TokenKind::Delimiter(Delimiter::ClosePar),
+        ),
     )];
     assert_chunks(expected, &mut lexer);
     assert!(lexer.is_empty());
@@ -305,7 +305,7 @@ catch (exc: exception):
         line!(
             0,
             TokenKind::Keyword(Keyword::Try),
-            TokenKind::Special(Special::Colon)
+            TokenKind::Special(Special::Colon),
         ),
         line!(
             4,
@@ -314,12 +314,12 @@ catch (exc: exception):
             TokenKind::Uint(21),
             TokenKind::Operator(Operator::Mul),
             TokenKind::Uint(2),
-            TokenKind::Delimiter(Delimiter::ClosePar)
+            TokenKind::Delimiter(Delimiter::ClosePar),
         ),
         line!(
             4,
             TokenKind::Keyword(Keyword::Throw),
-            TokenKind::Str("unexpected error".to_string())
+            TokenKind::Str("unexpected error".to_string()),
         ),
         line!(
             0,
@@ -329,7 +329,7 @@ catch (exc: exception):
             TokenKind::Special(Special::Colon),
             TokenKind::Type(Type::Exception),
             TokenKind::Delimiter(Delimiter::ClosePar),
-            TokenKind::Special(Special::Colon)
+            TokenKind::Special(Special::Colon),
         ),
         line!(
             4,
@@ -338,8 +338,8 @@ catch (exc: exception):
             TokenKind::Str("Received the exception: ".to_string()),
             TokenKind::Operator(Operator::Add),
             TokenKind::Identifier("exc".to_string()),
-            TokenKind::Delimiter(Delimiter::ClosePar)
-        )
+            TokenKind::Delimiter(Delimiter::ClosePar),
+        ),
     )];
     assert_chunks(expected, &mut lexer);
     assert!(lexer.is_empty());

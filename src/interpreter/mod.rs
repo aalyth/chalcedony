@@ -21,15 +21,15 @@ use std::rc::Rc;
 /* ahash is the fastest hashing algorithm in terms of hashing strings */
 use ahash::AHashMap;
 
-#[derive(Debug, Clone)]
-struct ArgAnnotation {
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArgAnnotation {
     id: usize,
     ty: Type,
     name: String,
 }
 
 impl ArgAnnotation {
-    fn new(id: usize, name: String, ty: Type) -> Self {
+    pub fn new(id: usize, name: String, ty: Type) -> Self {
         ArgAnnotation { id, ty, name }
     }
 }
@@ -47,7 +47,7 @@ impl VarAnnotation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FuncAnnotation {
     is_unsafe: bool,
     id: usize,
@@ -57,7 +57,7 @@ pub struct FuncAnnotation {
 }
 
 impl FuncAnnotation {
-    fn new(id: usize, args: Vec<ArgAnnotation>, ret_type: Type, is_unsafe: bool) -> Self {
+    pub fn new(id: usize, args: Vec<ArgAnnotation>, ret_type: Type, is_unsafe: bool) -> Self {
         let mut arg_lookup = AHashMap::<String, ArgAnnotation>::new();
         for arg in args.clone() {
             arg_lookup.insert(arg.name.clone(), arg);
@@ -86,16 +86,16 @@ pub enum SafetyScope {
     Catch,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MemberAnnotation {
-    id: usize,
-    ty: Type,
+    pub id: usize,
+    pub ty: Type,
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct ClassNamespace {
-    members: AHashMap<String, MemberAnnotation>,
-    methods: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
+    pub members: AHashMap<String, MemberAnnotation>,
+    pub methods: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
 }
 
 /// The structure representing the interpreter, used to compile the received
@@ -292,16 +292,6 @@ impl Chalcedony {
         }
     }
 
-    // Used for tests to get the id of the next function so even if the standard
-    // library changes, the proper function id is used.
-    pub fn get_next_func_id(&self) -> usize {
-        self.func_id_counter
-    }
-
-    pub fn execute(&mut self, code: Vec<Bytecode>) {
-        self.vm.execute(code)
-    }
-
     /* builds the function and sets the currennt function scope */
     fn create_function(&mut self, node: &NodeFuncDef, args: Vec<ArgAnnotation>) {
         let func = Rc::new(FuncAnnotation::new(
@@ -397,6 +387,24 @@ impl Chalcedony {
 
     fn remove_local(&mut self, name: &str) {
         self.locals.remove(name);
+    }
+}
+
+/// Wrapper functions, used for tests.
+#[cfg(feature = "testing")]
+impl Chalcedony {
+    // Used for tests to get the id of the next function so even if the standard
+    // library changes, the proper function id is used.
+    pub fn get_next_func_id(&self) -> usize {
+        self.func_id_counter
+    }
+
+    pub fn execute(&mut self, code: Vec<Bytecode>) {
+        self.vm.execute(code)
+    }
+
+    pub fn get_namespace(&self, name: &str) -> Option<&ClassNamespace> {
+        self.namespaces.get(name)
     }
 }
 

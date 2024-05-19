@@ -22,7 +22,7 @@
 //!     `insert!()` and `remove!())
 //! [ ] `for in` loops over lists and iterators
 //! [x] constants - variables that could not be changed
-//! [ ] classes and methods
+//! [x] classes and methods
 //! [ ] `len()` function for strings and lists
 //! [ ] generic functions
 //! [ ] hashmaps and  functions for them (`get!()`, `set!()`, etc.)

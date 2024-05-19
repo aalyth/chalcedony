@@ -202,10 +202,13 @@ impl Cvm {
                 if let CvmObject::Instance(val_obj) = val {
                     let val_obj = val_obj.get_ref();
 
-                    // The `depth > 0` check is so if an inline object is set as
+                    // The `depth > 1` check is so if an inline object is set as
                     // an object's attribute, the subobject is not deallocated
                     // right after the parent object's initialization.
-                    if dest_obj.depth <= val_obj.borrow().depth && dest_obj.depth > 0 {
+                    if dest_obj.depth == 0 && val_obj.borrow().depth == 0 {
+                        *dest_obj.data.get_mut(attr_id).unwrap() =
+                            CvmObject::Instance(Gc::Strong(val_obj.clone()));
+                    } else if dest_obj.depth <= val_obj.borrow().depth {
                         *dest_obj.data.get_mut(attr_id).unwrap() =
                             CvmObject::Instance(Gc::Weak(Rc::downgrade(&val_obj)));
                     } else {

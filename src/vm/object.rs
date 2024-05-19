@@ -56,12 +56,18 @@ impl<Data> Drop for Gc<Data> {
         #[allow(dropping_references)]
         match self {
             Gc::Strong(obj) => {
-                obj.borrow_mut().depth -= 1;
+                let mut obj = obj.borrow_mut();
+                if obj.depth > 0 {
+                    obj.depth -= 1;
+                }
                 drop(obj)
             }
             Gc::Weak(weak) => {
                 if let Some(obj) = weak.upgrade() {
-                    obj.borrow_mut().depth -= 1;
+                    let mut obj = obj.borrow_mut();
+                    if obj.depth > 0 {
+                        obj.depth -= 1;
+                    }
                 }
                 drop(weak)
             }

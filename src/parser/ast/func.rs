@@ -66,7 +66,15 @@ pub struct NodeFuncCall {
 pub struct NodeFuncCallStmnt(pub NodeAttrRes);
 
 impl NodeFuncDef {
-    pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
+    pub fn new(reader: LineReader) -> Result<Self, ChalError> {
+        Self::parse(reader, None)
+    }
+
+    pub fn method(reader: LineReader, class: String) -> Result<Self, ChalError> {
+        Self::parse(reader, Some(class))
+    }
+
+    fn parse(mut reader: LineReader, namespace: Option<String>) -> Result<Self, ChalError> {
         // header refers to the first line of the function, for example:
         // fn fib(n: int) -> uint:             | header
         //     if n > 2:                       > body
@@ -89,8 +97,17 @@ impl NodeFuncDef {
             }
 
             let name = header.expect_ident()?;
-            header.expect_exact(TokenKind::Special(Special::Colon))?;
-            let ty = header.expect_type()?;
+            /* if the first argument of a method is `self`, the type could be implied */
+            let ty: Type = if namespace.is_some()
+                && first_iter
+                && &name == "self"
+                && !header.peek_is_exact(TokenKind::Special(Special::Colon))
+            {
+                Type::Custom(Box::new(namespace.clone().unwrap()))
+            } else {
+                header.expect_exact(TokenKind::Special(Special::Colon))?;
+                header.expect_type()?
+            };
 
             args.push_back(Arg { name, ty });
             first_iter = false;
@@ -116,14 +133,8 @@ impl NodeFuncDef {
             ret_type,
             body: reader.try_into()?,
             span,
-            namespace: None,
+            namespace,
         })
-    }
-
-    pub fn method(reader: LineReader, class: String) -> Result<Self, ChalError> {
-        let mut res = Self::new(reader)?;
-        res.namespace = Some(class);
-        Ok(res)
     }
 }
 

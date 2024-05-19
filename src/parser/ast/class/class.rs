@@ -5,19 +5,34 @@ use crate::parser::ast::NodeFuncDef;
 use crate::common::Type;
 use crate::parser::LineReader;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Member {
     pub name: String,
     pub ty: Type,
     pub span: Span,
 }
 
-#[derive(Debug)]
+/// The structure denoting the definition of a class type.
+///
+/// Syntax:
+/// `class` \<class-name\>:
+///     \<member-name\>: \<type\>
+///     \<member-name\>: \<type\>
+///     (...)
+///     `fn` \<method-name\>(`self`, \<arg\>: \<type\>, (...)) -> \<type\>:
+///         \<statements\>
+///     `fn` \<method-name\>(\<arg>: \<type\>, (...)) -> \<type\>:
+///         \<statements\>
+///     (...)
+///
+/// it is important to note that if the first argument to a method definition is
+/// the variable `self`, the type could be infered to be the class' type.
+#[derive(Debug, PartialEq)]
 pub struct NodeClass {
     pub name: String,
     pub members: Vec<Member>,
     pub methods: Vec<NodeFuncDef>,
-    // refers to the class name declaration
+    // refers to the class' name declaration
     pub span: Span,
 }
 

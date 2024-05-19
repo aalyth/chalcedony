@@ -3,13 +3,27 @@ use crate::lexer::{Delimiter, Special, TokenKind};
 use crate::parser::ast::{NodeFuncCall, NodeVarCall};
 use crate::parser::TokenReader;
 
+/// The structure representing a single unit inside an attribute resolution. An
+/// attribute could be a member access (=VarCall), or a method call (=FuncCall).
 #[derive(Clone, Debug, PartialEq)]
 pub enum NodeAttribute {
     VarCall(NodeVarCall),
     FuncCall(NodeFuncCall),
 }
 
-// Attribute Resolution
+// The structure denoting the series of attribute accesses. An atribute is
+// considered as member access (=VarCall), or method calling (=FuncCall). The
+// first element in the resolution series refers to an "outer" scope (a var call
+// is a global/local/arg, a func call is calling an actual function, not a
+// method) and the following attributes refer to a proper member access or
+// method call.
+//
+// Syntax:
+// \<attribute\>.\<attribute\>.\<attribute\>(...)
+// \<namespace\>::\<func-call-attribute\>.\<attribute\>.\<attribute\>(...)
+//
+// where an `<attribute>` is either a function call (a method) or a variable
+// call (member call)
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeAttrRes {
     pub resolution: Vec<NodeAttribute>,
@@ -71,8 +85,8 @@ impl NodeAttribute {
 }
 
 impl NodeAttrRes {
-    // A non-greedy attribute resolution - the attributes are parsed until a
-    // non-attribute token is found.
+    // Parses the attribute resolution in a non-greedy manner - the attributes
+    // are parsed until a non-attribute token is found.
     pub fn new(reader: &mut TokenReader) -> Result<Self, ChalError> {
         let mut resolution = Vec::<NodeAttribute>::new();
         let start = reader.current().start;

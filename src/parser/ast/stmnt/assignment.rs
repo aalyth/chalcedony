@@ -5,10 +5,12 @@ use crate::parser::TokenReader;
 
 use crate::common::operators::AssignOprType;
 
-/// The node representing changes to any variable in the source code.
+/// The node representing changes to variable/members in the source code.
 ///
 /// Syntax:
-/// \<var_name\> \<opr\> \<expression\>
+/// \<attribute-resolution\> \<opr\> \<expression\>
+///
+/// for reference to `<attribute-resolution>` see `NodeAttrRes`
 #[derive(Debug, PartialEq)]
 pub struct NodeAssign {
     pub lhs: NodeAttrRes,
