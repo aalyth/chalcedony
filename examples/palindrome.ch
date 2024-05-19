@@ -41,8 +41,7 @@ fn is_palindrome(n: uint) -> bool:
 
     return true
 
-
-fn __test__():
+if __name__ == '__main__':
     assert(true,  is_palindrome(7))
     assert(false, is_palindrome(12))
     assert(true,  is_palindrome(11))
@@ -51,5 +50,3 @@ fn __test__():
 
     assert(false, is_palindrome(123421))
     assert(true,  is_palindrome(1337331))
-
-__test__()

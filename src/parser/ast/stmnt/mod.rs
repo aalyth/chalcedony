@@ -12,11 +12,15 @@ pub use return_stmnt::NodeRetStmnt;
 
 use super::{NodeFuncCall, NodeVarDef};
 
-use crate::error::{span::Span, ChalError, InternalError, ParserError};
+use crate::error::{span::Span, ChalError, ParserError, ParserErrorKind};
 use crate::lexer::{Delimiter, Keyword, TokenKind};
 use crate::parser::{LineReader, TokenReader};
 
-#[derive(Debug)]
+/// The node representing a single statement in the program. A statement is a
+/// code unit which does not result in a value.
+///
+/// For syntax refer to individual nodes.
+#[derive(Debug, PartialEq)]
 pub enum NodeStmnt {
     VarDef(NodeVarDef),
     FuncCall(NodeFuncCall),
@@ -33,12 +37,16 @@ pub enum NodeStmnt {
     Throw(NodeThrow),
 }
 
-#[derive(Debug)]
+/// Boils down to the `TokenKind::Keyword(Keyword::Continue)`. Can only be used
+/// in the context of a loop.
+#[derive(Debug, PartialEq)]
 pub struct NodeContStmnt {
     pub span: Span,
 }
 
-#[derive(Debug)]
+/// Boils down to the `TokenKind::Keyword(Keyword::Break)`. Can only be used in
+/// the context of a loop.
+#[derive(Debug, PartialEq)]
 pub struct NodeBreakStmnt {
     pub span: Span,
 }
@@ -92,15 +100,12 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                 TokenKind::Keyword(Keyword::Let) => {
                     single_line_statement!(reader, result, errors, NodeVarDef, VarDef);
                 }
-
                 TokenKind::Keyword(Keyword::Return) => {
                     single_line_statement!(reader, result, errors, NodeRetStmnt, RetStmnt);
                 }
-
                 TokenKind::Keyword(Keyword::Continue) => {
                     single_line_statement!(reader, result, errors, NodeContStmnt, ContStmnt);
                 }
-
                 TokenKind::Keyword(Keyword::Break) => {
                     single_line_statement!(reader, result, errors, NodeBreakStmnt, BreakStmnt);
                 }
@@ -129,13 +134,12 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                 /* Function calls and assignments */
                 TokenKind::Identifier(_) => {
                     let Some(line) = reader.advance() else {
-                        return Err(InternalError::new(
-                            "NodeStmnt::parse_body(): could not advance a peeked reader",
-                        )
-                        .into());
+                        panic!("NodeStmnt::parse_body(): could not advance a peeked reader")
                     };
 
-                    // SAFETY: there is always at least 2 elements in the line (the identifer + newline)
+                    // check whether the identifier should be treated as a function
+                    // call or a variable assignment. SAFETY: there are always at
+                    // least 2 elements in the line (the identifer + newline)
                     if let Some(peek) = line.tokens.get(1) {
                         if peek.kind == TokenKind::Delimiter(Delimiter::OpenPar) {
                             let node_reader =
@@ -163,7 +167,9 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
                 _ => {
                     let front = front.clone();
                     reader.advance();
-                    errors.push(ParserError::invalid_statement(front.span).into())
+                    errors.push(
+                        ParserError::new(ParserErrorKind::InvalidStatement, front.span).into(),
+                    )
                 }
             }
         }

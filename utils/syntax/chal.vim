@@ -2,11 +2,11 @@ if exists('b:current_syntax')
     finish
 endif
 
-syntax keyword keywords fn return let if elif else while continue break for in try catch throw
+syntax keyword keywords fn return let if elif else while continue break for in try catch throw const import
 syntax keyword type uint int float str bool void exception
 syntax keyword boolean true false
 
-syntax keyword builtin print assert
+syntax keyword builtin print assert utoi ftoi itou ftou itof utof
 
 syntax match comment '#.*$'
 syntax region string start='"' end='"'

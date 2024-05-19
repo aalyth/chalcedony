@@ -7,7 +7,12 @@ use crate::parser::TokenReader;
 
 use std::collections::VecDeque;
 
-#[derive(Clone, Debug)]
+/// The node representing a function call. The `span` field refers to the whole
+/// function call from the function name to the closing parenthesis.
+///
+/// Syntax:
+/// \<func_name\>(\<expr\>, \<expr\>, ...)
+#[derive(Clone, Debug, PartialEq)]
 pub struct NodeFuncCall {
     pub name: String,
     pub args: Vec<NodeExpr>,

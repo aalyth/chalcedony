@@ -5,7 +5,8 @@ fn test!():
     throw "bueno"
     print(a)
 
-try:
-    test!()
-catch (exc: exception):
-    print("Caught the exception: " + exc)
+if __name__ == '__main__':
+    try:
+        test!()
+    catch (exc: exception):
+        print("Caught the exception: " + exc)

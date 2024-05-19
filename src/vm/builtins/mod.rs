@@ -1,9 +1,12 @@
+//! The module containing the built-in operations inside the `CVM` - mostly the
+//! binary and unary operations between [`CvmObjects`].
+
 pub mod bin_opr;
-pub mod lists;
+pub mod list;
 pub mod un_opr;
 
 pub use bin_opr::{add, and, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, or, sub};
-pub use lists::list_insert;
+pub use list::{list_get, list_insert, list_remove};
 pub use un_opr::{neg, not};
 
 use super::{Cvm, CvmObject};

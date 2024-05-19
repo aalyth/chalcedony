@@ -1,5 +1,5 @@
 use crate::error::span::Span;
-use crate::error::{ChalError, InternalError, LexerError};
+use crate::error::{ChalError, LexerError, LexerErrorKind};
 
 use crate::common::Type;
 
@@ -19,6 +19,8 @@ pub enum Keyword {
     Try,
     Catch,
     Throw,
+    Import,
+    Const,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -104,6 +106,7 @@ pub fn is_operator(c: &char) -> bool {
     )
 }
 
+/// The types of tokens which could be built from the source code.
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenKind {
     Int(i64),
@@ -124,14 +127,14 @@ pub enum TokenKind {
 impl TokenKind {
     fn new(src: &str, span: &Span) -> Result<TokenKind, ChalError> {
         if src.is_empty() {
-            return Err(InternalError::new("TokenKind::new(): lexing an empty string").into());
+            panic!("TokenKind::new(): lexing an empty string")
         }
         if src == "\n" {
             return Ok(TokenKind::Newline);
         }
 
         match src {
-            /* TYPES */
+            /* Types */
             "int" => return Ok(TokenKind::Type(Type::Int)),
             "uint" => return Ok(TokenKind::Type(Type::Uint)),
             "float" => return Ok(TokenKind::Type(Type::Float)),
@@ -140,7 +143,7 @@ impl TokenKind {
             "void" => return Ok(TokenKind::Type(Type::Void)),
             "exception" => return Ok(TokenKind::Type(Type::Exception)),
 
-            /* KEYWORDS */
+            /* Keywords */
             "let" => return Ok(TokenKind::Keyword(Keyword::Let)),
             "fn" => return Ok(TokenKind::Keyword(Keyword::Fn)),
             "return" => return Ok(TokenKind::Keyword(Keyword::Return)),
@@ -155,8 +158,10 @@ impl TokenKind {
             "try" => return Ok(TokenKind::Keyword(Keyword::Try)),
             "catch" => return Ok(TokenKind::Keyword(Keyword::Catch)),
             "throw" => return Ok(TokenKind::Keyword(Keyword::Throw)),
+            "import" => return Ok(TokenKind::Keyword(Keyword::Import)),
+            "const" => return Ok(TokenKind::Keyword(Keyword::Const)),
 
-            /* DELIMITERS */
+            /* Delimiters */
             "(" => return Ok(TokenKind::Delimiter(Delimiter::OpenPar)),
             ")" => return Ok(TokenKind::Delimiter(Delimiter::ClosePar)),
             "[" => return Ok(TokenKind::Delimiter(Delimiter::OpenBracket)),
@@ -164,7 +169,7 @@ impl TokenKind {
             "{" => return Ok(TokenKind::Delimiter(Delimiter::OpenBrace)),
             "}" => return Ok(TokenKind::Delimiter(Delimiter::CloseBrace)),
 
-            /* SPECIALS */
+            /* Specials */
             "," => return Ok(TokenKind::Special(Special::Comma)),
             "." => return Ok(TokenKind::Special(Special::Dot)),
             ":" => return Ok(TokenKind::Special(Special::Colon)),
@@ -172,7 +177,7 @@ impl TokenKind {
             "->" => return Ok(TokenKind::Special(Special::RightArrow)),
             "=>" => return Ok(TokenKind::Special(Special::BigRightArrow)),
 
-            /* OPERATORS */
+            /* Operators */
             "+" => return Ok(TokenKind::Operator(Operator::Add)),
             "-" => return Ok(TokenKind::Operator(Operator::Sub)),
             "*" => return Ok(TokenKind::Operator(Operator::Mul)),
@@ -207,6 +212,7 @@ impl TokenKind {
             _ => (),
         };
 
+        /* this way digits such as `123_456` are supported */
         let potential_digit = src.replace('_', "");
 
         if let Ok(val) = potential_digit.parse::<u64>() {
@@ -227,12 +233,13 @@ impl TokenKind {
             return Ok(TokenKind::Str(src[1..src.len() - 1].to_string()));
         }
         if src.starts_with('"') || src.starts_with('\'') {
-            return Err(LexerError::unclosed_string(span.clone()).into());
+            return Err(LexerError::new(LexerErrorKind::UnclosedString, span.clone()).into());
         }
 
         Ok(TokenKind::Identifier(src.to_string()))
     }
 
+    /* used to perform checks such as checking whether an `-` is unary or binary */
     pub fn is_terminal(&self) -> bool {
         matches!(
             *self,
@@ -245,7 +252,7 @@ impl TokenKind {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
@@ -260,10 +267,7 @@ impl Token {
 
     pub fn into_neg(self) -> Result<Self, ChalError> {
         if self.kind != TokenKind::Operator(Operator::Sub) {
-            return Err(InternalError::new(
-                "Token::into_neg(): trying to convert a non-subtraction token into unary negation",
-            )
-            .into());
+            panic!("Token::into_neg(): trying to convert a non-sub token into unary negation")
         }
 
         Ok(Token {

@@ -1,5 +1,5 @@
 use crate::error::span::{Span, Spanning};
-use crate::error::{ChalError, InternalError, ParserError};
+use crate::error::{ChalError, ParserError, ParserErrorKind};
 use crate::lexer::{Delimiter, Operator};
 use crate::lexer::{Keyword, Line, TokenKind};
 use crate::parser::ast::{
@@ -13,6 +13,10 @@ use std::rc::Rc;
 
 use super::NodeTryCatch;
 
+/// A node in the program, representing an interpretable global unit, i.e. any
+/// statement that could be executed in the global context.
+///
+/// For syntax refer to each individual node.
 #[derive(Debug)]
 pub enum NodeProg {
     VarDef(NodeVarDef),
@@ -23,11 +27,42 @@ pub enum NodeProg {
     WhileLoop(NodeWhileLoop),
     ForLoop(NodeForLoop),
     TryCatch(NodeTryCatch),
+    Import(NodeImport),
 }
 
+/// The node denoting the import of another script.
+///
+/// Syntax:
+/// `import` \<path\>
+///
+/// where `<path>` is a string literal
+#[derive(Debug)]
+pub struct NodeImport {
+    pub path: String,
+    pub span: Span,
+}
+
+impl NodeImport {
+    pub fn new(mut reader: TokenReader) -> Result<Self, ChalError> {
+        let start = reader.current().start;
+        reader.expect_exact(TokenKind::Keyword(Keyword::Import))?;
+
+        let TokenKind::Str(path) = reader.expect(TokenKind::Str(String::new()))?.kind else {
+            unreachable!()
+        };
+        let end = reader.current().end;
+
+        Ok(NodeImport {
+            path,
+            span: Span::new(start, end, reader.spanner()),
+        })
+    }
+}
+
+/* a wrapper for building a node from a single line statement */
 macro_rules! single_line_stmnt {
     ( $enum_type: ident, $node_type: ident, $chunk: ident, $spanner: ident) => {{
-        // SAFETY: the front line is already checked
+        /* SAFETY: the front line is already checked */
         let front_line = $chunk.pop_front().unwrap().into();
         Ok(NodeProg::$enum_type($node_type::new(TokenReader::new(
             front_line,
@@ -36,6 +71,7 @@ macro_rules! single_line_stmnt {
     }};
 }
 
+/* a wrapper for building a node from a multiline statement */
 macro_rules! multiline_stmnt {
     ( $enum_type: ident, $node_type: ident, $chunk: ident, $spanner: ident) => {{
         Ok(NodeProg::$enum_type($node_type::new(LineReader::new(
@@ -47,20 +83,24 @@ macro_rules! multiline_stmnt {
 impl NodeProg {
     pub fn new(mut chunk: VecDeque<Line>, spanner: Rc<dyn Spanning>) -> Result<Self, ChalError> {
         if chunk.is_empty() {
-            return Err(InternalError::new("NodeProg::new(): received an empty code chunk").into());
+            panic!("NodeProg::new(): received an empty code chunk");
         }
 
         let front_line = chunk.front().unwrap();
         if front_line.tokens.is_empty() {
-            return Err(InternalError::new("NodeProg::new(): empty first line of chunk").into());
+            panic!("NodeProg::new(): empty first line of chunk");
         }
 
         let front_tok = front_line.front_tok().unwrap();
 
         match front_tok.kind {
-            TokenKind::Keyword(Keyword::Let) => {
+            TokenKind::Keyword(Keyword::Let) | TokenKind::Keyword(Keyword::Const) => {
                 single_line_stmnt!(VarDef, NodeVarDef, chunk, spanner)
             }
+            TokenKind::Keyword(Keyword::Import) => {
+                single_line_stmnt!(Import, NodeImport, chunk, spanner)
+            }
+
             TokenKind::Keyword(Keyword::Fn) => {
                 multiline_stmnt!(FuncDef, NodeFuncDef, chunk, spanner)
             }
@@ -79,18 +119,20 @@ impl NodeProg {
 
             TokenKind::Identifier(_) => {
                 let Some(peek_2nd) = front_line.tokens.get(1) else {
-                    // by deafult we expect a function call
-                    return Err(ParserError::expected_token(
-                        TokenKind::Delimiter(Delimiter::OpenPar),
+                    /* by deafult a function call is expected upon encountering an identifier  */
+                    return Err(ParserError::new(
+                        ParserErrorKind::ExpectedToken(TokenKind::Delimiter(Delimiter::OpenPar)),
                         front_tok.span.clone(),
                     )
                     .into());
                 };
 
                 match &peek_2nd.kind {
+                    /* a function call */
                     TokenKind::Delimiter(Delimiter::OpenPar) => {
                         single_line_stmnt!(FuncCall, NodeFuncCall, chunk, spanner)
                     }
+                    /* an assignment */
                     TokenKind::Operator(Operator::Eq)
                     | TokenKind::Operator(Operator::AddEq)
                     | TokenKind::Operator(Operator::SubEq)
@@ -99,20 +141,21 @@ impl NodeProg {
                     | TokenKind::Operator(Operator::ModEq) => {
                         single_line_stmnt!(Assign, NodeAssign, chunk, spanner)
                     }
-                    recv_kind => Err(ParserError::invalid_token(
-                        TokenKind::Delimiter(Delimiter::OpenPar),
-                        recv_kind.clone(),
+                    recv_kind => Err(ParserError::new(
+                        ParserErrorKind::InvalidToken(
+                            TokenKind::Delimiter(Delimiter::OpenPar),
+                            recv_kind.clone(),
+                        ),
                         peek_2nd.span.clone(),
                     )
                     .into()),
                 }
             }
 
-            _ => Err(InternalError::new(&format!(
+            _ => panic!(
                 "NodeProg::new(): invalid chunk front - {:?}",
                 front_tok.kind
-            ))
-            .into()),
+            ),
         }
     }
 }

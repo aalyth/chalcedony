@@ -3,7 +3,7 @@ use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{NodeExpr, NodeStmnt, NodeVarCall};
 use crate::parser::{LineReader, TokenReader};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NodeWhileLoop {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
@@ -36,7 +36,7 @@ impl NodeWhileLoop {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NodeForLoop {
     pub iter: NodeVarCall,
     pub iterable: NodeExpr,

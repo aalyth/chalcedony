@@ -26,11 +26,12 @@ fn func(x: float) -> float:
     return x - (func(x, 3) / 6) + (func(x, 5) / 120) - (func(x, 7) / 5040) + (func(x, 9) / 362_880)
 
 
-# print()
-func("Cyberia")
-# fib()
-assert(55, func(10))
-# sin()
-assert(0.8660254450997811, func(pi/3))
+if __name__ == '__main__':
+    # print()
+    func("Cyberia")
+    # fib()
+    assert(55, func(10))
+    # sin()
+    assert(0.8660254450997811, func(pi/3))
 
 

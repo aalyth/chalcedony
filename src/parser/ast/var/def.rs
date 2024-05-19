@@ -4,23 +4,36 @@ use crate::parser::{ast::NodeExpr, TokenReader};
 
 use crate::common::Type;
 
-#[derive(Debug)]
+/// The node representing the creation of variables or constants. The [`span`]
+/// field refers to the span of the object at the left side of the expression,
+/// i.e. the variable that is being created.
+///
+/// Syntax:
+/// let \<var-name\> = \<expression\>
+/// let \<var-name\>: \<type\> = \<expression\>
+/// const \<var-name\> = \<expression\>
+/// const \<var-name\>: \<type\> = \<expression\>
+#[derive(Debug, PartialEq)]
 pub struct NodeVarDef {
     pub ty: Type,
     pub name: String,
     pub value: NodeExpr,
+    pub is_const: bool,
     pub span: Span,
 }
 
 impl NodeVarDef {
     pub fn new(mut reader: TokenReader) -> Result<NodeVarDef, ChalError> {
-        /* let a = 5      */
-        /* let b: int = 3 */
-        reader.expect_exact(TokenKind::Keyword(Keyword::Let))?;
+        let mut is_const = false;
+        if reader.peek_is_exact(TokenKind::Keyword(Keyword::Const)) {
+            is_const = true;
+            reader.advance();
+        } else {
+            reader.expect_exact(TokenKind::Keyword(Keyword::Let))?;
+        }
 
-        let lhs_tok = reader.expect(TokenKind::Identifier("".to_string()))?;
-        let name = lhs_tok.src;
-        let span = lhs_tok.span;
+        let name = reader.expect_ident()?;
+        let span = reader.current();
 
         let mut ty = Type::Any;
         if reader
@@ -40,6 +53,7 @@ impl NodeVarDef {
             name,
             ty,
             value,
+            is_const,
             span,
         })
     }

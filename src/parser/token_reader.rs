@@ -1,5 +1,5 @@
 use crate::error::span::{Span, Spanning};
-use crate::error::{ChalError, InternalError, ParserError};
+use crate::error::{ChalError, ParserError, ParserErrorKind};
 use crate::lexer::{Delimiter, Special, Token, TokenKind};
 
 use crate::common::Type;
@@ -7,6 +7,7 @@ use crate::common::Type;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
+/// The abstraction used to go over a stream of Tokens.
 pub struct TokenReader {
     src: VecDeque<Token>,
     current: Span,
@@ -53,12 +54,18 @@ impl TokenReader {
         self.src.front()
     }
 
-    /* NOTE: expectations only consume tokens if the conditions is successful */
+    /// Advances the next token if it is of type `exp` and returns a
+    /// `ParserError` if the token does not match the expected type. This
+    /// function uses `soft` checking, i.e. only the outer variant of the token
+    /// kind is checked.
+    ///
+    /// For example: using `reader.expect(TokenKind::Identifier(""))` where the
+    /// next token is of type `TokenKind::Identifier("hello")` will still match
+    /// since both are of type `TokenKind::Identifier(_)`.
+    ///
+    /// For strict checking refer to the function `TokenReader::expect_exact()`.
     pub fn expect(&mut self, exp: TokenKind) -> Result<Token, ChalError> {
-        /* std::mem:discriminant() makes it so we can check only the outer enum variant
-         * for example:
-         * TokenKind::Identifier('main') is equal to TokenKind::Identifier('')
-         */
+        /* std::mem:discriminant() checks only the outer enum variant */
         fn condition(current: &TokenKind, exp: &TokenKind) -> bool {
             std::mem::discriminant(current) == std::mem::discriminant(exp)
         }
@@ -66,11 +73,14 @@ impl TokenReader {
         self.expect_inner(exp, condition)
     }
 
+    /// Advances the reader if the next token strictly matches the expected type.
+    /// Returns a `ParserError` if the type is not valid. For a more liberal
+    /// type expectations, refer to `TokenReader::expect()`.
     pub fn expect_exact(&mut self, exp: TokenKind) -> Result<Token, ChalError> {
         self.expect_inner(exp, |current, exp| current == exp)
     }
 
-    /* returns weather the next token is of expected kind */
+    /// Returns whether the next token strictly matches the expected type.
     pub fn peek_is_exact(&self, exp: TokenKind) -> bool {
         let Some(peek) = self.peek() else {
             return false;
@@ -79,22 +89,33 @@ impl TokenReader {
         peek.kind == exp
     }
 
+    /// Advances the next token if it is of type `TokenKind::Str()` and returns
+    /// it's value. Equivalent to the code:
+    /// ```
+    /// let token = reader.expect(TokenKind::Identifier(String::new()))?;
+    /// let TokenKind::String(result) = token else {
+    ///     unreachable!();
+    /// };
+    /// ```
     pub fn expect_ident(&mut self) -> Result<String, ChalError> {
         let exp = self.expect(TokenKind::Identifier(String::new()))?;
         match exp.kind {
             TokenKind::Identifier(res) => Ok(res),
-            _ => Err(
-                InternalError::new("TokenReader::expect_ident(): invalid expect() value").into(),
-            ),
+            _ => panic!("TokenReader::expect_indent(): invalid expect() return value"),
         }
     }
 
+    /// Advances the next token if it is of type `TokenKind::Type()` and returns
+    /// it's value. Equivalent to the code:
+    /// ```
+    /// let token = reader.expect(TokenKind::Type(Type::Any))?;
+    /// let TokenKind::Type(result) = token else {
+    ///     unreachable!();
+    /// };
+    /// ```
     pub fn expect_type(&mut self) -> Result<Type, ChalError> {
         let Some(peek) = self.peek() else {
-            return Err(InternalError::new(
-                "TokenReader::expect_type(): expecting from empty reader",
-            )
-            .into());
+            panic!("TokenReader::expect_type(): expecting from empty reader");
         };
 
         match peek.kind {
@@ -113,7 +134,7 @@ impl TokenReader {
                         closing_delim.span.end,
                         peek.span.spanner.clone(),
                     );
-                    return Err(ParserError::untyped_list(span).into());
+                    return Err(ParserError::new(ParserErrorKind::UntypedList, span).into());
                 }
 
                 /* remove the closing delimiter */
@@ -127,29 +148,20 @@ impl TokenReader {
             _ => {
                 let advanced = self.expect(TokenKind::Type(Type::Any))?;
                 let TokenKind::Type(res) = advanced.kind else {
-                    return Err(InternalError::new(
-                        "TokenReader::expect_type(): invalid expect() value",
-                    )
-                    .into());
+                    panic!("TokenReader::expect_type(): invalid expect() value")
                 };
                 Ok(res)
             }
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.src.is_empty()
-    }
-
+    /// Advances the tokens until the condition is met.
     pub fn advance_until(
         &mut self,
         cond: fn(&TokenKind) -> bool,
     ) -> Result<VecDeque<Token>, ChalError> {
         if self.is_empty() {
-            return Err(InternalError::new(
-                "TokenReader::advance_until(): advancing an empty reader",
-            )
-            .into());
+            panic!("TokenReader::advance_until(): advancing an empty reader")
         }
 
         let mut result = VecDeque::<Token>::new();
@@ -206,13 +218,22 @@ impl TokenReader {
         result
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.src.is_empty()
+    }
+
+    // NOTE: expectations only consume tokens if the conditions is successful
     fn expect_inner(
         &mut self,
         exp: TokenKind,
         cond: fn(&TokenKind, &TokenKind) -> bool,
     ) -> Result<Token, ChalError> {
         let Some(token) = self.peek() else {
-            return Err(ParserError::expected_token(exp, self.current.clone()).into());
+            return Err(ParserError::new(
+                ParserErrorKind::ExpectedToken(exp),
+                self.current.clone(),
+            )
+            .into());
         };
 
         if cond(&token.kind, &exp) {
@@ -223,6 +244,6 @@ impl TokenReader {
         if token.kind == TokenKind::Newline {
             span = self.current.clone();
         }
-        Err(ParserError::invalid_token(exp, token.kind.clone(), span).into())
+        Err(ParserError::new(ParserErrorKind::InvalidToken(exp, token.kind.clone()), span).into())
     }
 }

@@ -1,40 +1,49 @@
-use crate::error::{span::Span, ChalError, InternalError};
+use crate::error::{span::Span, ChalError};
 use crate::lexer::{Keyword, Special, TokenKind};
 use crate::parser::ast::{NodeExpr, NodeStmnt};
 
 use crate::parser::{LineReader, TokenReader};
 
-#[derive(Debug)]
+/// The node representing `if` conditionals.
+///
+/// Syntax:
+/// `if` \<condition\>:
+///     \<statements\>
+/// `elif` \<condition\>:
+///     \<statements\>
+/// `elif` \<condition\>:
+///     \<statements\>
+/// ...
+/// `else`:
+///     \<statements\>
+// NOTE: header refers to the first line of each statment, i.e.
+// `if <condition>:`, `elif <condition>:` or `else:`.
+#[derive(Debug, PartialEq)]
 pub struct NodeIfStmnt {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
     pub branches: Vec<NodeIfBranch>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum NodeIfBranch {
     Elif(NodeElifStmnt),
     Else(NodeElseStmnt),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NodeElifStmnt {
     pub condition: NodeExpr,
     pub body: Vec<NodeStmnt>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NodeElseStmnt {
     pub body: Vec<NodeStmnt>,
 }
 
 impl NodeIfStmnt {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
-        /* if statement structure:
-         * if n % 3 == 0:    | header
-         *     print(n)      > body
-         *     count += 1    > body
-         */
         let mut header = reader.advance_reader()?;
         header.expect_exact(TokenKind::Keyword(Keyword::If))?;
 
@@ -56,8 +65,8 @@ impl NodeIfStmnt {
         })?;
 
         let mut branches = Vec::<NodeIfBranch>::new();
-        /* NOTE: this block is guaranteed to be with at most 1 else statement
-         * (refer to LineReader::advance_chunk()) */
+        // NOTE: this block is guaranteed to contain at most 1 `else` statement.
+        // Refer to `LineReader::advance_chunk()` for more details.
         while !reader.is_empty() {
             let next_branch = reader.advance_until(|ln| {
                 let Some(front) = ln.front_tok() else {
@@ -84,10 +93,7 @@ impl NodeIfStmnt {
 impl NodeIfBranch {
     pub fn new(reader: LineReader) -> Result<Self, ChalError> {
         let Some(front_tok) = reader.peek_tok() else {
-            return Err(InternalError::new(
-                "NodeIFBranch::new(): generating an if branch from an empty reader",
-            )
-            .into());
+            panic!("NodeIfBranch::new(): generating an if branch from an empty reader");
         };
 
         match front_tok.kind {
@@ -97,7 +103,7 @@ impl NodeIfBranch {
             TokenKind::Keyword(Keyword::Else) => {
                 Ok(NodeIfBranch::Else(NodeElseStmnt::new(reader)?))
             }
-            _ => Err(InternalError::new("NodeIfBranch::new(): advancing a non-if branch").into()),
+            _ => panic!("NodeIfBranch::new(): advancing a non-if branch"),
         }
     }
 }

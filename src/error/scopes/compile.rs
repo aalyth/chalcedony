@@ -3,15 +3,24 @@ use crate::error::span::Span;
 
 use crate::common::Type;
 
-enum CompileErrorKind {
+/// The types of errors that could be encountered during the process of
+/// compiling the Abstract Syntax Tree into bytecode. For each error's meaning
+/// refer to implementation of `std::fmt::Display` for `CompileError`.
+pub enum CompileErrorKind {
+    /// `<var-name>`
     UnknownVariable(String),
+    /// `<func-name>`
     UnknownFunction(String),
-    InvalidBinOpr(String, Type, Type), /* opr_name, lhs, rhs */
-    InvalidUnaryOpr(String, Type),     /* opr_name, val*/
-    InvalidType(Type, Type),           /* exp, recv */
-    TooManyArguments(usize, usize),    /* exp, recv */
-    TooFewArguments(usize, usize),     /* exp, recv */
+    /// `<opr-literal>`, `<lhs-type>`, `<rhs-type>`
+    InvalidBinOpr(String, Type, Type),
+    /// `<opr-literal>`, `<expr-type>`
+    InvalidUnaryOpr(String, Type),
+    /// `<exp-type>`, `<recv-type>`
+    InvalidType(Type, Type),
+    /// `<func-return-type>`
     NonVoidFunctionStmnt(Type),
+    /// `<filename>`
+    ScriptNotFound(String),
     VoidFunctionExpr,
     NoDefaultReturnStmnt,
     MutatingExternalState,
@@ -21,11 +30,13 @@ enum CompileErrorKind {
     RedefiningVariable,
     ReturnOutsideFunc,
     CtrlFlowOutsideWhile,
+    /// `<exp>`, `<recv>`
     IncoherentList(Type, Type),
     InvalidIterable(Type),
     NestedTryCatch,
     UnsafeCatch,
     ThrowInSafeFunc,
+    MutatingConstant,
 }
 
 pub struct CompileError {
@@ -34,96 +45,8 @@ pub struct CompileError {
 }
 
 impl CompileError {
-    fn new(kind: CompileErrorKind, span: Span) -> Self {
+    pub fn new(kind: CompileErrorKind, span: Span) -> Self {
         CompileError { span, kind }
-    }
-
-    pub fn unknown_variable(var: String, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::UnknownVariable(var), span)
-    }
-
-    pub fn unknown_function(func: String, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::UnknownFunction(func), span)
-    }
-
-    pub fn invalid_bin_opr(opr_name: String, lhs: Type, rhs: Type, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::InvalidBinOpr(opr_name, lhs, rhs), span)
-    }
-
-    pub fn invalid_unary_opr(opr_name: String, val: Type, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::InvalidUnaryOpr(opr_name, val), span)
-    }
-
-    pub fn invalid_type(exp: Type, recv: Type, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::InvalidType(exp, recv), span)
-    }
-
-    pub fn too_many_arguments(exp: usize, recv: usize, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::TooManyArguments(exp, recv), span)
-    }
-
-    pub fn too_few_arguments(exp: usize, recv: usize, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::TooFewArguments(exp, recv), span)
-    }
-
-    pub fn non_void_func_stmnt(ty: Type, span: Span) -> Self {
-        CompileError::new(CompileErrorKind::NonVoidFunctionStmnt(ty), span)
-    }
-
-    pub fn void_func_expr(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::VoidFunctionExpr, span)
-    }
-
-    pub fn no_default_return_stmnt(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::NoDefaultReturnStmnt, span)
-    }
-
-    pub fn mutating_external_state(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::MutatingExternalState, span)
-    }
-
-    pub fn redefining_function_arg(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::RedefiningFunctionArg, span)
-    }
-
-    pub fn void_argument(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::VoidArgument, span)
-    }
-
-    pub fn overwritten_function(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::OverwrittenFunction, span)
-    }
-
-    pub fn redefining_variable(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::RedefiningVariable, span)
-    }
-
-    pub fn return_outside_func(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::ReturnOutsideFunc, span)
-    }
-
-    pub fn control_flow_outside_while(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::CtrlFlowOutsideWhile, span)
-    }
-
-    pub fn incoherent_list(span: Span, el1: Type, el2: Type) -> Self {
-        CompileError::new(CompileErrorKind::IncoherentList(el1, el2), span)
-    }
-
-    pub fn invalid_iterable(span: Span, ty: Type) -> Self {
-        CompileError::new(CompileErrorKind::InvalidIterable(ty), span)
-    }
-
-    pub fn nested_try_catch(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::NestedTryCatch, span)
-    }
-
-    pub fn unsafe_catch(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::UnsafeCatch, span)
-    }
-
-    pub fn throw_in_safe_func(span: Span) -> Self {
-        CompileError::new(CompileErrorKind::ThrowInSafeFunc, span)
     }
 }
 
@@ -161,22 +84,13 @@ impl std::fmt::Display for CompileError {
                 display_err(&self.span, f, msg)
             }
 
-            CompileErrorKind::TooManyArguments(exp, recv) => {
-                let msg = &format!(
-                    "too many arguments to function call (expected {exp}, received {recv})"
-                );
-                display_err(&self.span, f, msg)
-            }
-
-            CompileErrorKind::TooFewArguments(exp, recv) => {
-                let msg = &format!(
-                    "too few arguments to function call (expected {exp}, received {recv})"
-                );
-                display_err(&self.span, f, msg)
-            }
-
             CompileErrorKind::NonVoidFunctionStmnt(ty) => {
                 let msg = &format!("calling a non-void ({:?}) function in a statement", ty);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::ScriptNotFound(name) => {
+                let msg = &format!("could not find the script `{:?}`", name);
                 display_err(&self.span, f, msg)
             }
 
@@ -242,6 +156,10 @@ impl std::fmt::Display for CompileError {
 
             CompileErrorKind::ThrowInSafeFunc => {
                 display_err(&self.span, f, "unguarded `throw` statements are only allowed in unsafe functions (ending with `!`)")
+            }
+
+            CompileErrorKind::MutatingConstant => {
+                display_err(&self.span, f, "mutating a constant variable")
             }
         }
     }

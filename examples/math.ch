@@ -1,4 +1,6 @@
 
+const pi = 3.141_592_653_589_793
+
 fn gcd(a: uint, b: uint) -> uint:
     if b == 0:
         return a
@@ -17,9 +19,6 @@ fn pow(x: float, y: uint) -> float:
         result *= x
         y -= 1
     return result
-
-
-let pi = 3.141_592_653_589_793
 
 fn abs(x: float) -> float:
     if x < 0:
@@ -62,9 +61,6 @@ fn sqrt(s: float) -> float:
         i += 1
     return x
 
-assert(15, gcd(30, 75))
-assert(21, lcm(3, 7))
-
 fn __test_sine__():
     assert(0.0,    sin(0.0))
     assert(0.5,    round(sin(pi/6), 3))
@@ -91,6 +87,9 @@ fn __test_cosine__():
     assert(0.5,    round(cos(-pi/3), 3))
     assert(0.0,    round(cos(-pi/2), 3))
 
-__test_sine__()
-__test_cosine__()
-assert(1.414_213_562_373_095, sqrt(2.0))
+if __name__ == '__main__':
+    assert(15, gcd(30, 75))
+    assert(21, lcm(3, 7))
+    __test_sine__()
+    __test_cosine__()
+    assert(1.414_213_562_373_095, sqrt(2.0))
