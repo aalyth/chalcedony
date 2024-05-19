@@ -152,20 +152,20 @@ macro_rules! opr_cmp_internal {
             (Type::Int, Type::Int) => Ok(Type::Bool),
             (Type::Int, Type::Uint) => Ok(Type::Bool),
             (Type::Int, Type::Float) => Ok(Type::Bool),
-            (Type::Int, Type::Bool) => $cmp_func(left, $span),
+            (left @ Type::Int, Type::Bool) => $cmp_func(left, $span),
 
             (Type::Uint, Type::Int) => Ok(Type::Bool),
             (Type::Uint, Type::Uint) => Ok(Type::Bool),
             (Type::Uint, Type::Float) => Ok(Type::Bool),
-            (Type::Uint, Type::Bool) => $cmp_func(left, $span),
+            (left @ Type::Uint, Type::Bool) => $cmp_func(left, $span),
 
             (Type::Float, Type::Int) => Ok(Type::Bool),
             (Type::Float, Type::Uint) => Ok(Type::Bool),
             (Type::Float, Type::Float) => Ok(Type::Bool),
-            (Type::Float, Type::Bool) => $cmp_func(left, $span),
+            (left @ Type::Float, Type::Bool) => $cmp_func(left, $span),
 
             (Type::Str, Type::Str) => Ok(Type::Bool),
-            (Type::Bool, _) => $cmp_func(right, $span),
+            (Type::Bool, right) => $cmp_func(right, $span),
             (left, right) => Err(CompileError::new(
                 CompileErrorKind::InvalidBinOpr($opr_name.to_string(), left, right),
                 $span.clone(),
@@ -272,16 +272,16 @@ impl NodeExprInner {
             NodeExprInner::VarCall(node) => {
                 if let Some(func) = interpreter.current_func.clone() {
                     if let Some(var) = func.arg_lookup.get(&node.name) {
-                        return Ok(var.ty);
+                        return Ok(var.ty.clone());
                     }
                 }
 
                 if let Some(var) = interpreter.locals.get(&node.name) {
-                    return Ok(var.ty);
+                    return Ok(var.ty.clone());
                 }
 
                 if let Some(var) = interpreter.globals.get(&node.name) {
-                    return Ok(var.ty);
+                    return Ok(var.ty.clone());
                 }
 
                 Err(CompileError::new(
@@ -301,7 +301,7 @@ impl NodeExprInner {
                     Ok(ok) => ok,
                     Err(err) => return Err(err),
                 };
-                if let Some(builtin) = interpreter.get_function(&node.name, &arg_types) {
+                if let Some(builtin) = interpreter.get_builtin(&node.name, &arg_types) {
                     if builtin.ret_type == Type::Void {
                         return Err(CompileError::new(
                             CompileErrorKind::VoidFunctionExpr,
@@ -309,7 +309,7 @@ impl NodeExprInner {
                         )
                         .into());
                     }
-                    return Ok(builtin.ret_type);
+                    return Ok(builtin.ret_type.clone());
                 }
 
                 if let Some(func) = interpreter.get_function(&node.name, &arg_types) {
@@ -320,7 +320,7 @@ impl NodeExprInner {
                         )
                         .into());
                     }
-                    return Ok(func.ret_type);
+                    return Ok(func.ret_type.clone());
                 }
                 Err(CompileError::new(
                     CompileErrorKind::UnknownFunction(node.name.clone()),
@@ -331,6 +331,34 @@ impl NodeExprInner {
 
             NodeExprInner::BinOpr(opr) => opr.as_type(eval_stack, span),
             NodeExprInner::UnaryOpr(opr) => opr.as_type(eval_stack, span),
+
+            NodeExprInner::List(node) => {
+                /* an empty list is equal to `[Any]` */
+                if node.elements.is_empty() {
+                    return Ok(Type::List(Box::new(Type::Any)));
+                }
+
+                let mut list_ty = Type::Any;
+
+                for el in node.elements.iter() {
+                    let ty = el.as_type(interpreter)?;
+
+                    if !Type::implicit_eq(&ty, &list_ty) {
+                        return Err(CompileError::new(
+                            CompileErrorKind::IncoherentList(list_ty, ty),
+                            node.span.clone(),
+                        )
+                        .into());
+                    }
+
+                    if list_ty.root_type() == Type::Any {
+                        list_ty = ty;
+                    }
+                }
+
+                /* since each type should be the same, we can just return the last type */
+                Ok(Type::List(Box::new(list_ty)))
+            }
         }
     }
 }

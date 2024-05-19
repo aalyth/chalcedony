@@ -37,7 +37,12 @@ impl ToBytecode for NodeVarDef {
 
         let value_type = self.value.clone().as_type(interpreter)?;
         if self.ty != Type::Any {
-            Type::verify(self.ty, value_type, &mut result, self.value.span.clone())?;
+            Type::verify(
+                self.ty.clone(),
+                value_type,
+                &mut result,
+                self.value.span.clone(),
+            )?;
         } else if value_type != Type::Void {
             self.ty = value_type;
         } else {

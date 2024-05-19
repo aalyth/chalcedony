@@ -9,10 +9,11 @@ pub mod var;
 use crate::common::{Bytecode, Type};
 use crate::error::{ChalError, CompileError, CompileErrorKind};
 use crate::parser::ast::{NodeImport, NodeProg};
+use crate::utils::PtrString;
 
-use super::{Chalcedony, ScriptPath};
+use super::{Chalcedony, ScriptType};
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub trait ToBytecode {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError>;
@@ -27,6 +28,7 @@ impl ToBytecode for NodeProg {
             NodeProg::Assign(node) => node.to_bytecode(interpreter),
             NodeProg::IfStmnt(node) => node.to_bytecode(interpreter),
             NodeProg::WhileLoop(node) => node.to_bytecode(interpreter),
+            NodeProg::ForLoop(node) => node.to_bytecode(interpreter),
             NodeProg::TryCatch(node) => node.to_bytecode(interpreter),
             NodeProg::Import(node) => node.to_bytecode(interpreter),
         }
@@ -35,10 +37,7 @@ impl ToBytecode for NodeProg {
 
 impl ToBytecode for NodeImport {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let script_path = match &interpreter.current_path {
-            ScriptPath::Main => PathBuf::from(self.path.clone()),
-            ScriptPath::Import(parent) => parent.join(&self.path),
-        };
+        let script_path = interpreter.current_path.join(&self.path);
 
         if !script_path.exists() {
             return Err(CompileError::new(
@@ -48,22 +47,41 @@ impl ToBytecode for NodeImport {
             .into());
         }
 
+        let parent_script_type = interpreter.script_type;
+        interpreter.script_type = ScriptType::Imported;
         let parent_path = interpreter.current_path.clone();
-        interpreter.current_path =
-            ScriptPath::Import(script_path.parent().unwrap_or(Path::new("")).into());
+        interpreter.current_path = script_path.parent().unwrap_or(Path::new("")).into();
 
         let script_const_id = interpreter.get_global_id_internal("__name__", Type::Str, true);
         interpreter.vm.execute(vec![
-            Bytecode::ConstS(interpreter.current_path.as_string().into()),
+            Bytecode::ConstS(
+                interpreter
+                    .current_path
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+                    .into(),
+            ),
             Bytecode::SetGlobal(script_const_id),
         ]);
 
-        interpreter.interpret_script(self.path);
+        interpreter.interpret_script(script_path.to_str().unwrap().to_string());
 
+        interpreter.script_type = parent_script_type;
         interpreter.current_path = parent_path;
 
+        let name_value: PtrString = match interpreter.script_type {
+            ScriptType::Main => "__main__".to_string().into(),
+            ScriptType::Imported => interpreter
+                .current_path
+                .to_str()
+                .unwrap()
+                .to_string()
+                .into(),
+        };
+
         interpreter.vm.execute(vec![
-            Bytecode::ConstS(interpreter.current_path.as_string().into()),
+            Bytecode::ConstS(name_value),
             Bytecode::SetGlobal(script_const_id),
         ]);
         Ok(Vec::new())

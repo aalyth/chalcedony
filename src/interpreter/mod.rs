@@ -15,7 +15,7 @@ use crate::vm::Cvm;
 use crate::common::{Bytecode, Type};
 
 use std::iter::zip;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 /* ahash is the fastest hashing algorithm in terms of hashing strings */
@@ -34,7 +34,7 @@ impl ArgAnnotation {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct VarAnnotation {
     id: usize,
     ty: Type,
@@ -93,20 +93,11 @@ pub enum SafetyScope {
     Catch,
 }
 
-#[derive(Default, Clone, Debug)]
-pub enum ScriptPath {
+#[derive(Default, Clone, Debug, Copy)]
+pub enum ScriptType {
     #[default]
     Main,
-    Import(PathBuf),
-}
-
-impl ScriptPath {
-    fn as_string(&self) -> String {
-        match self {
-            Self::Main => "__main__".to_string(),
-            Self::Import(path) => path.to_str().unwrap().to_string(),
-        }
-    }
+    Imported,
 }
 
 /// The structure representing the interpreter, used to compile the received
@@ -117,7 +108,9 @@ pub struct Chalcedony {
     // The virtual machine used to execute the compiled bytecode instructions.
     vm: Cvm,
 
-    current_path: ScriptPath,
+    // Used for setting the `__name__` variable and managing relative imports.
+    script_type: ScriptType,
+    current_path: PathBuf,
 
     // Used to keep track of the globally declared variables.
     globals: AHashMap<String, VarAnnotation>,
@@ -173,7 +166,8 @@ impl Chalcedony {
     pub fn new() -> Self {
         let mut res = Chalcedony {
             vm: Cvm::new(),
-            current_path: ScriptPath::Main,
+            script_type: ScriptType::Main,
+            current_path: PathBuf::new(),
             globals: AHashMap::new(),
             builtins: get_builtins(),
             func_symtable: AHashMap::new(),
@@ -208,6 +202,10 @@ impl Chalcedony {
             );
             std::process::exit(1);
         };
+        self.current_path = PathBuf::from(filename)
+            .parent()
+            .unwrap_or(Path::new(""))
+            .to_owned();
         self.interpret_internal(&mut parser);
     }
 
@@ -295,7 +293,7 @@ impl Chalcedony {
 
     /* retrieves the global variable's id and creates it if it does not exist */
     fn get_global_id(&mut self, node: &NodeVarDef) -> usize {
-        self.get_global_id_internal(&node.name, node.ty, node.is_const)
+        self.get_global_id_internal(&node.name, node.ty.clone(), node.is_const)
     }
 
     fn get_global_id_internal(&mut self, name: &str, ty: Type, is_const: bool) -> usize {
@@ -311,7 +309,7 @@ impl Chalcedony {
 
     /* retrieves the local variable's id and creates it if it does not exist */
     fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
-        self.get_local_id_internal(&node.name, node.ty, node.is_const)
+        self.get_local_id_internal(&node.name, node.ty.clone(), node.is_const)
     }
 
     fn get_local_id_internal(&mut self, name: &str, ty: Type, is_const: bool) -> usize {
@@ -332,21 +330,6 @@ impl Chalcedony {
     fn remove_local(&mut self, name: &str) {
         self.locals.remove(name);
     }
-}
-
-/* checks whether the passed arguments match the function annotation */
-fn valid_annotation(args: &Vec<ArgAnnotation>, received: &Vec<Type>) -> bool {
-    if args.len() != received.len() {
-        return false;
-    }
-
-    for (arg, recv) in zip(args, received) {
-        if !arg.ty.soft_eq(recv) {
-            return false;
-        }
-    }
-
-    true
 }
 
 macro_rules! builtin_map {
@@ -414,6 +397,23 @@ fn get_builtins() -> AHashMap<String, Vec<BuiltinAnnotation>> {
         bytecode: vec![Bytecode::CastF],
     };
 
+    let len_str = BuiltinAnnotation {
+        args: vec![ArgAnnotation::new(0, "val".to_string(), Type::Str)],
+        ret_type: Type::Uint,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::Len],
+    };
+    let len_list = BuiltinAnnotation {
+        args: vec![ArgAnnotation::new(
+            0,
+            "val".to_string(),
+            Type::List(Box::new(Type::Any)),
+        )],
+        ret_type: Type::Uint,
+        is_unsafe: false,
+        bytecode: vec![Bytecode::Len],
+    };
+
     builtin_map!(
     "print" => vec![print],
     "assert" => vec![assert],
@@ -423,5 +423,21 @@ fn get_builtins() -> AHashMap<String, Vec<BuiltinAnnotation>> {
     "ftou" => vec![ftou],
     "itof" => vec![itof],
     "utof" => vec![utof],
+    "len" => vec![len_list, len_str]
     )
+}
+
+/* checks whether the passed arguments match the function annotation */
+fn valid_annotation(args: &Vec<ArgAnnotation>, received: &Vec<Type>) -> bool {
+    if args.len() != received.len() {
+        return false;
+    }
+
+    for (arg, recv) in zip(args, received) {
+        if !arg.ty.soft_eq(recv) {
+            return false;
+        }
+    }
+
+    true
 }

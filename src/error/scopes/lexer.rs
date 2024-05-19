@@ -19,6 +19,7 @@ pub enum LexerErrorKind {
     /// `<token-type>`
     InvalidGlobalStatement(TokenKind),
     InvalidChar(char),
+    InvalidNewlineEscape,
 }
 
 pub struct LexerError {
@@ -73,6 +74,12 @@ impl std::fmt::Display for LexerError {
                 let msg = &format!("could not lex the given char ({:?})", chr);
                 display_err(&self.span, f, msg)
             }
+
+            LexerErrorKind::InvalidNewlineEscape => display_err(
+                &self.span,
+                f,
+                "using newline escape (`\\`) before the end of the line",
+            ),
         }
     }
 }

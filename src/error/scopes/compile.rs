@@ -30,6 +30,9 @@ pub enum CompileErrorKind {
     RedefiningVariable,
     ReturnOutsideFunc,
     CtrlFlowOutsideWhile,
+    /// `<exp>`, `<recv>`
+    IncoherentList(Type, Type),
+    InvalidIterable(Type),
     NestedTryCatch,
     UnsafeCatch,
     ThrowInSafeFunc,
@@ -129,6 +132,16 @@ impl std::fmt::Display for CompileError {
 
             CompileErrorKind::CtrlFlowOutsideWhile => {
                 display_err(&self.span, f, "control flow outside a while scope")
+            }
+
+            CompileErrorKind::IncoherentList(el1, el2) => {
+                let msg = &format!("incoherent list elements ('{:?}' and '{:?}')", el1, el2);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::InvalidIterable(ty) => {
+                let msg = &format!("value of type `{:?}` is not iterable", ty);
+                display_err(&self.span, f, msg)
             }
 
             CompileErrorKind::NestedTryCatch => {

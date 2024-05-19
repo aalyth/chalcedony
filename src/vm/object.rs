@@ -1,6 +1,10 @@
 use crate::common::Type;
 use crate::utils::PtrString;
 
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+
 #[derive(Debug, Clone)]
 pub enum CvmObject {
     Int(i64),
@@ -8,6 +12,7 @@ pub enum CvmObject {
     Float(f64),
     Str(PtrString),
     Bool(bool),
+    List(Rc<RefCell<VecDeque<CvmObject>>>),
     Exception(PtrString),
 }
 
@@ -20,6 +25,13 @@ impl CvmObject {
             CvmObject::Float(_) => Type::Float,
             CvmObject::Str(_) => Type::Str,
             CvmObject::Bool(_) => Type::Bool,
+            CvmObject::List(list) => {
+                let list = list.borrow();
+                if let Some(obj) = list.front() {
+                    return Type::List(Box::new(obj.as_type()));
+                }
+                Type::List(Box::new(Type::Any))
+            }
             CvmObject::Exception(_) => Type::Exception,
         }
     }
@@ -39,6 +51,15 @@ impl std::fmt::Display for CvmObject {
             CvmObject::Float(val) => write!(f, "{}", val),
             CvmObject::Str(val) => write!(f, "{}", val),
             CvmObject::Bool(val) => write!(f, "{}", val),
+            CvmObject::List(list) => {
+                write!(f, "[")?;
+                let list = list.borrow();
+                for el in list.iter() {
+                    write!(f, "{}, ", el)?;
+                }
+                /* `\x08` is the same as `\b` */
+                write!(f, "\x08\x08]")
+            }
             CvmObject::Exception(val) => write!(f, "{}", val),
         }
     }

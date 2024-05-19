@@ -18,19 +18,25 @@
 //!     constants boil down to a clone() of the value at the given index
 //! [x] remove the `arg_count` field from the `Cvm::CallFrame` struct
 //!
+//! to-do:
+//! [ ] replace PtrString with a Box<String>
+//! [ ] add continue and break to for loops
+//! [ ] add iterators, instead of going through lists by index
+//!
 //! Future ideas:
 //! [x] function overloading
 //! [x] exceptions, try-catch blocks, and unsafe functions (ending with `!`)
 //! [x] script importing and the `__main__` constant working
-//! [ ] lists and functions for them (`set!()`, `get!()`, `push()`, `pop!()`,
+//! [%] lists and functions for them (`set!()`, `get!()`, `push()`, `pop!()`,
 //!     `insert!()` and `remove!())
-//! [ ] `for in` loops over lists and iterators
+//! [%] `for in` loops over lists and iterators
 //! [x] constants - variables that could not be changed
 //! [ ] classes and methods
-//! [ ] `len()` function for strings and lists
+//! [x] `len()` function for strings and lists
 //! [ ] generic functions
 //! [ ] hashmaps and  functions for them (`get!()`, `set!()`, etc.)
-//! [ ] functions for type casts (such as `ftoi()`, `itou()`, `stoi!()`, etc.)
+//! [x] functions for type casts (such as `ftoi()`, `itou()`, `stoi!()`, etc.)
+//! [ ] type casts from strings to primitive types
 //! [ ] short circuit logic operators
 //! [ ] a Chalcedony `shell` for direct execution of user commands
 

@@ -13,7 +13,7 @@ use ahash::AHashMap;
 
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let arg_types: Vec<Type> = self.args.iter().map(|arg| arg.ty).collect();
+        let arg_types: Vec<Type> = self.args.iter().map(|arg| arg.ty.clone()).collect();
         if interpreter.get_function(&self.name, &arg_types).is_some()
             || interpreter.get_builtin(&self.name, &arg_types).is_some()
         {
@@ -26,10 +26,10 @@ impl ToBytecode for NodeFuncDef {
             if arg.ty == Type::Void {
                 return Err(CompileError::new(CompileErrorKind::VoidArgument, self.span).into());
             }
-            args.push(ArgAnnotation::new(idx, arg.name.clone(), arg.ty));
+            args.push(ArgAnnotation::new(idx, arg.name.clone(), arg.ty.clone()));
         }
 
-        interpreter.create_function(self.name.clone(), args, self.ret_type);
+        interpreter.create_function(self.name.clone(), args, self.ret_type.clone());
 
         /* compile the bytecode for each statement in the body */
         let mut body = Vec::<Bytecode>::new();
@@ -94,7 +94,7 @@ impl From<&BuiltinAnnotation> for RawFuncAnnotation {
     fn from(value: &BuiltinAnnotation) -> Self {
         RawFuncAnnotation {
             args: value.args.clone(),
-            ret_type: value.ret_type,
+            ret_type: value.ret_type.clone(),
             bytecode: value.bytecode.clone(),
         }
     }
@@ -104,7 +104,7 @@ impl From<&FuncAnnotation> for RawFuncAnnotation {
     fn from(value: &FuncAnnotation) -> Self {
         RawFuncAnnotation {
             args: value.args.clone(),
-            ret_type: value.ret_type,
+            ret_type: value.ret_type.clone(),
             bytecode: vec![Bytecode::CallFunc(value.id)],
         }
     }
@@ -150,6 +150,12 @@ impl ToBytecode for NodeFuncCall {
             .into());
         }
 
+        /* TODO
+        if self.name == "set!" {
+            self.check_list_adding(interpreter)?;
+        }
+        */
+
         /* push on the stack each of the argument's expression value */
         let mut result = Vec::<Bytecode>::new();
         for (arg, arg_ty, exp) in izip!(self.args, arg_types, annotation.args) {
@@ -163,4 +169,38 @@ impl ToBytecode for NodeFuncCall {
 
         Ok(result)
     }
+
+    // get!<V>(list: [V], idx: int) -> V
+    // remove!<V>(list: [V], idx: int) -> V
+    // pop!<V>(list: [V]) -> V
+}
+
+impl NodeFuncCall {
+    // set!<V>(list: [V], val: V, idx: int)
+    // insert!<V>(list: [V], val: V, idx: int)
+    // push!<V>(list: [V], val: V)
+    /* simulating bounded polymorphism (generics) */
+    /*
+    fn check_list_adding(&self, interpreter: &mut Chalcedony) -> Result<(), ChalError> {
+        let list = self.args.get(0).unwrap();
+        let list_ty = list.as_type(interpreter)?;
+        let val = self.args.get(1).unwrap();
+        let val_ty = val.as_type(interpreter)?;
+
+        let Type::List(ty) = list_ty else {
+            return Err(CompileError::invalid_type(
+                Type::List(Box::new(Type::Any)),
+                list_ty,
+                list.span.clone(),
+            )
+            .into());
+        };
+
+        if *ty != val_ty {
+            return Err(CompileError::invalid_type(*ty, val_ty, val.span.clone()).into());
+        }
+
+        Ok(())
+    }
+    */
 }

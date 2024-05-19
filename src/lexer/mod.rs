@@ -138,6 +138,7 @@ impl Lexer {
             TokenKind::Keyword(Keyword::Fn)
             | TokenKind::Keyword(Keyword::If)
             | TokenKind::Keyword(Keyword::While)
+            | TokenKind::Keyword(Keyword::For)
             | TokenKind::Keyword(Keyword::Try) => {
                 result.push_back(line);
                 result.extend(self.advance_chunk()?);
@@ -368,6 +369,22 @@ impl Lexer {
                 _ => _ = buffer.pop(),
             }
             return self.advance_tok(buffer, start, end);
+        }
+
+        if current == '\\' {
+            current = self.reader.advance().expect("expected a token");
+            while current == ' ' {
+                current = self.reader.advance().expect("expected a token");
+            }
+            if current != '\n' {
+                return Err(LexerError::new(
+                    LexerErrorKind::InvalidNewlineEscape,
+                    self.get_span(start, start),
+                )
+                .into());
+            }
+
+            return self.advance();
         }
 
         // NOTE: the position of the newline is actually wrong - it is on the

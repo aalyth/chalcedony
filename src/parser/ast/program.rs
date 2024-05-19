@@ -3,7 +3,7 @@ use crate::error::{ChalError, ParserError, ParserErrorKind};
 use crate::lexer::{Delimiter, Operator};
 use crate::lexer::{Keyword, Line, TokenKind};
 use crate::parser::ast::{
-    NodeAssign, NodeFuncCall, NodeFuncDef, NodeIfStmnt, NodeVarDef, NodeWhileLoop,
+    NodeAssign, NodeForLoop, NodeFuncCall, NodeFuncDef, NodeIfStmnt, NodeVarDef, NodeWhileLoop,
 };
 
 use crate::parser::{LineReader, TokenReader};
@@ -25,6 +25,7 @@ pub enum NodeProg {
     Assign(NodeAssign),
     IfStmnt(NodeIfStmnt),
     WhileLoop(NodeWhileLoop),
+    ForLoop(NodeForLoop),
     TryCatch(NodeTryCatch),
     Import(NodeImport),
 }
@@ -111,6 +112,9 @@ impl NodeProg {
             }
             TokenKind::Keyword(Keyword::Try) => {
                 multiline_stmnt!(TryCatch, NodeTryCatch, chunk, spanner)
+            }
+            TokenKind::Keyword(Keyword::For) => {
+                multiline_stmnt!(ForLoop, NodeForLoop, chunk, spanner)
             }
 
             TokenKind::Identifier(_) => {

@@ -1,4 +1,4 @@
-import "examples/math.ch"
+import "math.ch"
 
 const pi_half = pi / 2
 
