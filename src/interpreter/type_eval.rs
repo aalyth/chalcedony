@@ -273,67 +273,6 @@ impl NodeExprInner {
     ) -> Result<Type, ChalError> {
         match self {
             NodeExprInner::Value(node) => Ok(node.as_type()),
-            /*
-            NodeExprInner::VarCall(node) => {
-                if let Some(func) = interpreter.current_func.clone() {
-                    if let Some(var) = func.arg_lookup.get(&node.name) {
-                        return Ok(var.ty);
-                    }
-                }
-
-                if let Some(var) = interpreter.locals.get(&node.name) {
-                    return Ok(var.ty);
-                }
-
-                if let Some(var) = interpreter.globals.get(&node.name) {
-                    return Ok(var.ty);
-                }
-
-                Err(CompileError::new(
-                    CompileErrorKind::UnknownVariable(node.name.clone()),
-                    node.span.clone(),
-                )
-                .into())
-            }
-
-            NodeExprInner::FuncCall(node) => {
-                let arg_types: Result<Vec<Type>, ChalError> = node
-                    .args
-                    .iter()
-                    .map(|arg| arg.as_type(interpreter))
-                    .collect();
-                let arg_types = match arg_types {
-                    Ok(ok) => ok,
-                    Err(err) => return Err(err),
-                };
-                if let Some(builtin) = interpreter.get_function(&node.name, &arg_types) {
-                    if builtin.ret_type == Type::Void {
-                        return Err(CompileError::new(
-                            CompileErrorKind::VoidFunctionExpr,
-                            node.span.clone(),
-                        )
-                        .into());
-                    }
-                    return Ok(builtin.ret_type);
-                }
-
-                if let Some(func) = interpreter.get_function(&node.name, &arg_types) {
-                    if func.ret_type == Type::Void {
-                        return Err(CompileError::new(
-                            CompileErrorKind::VoidFunctionExpr,
-                            node.span.clone(),
-                        )
-                        .into());
-                    }
-                    return Ok(func.ret_type);
-                }
-                Err(CompileError::new(
-                    CompileErrorKind::UnknownFunction(node.name.clone()),
-                    node.span.clone(),
-                )
-                .into())
-            }
-            */
             NodeExprInner::Resolution(node) => node.as_type(interpreter),
 
             NodeExprInner::BinOpr(opr) => opr.as_type(eval_stack, span),

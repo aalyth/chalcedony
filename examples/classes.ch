@@ -32,17 +32,8 @@ class Calculator:
     fn display(self):
         print(self)
 
-class Example:
-    a: uint
-    b: int
-    c: Bueno
-    
-# let example = Calculator {a: 1, b: 2, res: 15, bueno: Bueno {v: "hello", w: "world"}}
-# Calculator::new(5, 6).compute().display()
-# print(example.res)
-# example.compute()
-# print(example.res)
-let test = Example {a: 0, b: -10, c: Bueno {v: "hello ", w: "world"}}
-assert(0, test.a)
-assert("hello world", test.c.v + test.c.w)
-print(test.c.v + test.c.w)
+let example = Calculator {a: 1, b: 2, res: 15, bueno: Bueno {v: "hello", w: "world"}}
+Calculator::new(5, 6).compute().display()
+print(example.res)
+example.compute()
+print(example.res)

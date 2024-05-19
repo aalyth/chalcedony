@@ -89,7 +89,6 @@ impl ToBytecode for NodeFuncDef {
 #[derive(Default)]
 struct RawFuncAnnotation {
     args: Vec<ArgAnnotation>,
-    ret_type: Type,
     bytecode: Vec<Bytecode>,
 }
 
@@ -97,7 +96,6 @@ impl From<&BuiltinAnnotation> for RawFuncAnnotation {
     fn from(value: &BuiltinAnnotation) -> Self {
         RawFuncAnnotation {
             args: value.args.clone(),
-            ret_type: value.ret_type.clone(),
             bytecode: value.bytecode.clone(),
         }
     }
@@ -107,7 +105,6 @@ impl From<&FuncAnnotation> for RawFuncAnnotation {
     fn from(value: &FuncAnnotation) -> Self {
         RawFuncAnnotation {
             args: value.args.clone(),
-            ret_type: value.ret_type.clone(),
             bytecode: vec![Bytecode::CallFunc(value.id)],
         }
     }
@@ -124,74 +121,6 @@ pub fn compile_func_call_inner(
     interpreter: &mut Chalcedony,
     parent_type: Option<Type>,
 ) -> Result<Vec<Bytecode>, ChalError> {
-    /*
-    let arg_types: Result<VecDeque<Type>, ChalError> = node
-        .args
-        .iter()
-        .map(|expr| expr.as_type(interpreter))
-        .collect();
-    let mut arg_types = match arg_types {
-        Ok(ok) => ok,
-        Err(err) => return Err(err),
-    };
-
-    /* the function is called as a method */
-    if let Some(ty) = &parent_type {
-        arg_types.push_front(ty.clone());
-        if node.namespace.is_some() {
-            panic!("calling a namespace function also as a method");
-        }
-        node.namespace = Some(ty.clone().as_class());
-    }
-
-    /* check whether function's namespace exists */
-    if let Some(namespace) = &node.namespace {
-        if !interpreter.namespaces.contains_key(namespace) {
-            return Err(CompileError::new(
-                CompileErrorKind::UnknownNamespace(namespace.clone()),
-                node.span,
-            )
-            .into());
-        }
-    }
-
-    /* get the function's annotation */
-    let Some(annotation) = interpreter
-        .get_function(&node.name, &arg_types, node.namespace.as_ref())
-        .cloned()
-    else {
-        let mut func_name = node.name;
-        if let Some(class) = node.namespace {
-            func_name = class + "::" + &func_name;
-        }
-        return Err(
-            CompileError::new(CompileErrorKind::UnknownFunction(func_name), node.span).into(),
-        );
-    };
-
-    // check whether an unsafe function is called within in an unguarded scope
-    if node.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Catch {
-        return Err(CompileError::new(CompileErrorKind::UnsafeCatch, node.span).into());
-    }
-
-    /* if the function is a method the first argument is already compiled */
-    let mut arguments = izip!(node.args, arg_types, annotation.args.clone());
-    if parent_type.is_some() {
-        arguments.next();
-    }
-
-    /* push on the stack each of the argument's expression value */
-    let mut result = Vec::<Bytecode>::new();
-    for (arg, arg_ty, exp) in arguments {
-        result.extend(arg.clone().to_bytecode(interpreter)?);
-        Type::verify(exp.ty, arg_ty, &mut result, arg.span.clone())?;
-    }
-
-    /* complete the function call instruction */
-    result.push(Bytecode::CallFunc(annotation.id));
-
-    Ok(result)
-        */
     let arg_types: Result<VecDeque<Type>, ChalError> = node
         .args
         .iter()
@@ -243,14 +172,6 @@ pub fn compile_func_call_inner(
 
     if node.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Catch {
         return Err(CompileError::new(CompileErrorKind::UnsafeCatch, node.span).into());
-    }
-
-    if annotation.ret_type != Type::Void && interpreter.inside_stmnt {
-        return Err(CompileError::new(
-            CompileErrorKind::NonVoidFunctionStmnt(annotation.ret_type),
-            node.span.clone(),
-        )
-        .into());
     }
 
     let mut arguments = izip!(node.args, arg_types, annotation.args.clone());

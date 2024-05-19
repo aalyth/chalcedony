@@ -6,7 +6,7 @@ syntax keyword keywords fn return let if elif else while continue break try catc
 syntax keyword type uint int float str bool void exception
 syntax keyword boolean true false
 
-syntax keyword builtin print assert utoi ftoi itou ftou itof utof
+syntax keyword builtin print assert utoi ftoi itou ftou itof utof self
 
 syntax match comment '#.*$'
 syntax region string start='"' end='"'
@@ -24,7 +24,7 @@ syntax match namespace '\w\+\(::\)\@='
 let b:current_syntax = 'chalcedony'
 hi def link types         Type 
 hi def link keywords      Statement
-hi def link builtin       Special
+hi def link builtin       SpecialChar
 hi def link boolean       Constant
 hi def link number        Constant
 hi def link string        Constant
