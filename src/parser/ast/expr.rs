@@ -1,14 +1,15 @@
 use crate::error::span::Span;
 use crate::error::{ChalError, ParserError, ParserErrorKind};
 use crate::lexer;
-use crate::lexer::{Delimiter, Token, TokenKind};
-use crate::parser::ast::{NodeFuncCall, NodeValue, NodeVarCall};
+use crate::lexer::{Delimiter, Special, Token, TokenKind};
+use crate::parser::ast::{NodeAttrRes, NodeValue};
 
 use crate::common::operators::{BinOprType, UnaryOprType};
 use crate::utils::Stack;
 
 use crate::parser::TokenReader;
 
+use ahash::AHashMap;
 use std::collections::VecDeque;
 
 /// An abstraction, representing a single element in an expression - a value, an
@@ -20,8 +21,15 @@ pub enum NodeExprInner {
     BinOpr(BinOprType),
     UnaryOpr(UnaryOprType),
     Value(NodeValue),
-    VarCall(NodeVarCall),
-    FuncCall(NodeFuncCall),
+    Resolution(NodeAttrRes),
+    InlineClass(NodeInlineClass),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct NodeInlineClass {
+    pub class: String,
+    pub members: AHashMap<String, (NodeExpr, Span)>,
+    pub span: Span,
 }
 
 /// A series of operations, which result in a single value. The operations
@@ -179,6 +187,11 @@ macro_rules! push_operator {
                 ParserError::new(ParserErrorKind::RepeatedExprOperator, $current_tok.span).into(),
             );
         }
+        if is_unary && $prev_type == PrevType::Terminal {
+            return Err(
+                ParserError::new(ParserErrorKind::InvalidUnaryOperator, $current_tok.span).into(),
+            );
+        }
         if !is_unary {
             $prev_type = PrevType::BinOpr;
         } else {
@@ -247,41 +260,20 @@ impl NodeExpr {
                 }
 
                 TokenKind::Identifier(_) => {
-                    if reader.peek().is_none() {
-                        let node = NodeExprInner::VarCall(NodeVarCall::new(current.clone())?);
-                        push_terminal!(node, output, prev_type, current);
-                        continue;
-                    };
-
-                    // check whether the identifier should be treated as a
-                    // variable or function call
-                    if let TokenKind::Delimiter(Delimiter::OpenPar) = reader.peek().unwrap().kind {
-                        let mut buffer = VecDeque::<Token>::new();
-                        buffer.push_back(current.clone());
-                        /* push the open parenthesis */
-                        buffer.push_back(reader.advance().unwrap());
-                        let mut open_delims: u64 = 1;
-
-                        while !reader.is_empty() && open_delims > 0 {
-                            let current = reader.advance().unwrap();
-
-                            match current.kind {
-                                TokenKind::Delimiter(Delimiter::OpenPar) => open_delims += 1,
-                                TokenKind::Delimiter(Delimiter::ClosePar) => open_delims -= 1,
-                                _ => (),
-                            }
-                            buffer.push_back(current);
-                        }
-                        // SAFETY: the buffer should always have at least 1
-                        // element inside it
-                        let tmp_reader = TokenReader::new(buffer, reader.current());
-                        let node = NodeExprInner::FuncCall(NodeFuncCall::new(tmp_reader)?);
-                        push_terminal!(node, output, prev_type, current);
+                    if reader.peek_is_exact(TokenKind::Delimiter(Delimiter::OpenBrace)) {
+                        let node = advance_inline_class(&mut reader, &current)?;
+                        push_terminal!(
+                            NodeExprInner::InlineClass(node),
+                            output,
+                            prev_type,
+                            current
+                        );
                         continue;
                     }
 
-                    let node = NodeExprInner::VarCall(NodeVarCall::new(current.clone())?);
-                    push_terminal!(node, output, prev_type, current);
+                    reader.push_front(current.clone());
+                    let node = NodeAttrRes::new(&mut reader)?;
+                    push_terminal!(NodeExprInner::Resolution(node), output, prev_type, current);
                 }
 
                 TokenKind::Operator(current_opr) => {
@@ -361,4 +353,61 @@ impl NodeExpr {
             span,
         }
     }
+}
+
+fn advance_inline_class(
+    reader: &mut TokenReader,
+    current: &Token,
+) -> Result<NodeInlineClass, ChalError> {
+    let start = current.span.start;
+    let TokenKind::Identifier(class) = current.kind.clone() else {
+        panic!("expr::advance_inline_class(): advancing an inline class from non-identifier")
+    };
+
+    reader.expect_exact(TokenKind::Delimiter(Delimiter::OpenBrace))?;
+
+    let mut members = AHashMap::<String, (NodeExpr, Span)>::new();
+    while !reader.is_empty() {
+        let member = reader.expect_ident()?;
+        reader.expect_exact(TokenKind::Special(Special::Colon))?;
+
+        let start = reader.current().start;
+        let mut open_delim = 0;
+        let mut buffer = VecDeque::<Token>::new();
+        let mut should_terminate = false;
+        while !reader.is_empty() {
+            match reader.peek().unwrap().kind {
+                TokenKind::Special(Special::Comma) if open_delim == 0 => break,
+                TokenKind::Delimiter(Delimiter::CloseBrace) if open_delim == 0 => {
+                    should_terminate = true;
+                    break;
+                }
+
+                TokenKind::Delimiter(Delimiter::OpenBrace) => open_delim += 1,
+                TokenKind::Delimiter(Delimiter::CloseBrace) => open_delim -= 1,
+
+                _ => {}
+            }
+
+            buffer.push_back(reader.advance().unwrap());
+        }
+        /* remove the comma at the end */
+        reader.advance();
+
+        let buf_reader = TokenReader::new(buffer, reader.current());
+        let expr = NodeExpr::new(buf_reader)?;
+        let span = Span::new(start, reader.current().end, reader.spanner());
+        members.insert(member, (expr, span));
+
+        if should_terminate {
+            break;
+        }
+    }
+
+    let span = Span::new(start, reader.current().end, reader.spanner());
+    Ok(NodeInlineClass {
+        class,
+        members,
+        span,
+    })
 }

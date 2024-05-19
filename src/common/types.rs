@@ -3,7 +3,7 @@ use crate::error::{span::Span, ChalError, CompileError, CompileErrorKind};
 
 /// The structure, representing a type inside the interpreter. Used to assert
 /// the type strictness of the script before it's execution.
-#[derive(PartialEq, Debug, Clone, Copy, Default)]
+#[derive(PartialEq, Debug, Clone, Default)]
 pub enum Type {
     Int,
     Uint,
@@ -14,6 +14,7 @@ pub enum Type {
     #[default]
     Void,
     Exception,
+    Custom(Box<String>),
 }
 
 impl Type {
@@ -54,9 +55,24 @@ impl Type {
             | (Type::Float, Type::Float)
             | (Type::Str, Type::Str)
             | (Type::Bool, Type::Bool) => true,
+            (Type::Custom(lhs), Type::Custom(rhs)) => lhs == rhs,
             /* implicit type casts */
             (Type::Int, Type::Uint) => true,
             _ => false,
+        }
+    }
+
+    pub fn as_class(&self) -> String {
+        match self {
+            Type::Int => "Int".to_string(),
+            Type::Uint => "Uint".to_string(),
+            Type::Float => "Float".to_string(),
+            Type::Str => "String".to_string(),
+            Type::Bool => "Bool".to_string(),
+            Type::Exception => "Exception".to_string(),
+            Type::Custom(class) => *class.clone(),
+            Type::Any => "Any".to_string(),
+            Type::Void => "Void".to_string(),
         }
     }
 }

@@ -1,17 +1,19 @@
 use crate::error::{ChalError, ParserError, ParserErrorKind};
 use crate::lexer::{Operator, Token, TokenKind};
-use crate::parser::ast::{NodeExpr, NodeVarCall};
+use crate::parser::ast::{NodeAttrRes, NodeAttribute, NodeExpr};
 use crate::parser::TokenReader;
 
 use crate::common::operators::AssignOprType;
 
-/// The node representing changes to any variable in the source code.
+/// The node representing changes to variable/members in the source code.
 ///
 /// Syntax:
-/// \<var_name\> \<opr\> \<expression\>
+/// \<attribute-resolution\> \<opr\> \<expression\>
+///
+/// for reference to `<attribute-resolution>` see `NodeAttrRes`
 #[derive(Debug, PartialEq)]
 pub struct NodeAssign {
-    pub lhs: NodeVarCall,
+    pub lhs: NodeAttrRes,
     pub opr: AssignOprType,
     pub rhs: NodeExpr,
 }
@@ -37,10 +39,7 @@ impl IntoAssignmentOpr for Token {
 }
 
 impl NodeAssign {
-    pub fn new(mut reader: TokenReader) -> Result<Self, ChalError> {
-        let lhs_raw = reader.expect(TokenKind::Identifier(String::new()))?;
-        let lhs = NodeVarCall::new(lhs_raw)?;
-
+    pub fn new(lhs: NodeAttrRes, mut reader: TokenReader) -> Result<Self, ChalError> {
         let opr = reader
             .expect(TokenKind::Operator(Operator::Eq))?
             .try_into_assignment_opr()?;
@@ -48,6 +47,18 @@ impl NodeAssign {
         let rhs_raw = reader.advance_until(|tk| *tk == TokenKind::Newline)?;
         let rhs_reader = TokenReader::new(rhs_raw, reader.current());
         let rhs = NodeExpr::new(rhs_reader)?;
+
+        for attribute in &lhs.resolution {
+            if let NodeAttribute::FuncCall(node) = attribute {
+                return Err(ParserError::new(
+                    ParserErrorKind::FuncCallAssignment,
+                    node.span.clone(),
+                )
+                .into());
+            }
+        }
+
+        reader.expect_exact(TokenKind::Newline)?;
 
         Ok(NodeAssign { lhs, opr, rhs })
     }

@@ -44,7 +44,7 @@ pub struct NodeElseStmnt {
 
 impl NodeIfStmnt {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
-        let mut header = reader.advance_reader()?;
+        let mut header = reader.advance_reader();
         header.expect_exact(TokenKind::Keyword(Keyword::If))?;
 
         let cond_raw = header.advance_until(|tk| {
@@ -110,7 +110,7 @@ impl NodeIfBranch {
 
 impl NodeElifStmnt {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
-        let mut header = reader.advance_reader()?;
+        let mut header = reader.advance_reader();
         header.expect_exact(TokenKind::Keyword(Keyword::Elif))?;
 
         let cond_raw = header.advance_until(|tk| {
@@ -130,7 +130,7 @@ impl NodeElifStmnt {
 
 impl NodeElseStmnt {
     pub fn new(mut reader: LineReader) -> Result<Self, ChalError> {
-        let mut header = reader.advance_reader()?;
+        let mut header = reader.advance_reader();
         header.expect_exact(TokenKind::Keyword(Keyword::Else))?;
         header.expect_exact(TokenKind::Special(Special::Colon))?;
         header.expect_exact(TokenKind::Newline)?;

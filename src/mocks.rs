@@ -37,7 +37,7 @@ pub fn mock_token(kind: TokenKind, span: Span) -> Token {
 
 #[macro_export]
 macro_rules! line {
-    ($indent: expr, $( $tok_kind:expr ),* ) => {{
+    ($indent: expr, $( $tok_kind:expr ),* $(,)?) => {{
         use chalcedony::lexer::{Line, Token};
         use chalcedony::mocks::{SpanMock, mock_token};
         use std::collections::VecDeque;
@@ -53,7 +53,7 @@ pub use line;
 
 #[macro_export]
 macro_rules! chunk {
-    ($($line:expr), *) => {{
+    ($($line:expr),* $(,)?) => {{
         use std::collections::VecDeque;
 
         let mut vec = VecDeque::new();
@@ -65,7 +65,7 @@ pub use chunk;
 
 #[macro_export]
 macro_rules! line_reader {
-    ($($line:expr), *) => {{
+    ($($line:expr),* $(,)?) => {{
         use chalcedony::mocks::SpanMock;
         use chalcedony::parser::LineReader;
         use std::collections::VecDeque;
@@ -79,7 +79,7 @@ pub use line_reader;
 
 #[macro_export]
 macro_rules! token_reader {
-    ($($tok_kind:expr), *) => {{
+    ($($tok_kind:expr),* $(,)?) => {{
         use chalcedony::mocks::{SpanMock, mock_token};
         use chalcedony::parser::TokenReader;
         use std::collections::VecDeque;
@@ -95,7 +95,7 @@ pub use token_reader;
 
 #[macro_export]
 macro_rules! vecdeq {
-    [$($val:expr), *] => {{
+    [$($val:expr),* $(,)?] => {{
         use std::collections::VecDeque;
 
         let mut vec = VecDeque::new();
@@ -104,3 +104,12 @@ macro_rules! vecdeq {
     }};
 }
 pub use vecdeq;
+
+#[macro_export]
+macro_rules! hash_map {
+    [$($key:expr => $val:expr),* $(,)?] => {{
+        use ahash::AHashMap;
+        AHashMap::from([$(($key, $val),)*])
+    }};
+}
+pub use hash_map;

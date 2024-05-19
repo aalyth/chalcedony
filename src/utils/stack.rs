@@ -35,6 +35,10 @@ impl<T> Stack<T> {
         self.values.get_mut(idx)
     }
 
+    pub fn top(&mut self) -> Option<&mut T> {
+        self.values.last_mut()
+    }
+
     // Keeps the first `len` elements on the stack, removing the others.
     pub fn truncate(&mut self, len: usize) {
         self.values.truncate(len)

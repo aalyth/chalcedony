@@ -54,6 +54,11 @@ impl TokenReader {
         self.src.front()
     }
 
+    /// Returns the token to the front of the reader.
+    pub fn push_front(&mut self, token: Token) {
+        self.src.push_front(token)
+    }
+
     /// Advances the next token if it is of type `exp` and returns a
     /// `ParserError` if the token does not match the expected type. This
     /// function uses `soft` checking, i.e. only the outer variant of the token
@@ -89,6 +94,10 @@ impl TokenReader {
         peek.kind == exp
     }
 
+    pub fn peek_nth(&self, n: usize) -> Option<&Token> {
+        self.src.get(n)
+    }
+
     /// Advances the next token if it is of type `TokenKind::Str()` and returns
     /// it's value. Equivalent to the code:
     /// ```
@@ -114,10 +123,21 @@ impl TokenReader {
     /// };
     /// ```
     pub fn expect_type(&mut self) -> Result<Type, ChalError> {
-        let exp = self.expect(TokenKind::Type(Type::Any))?;
-        match exp.kind {
-            TokenKind::Type(res) => Ok(res),
-            _ => panic!("TokenReader::expect_type(): invalid expect() return value"),
+        let Some(tok) = self.advance() else {
+            return Err(ParserError::new(
+                ParserErrorKind::ExpectedToken(TokenKind::Type(Type::Any)),
+                self.current.clone(),
+            )
+            .into());
+        };
+        match tok.kind {
+            TokenKind::Type(ty) => Ok(ty),
+            TokenKind::Identifier(val) => Ok(Type::Custom(Box::new(val))),
+            recv => Err(ParserError::new(
+                ParserErrorKind::InvalidToken(TokenKind::Type(Type::Any), recv),
+                self.current.clone(),
+            )
+            .into()),
         }
     }
 
@@ -135,6 +155,41 @@ impl TokenReader {
             result.push_back(self.advance().unwrap());
         }
         Ok(result)
+    }
+
+    pub fn advance_scope(&mut self, open_delim: TokenKind, close_delim: TokenKind) -> TokenReader {
+        TokenReader::new(
+            self.advance_scope_raw(open_delim, close_delim),
+            self.current.clone(),
+        )
+    }
+
+    pub fn advance_scope_raw(
+        &mut self,
+        open_delim: TokenKind,
+        close_delim: TokenKind,
+    ) -> VecDeque<Token> {
+        let mut open_scopes = 0;
+        let mut result = VecDeque::<Token>::new();
+
+        while !self.is_empty() {
+            result.push_back(self.advance().unwrap());
+
+            let kind = &result.back().unwrap().kind;
+
+            if kind == &open_delim {
+                open_scopes += 1;
+            }
+
+            if kind == &close_delim {
+                if open_scopes == 1 {
+                    break;
+                }
+                open_scopes -= 1;
+            }
+        }
+
+        result
     }
 
     pub fn is_empty(&self) -> bool {
@@ -164,5 +219,11 @@ impl TokenReader {
             span = self.current.clone();
         }
         Err(ParserError::new(ParserErrorKind::InvalidToken(exp, token.kind.clone()), span).into())
+    }
+}
+
+impl std::fmt::Debug for TokenReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.src)
     }
 }

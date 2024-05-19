@@ -5,7 +5,8 @@ use crate::error::{ChalError, CompileError, CompileErrorKind};
 use crate::interpreter::{Chalcedony, LoopScope, SafetyScope, VarAnnotation};
 use crate::parser::ast::{
     NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExprInner,
-    NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeThrow, NodeTryCatch, NodeWhileLoop,
+    NodeFuncCallStmnt, NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeThrow, NodeTryCatch,
+    NodeWhileLoop,
 };
 
 use crate::common::operators::{AssignOprType, BinOprType};
@@ -66,7 +67,12 @@ impl ToBytecode for NodeStmnt {
 
                 let value_type = node.value.as_type(interpreter)?;
                 if node.ty != Type::Any {
-                    Type::verify(node.ty, value_type, &mut result, node.value.span.clone())?;
+                    Type::verify(
+                        node.ty.clone(),
+                        value_type,
+                        &mut result,
+                        node.value.span.clone(),
+                    )?;
                 } else {
                     node.ty = value_type;
                 }
@@ -78,7 +84,18 @@ impl ToBytecode for NodeStmnt {
                 result
             }
 
-            NodeStmnt::FuncCall(node) => node.to_bytecode(interpreter)?,
+            NodeStmnt::FuncCall(NodeFuncCallStmnt(node)) => {
+                let resolution_ty = node.as_type(interpreter)?;
+                if resolution_ty != Type::Void && interpreter.inside_stmnt {
+                    return Err(CompileError::new(
+                        CompileErrorKind::NonVoidFunctionStmnt(resolution_ty),
+                        node.span.clone(),
+                    )
+                    .into());
+                }
+
+                node.to_bytecode(interpreter)?
+            }
             NodeStmnt::RetStmnt(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::Assign(node) => node.to_bytecode(interpreter)?,
 
@@ -272,66 +289,64 @@ impl ToBytecode for NodeWhileLoop {
     }
 }
 
-enum VarScope {
-    Arg,
-    Local,
-    Global,
-}
-
 impl ToBytecode for NodeAssign {
     fn to_bytecode(mut self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         /* the annotation of the mutated variable */
         let annotation: VarAnnotation;
-        /* used to compute the resulting type */
-        let mut scope = VarScope::Global;
+        let mut set_instr: Bytecode;
 
-        if !var_exists(&self.lhs.name, interpreter) {
-            return Err(CompileError::new(
-                CompileErrorKind::UnknownVariable(self.lhs.name),
-                self.lhs.span,
-            )
-            .into());
+        let root = self.lhs.first().as_var_call().unwrap().clone();
+
+        if !var_exists(&root.name, interpreter) {
+            return Err(
+                CompileError::new(CompileErrorKind::UnknownVariable(root.name), root.span).into(),
+            );
         }
 
-        if let Some(var) = interpreter.locals.get(&self.lhs.name) {
-            annotation = *var;
-            scope = VarScope::Local;
+        if let Some(var) = interpreter.locals.get(&root.name) {
+            annotation = var.clone();
+            set_instr = Bytecode::SetLocal(annotation.id);
 
         /* check whether the interpreter is compiling inside a function scope */
         } else if let Some(func) = interpreter.current_func.clone() {
             /* check whether the variable is an argument */
-            if let Some(arg) = func.arg_lookup.get(&self.lhs.name) {
-                annotation = VarAnnotation::new(arg.id, arg.ty, false);
-                scope = VarScope::Arg;
+            if let Some(arg) = func.arg_lookup.get(&root.name) {
+                annotation = VarAnnotation::new(arg.id, arg.ty.clone(), false);
+                set_instr = Bytecode::SetLocal(annotation.id);
 
             /* the variable is global, but is mutated inside a statement */
             } else {
-                return Err(CompileError::new(
-                    CompileErrorKind::MutatingExternalState,
-                    self.lhs.span,
-                )
-                .into());
+                return Err(
+                    CompileError::new(CompileErrorKind::MutatingExternalState, root.span).into(),
+                );
             }
 
         /* the interpreter is in the global scope*/
-        } else if let Some(var) = interpreter.globals.get(&self.lhs.name) {
-            annotation = *var;
+        } else if let Some(var) = interpreter.globals.get(&root.name) {
+            annotation = var.clone();
+            set_instr = Bytecode::SetGlobal(annotation.id);
         } else {
             /* this is necessary for the proper compilation */
             unreachable!();
         }
 
         if annotation.is_const {
-            return Err(
-                CompileError::new(CompileErrorKind::MutatingConstant, self.lhs.span).into(),
-            );
+            return Err(CompileError::new(CompileErrorKind::MutatingConstant, root.span).into());
         }
 
         let mut result = Vec::<Bytecode>::new();
+        if self.lhs.resolution.len() > 1 {
+            result.extend(self.lhs.clone().to_bytecode(interpreter)?);
+            let Bytecode::GetAttr(attr_id) = result.pop().unwrap() else {
+                panic!("attribute resolution does not end with `GetAttr`");
+            };
+            set_instr = Bytecode::SetAttr(attr_id);
+        }
+
         if self.opr != AssignOprType::Eq {
             self.rhs
                 .expr
-                .push_front(NodeExprInner::VarCall(self.lhs.clone()));
+                .push_front(NodeExprInner::Resolution(self.lhs.clone()));
 
             macro_rules! push_bin_opr {
                 ($expr:expr, $type:ident) => {{
@@ -352,12 +367,10 @@ impl ToBytecode for NodeAssign {
         result.extend(self.rhs.clone().to_bytecode(interpreter)?);
 
         let rhs_ty = self.rhs.as_type(interpreter)?;
-        Type::verify(annotation.ty, rhs_ty, &mut result, self.rhs.span)?;
+        let lhs_ty = self.lhs.as_type(interpreter)?;
+        Type::verify(lhs_ty, rhs_ty, &mut result, self.rhs.span)?;
 
-        match scope {
-            VarScope::Arg | VarScope::Local => result.push(Bytecode::SetLocal(annotation.id)),
-            VarScope::Global => result.push(Bytecode::SetGlobal(annotation.id)),
-        }
+        result.push(set_instr);
 
         Ok(result)
     }
@@ -372,7 +385,7 @@ impl ToBytecode for NodeRetStmnt {
         };
 
         let recv_type = self.value.as_type(interpreter)?;
-        let exp_type = func.ret_type;
+        let exp_type = func.ret_type.clone();
 
         if exp_type == Type::Void && recv_type == Type::Void {
             return Ok(vec![Bytecode::ReturnVoid]);

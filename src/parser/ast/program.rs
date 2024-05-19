@@ -1,9 +1,8 @@
 use crate::error::span::{Span, Spanning};
-use crate::error::{ChalError, ParserError, ParserErrorKind};
-use crate::lexer::{Delimiter, Operator};
+use crate::error::ChalError;
 use crate::lexer::{Keyword, Line, TokenKind};
 use crate::parser::ast::{
-    NodeAssign, NodeFuncCall, NodeFuncDef, NodeIfStmnt, NodeVarDef, NodeWhileLoop,
+    NodeAssign, NodeClass, NodeFuncDef, NodeIfStmnt, NodeVarDef, NodeWhileLoop,
 };
 
 use crate::parser::{LineReader, TokenReader};
@@ -11,7 +10,7 @@ use crate::parser::{LineReader, TokenReader};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use super::NodeTryCatch;
+use super::{NodeAttrRes, NodeFuncCallStmnt, NodeTryCatch};
 
 /// A node in the program, representing an interpretable global unit, i.e. any
 /// statement that could be executed in the global context.
@@ -21,12 +20,13 @@ use super::NodeTryCatch;
 pub enum NodeProg {
     VarDef(NodeVarDef),
     FuncDef(NodeFuncDef),
-    FuncCall(NodeFuncCall),
+    FuncCall(NodeFuncCallStmnt),
     Assign(NodeAssign),
     IfStmnt(NodeIfStmnt),
     WhileLoop(NodeWhileLoop),
     TryCatch(NodeTryCatch),
     Import(NodeImport),
+    Class(NodeClass),
 }
 
 /// The node denoting the import of another script.
@@ -112,40 +112,20 @@ impl NodeProg {
             TokenKind::Keyword(Keyword::Try) => {
                 multiline_stmnt!(TryCatch, NodeTryCatch, chunk, spanner)
             }
+            TokenKind::Keyword(Keyword::Class) => {
+                multiline_stmnt!(Class, NodeClass, chunk, spanner)
+            }
 
             TokenKind::Identifier(_) => {
-                let Some(peek_2nd) = front_line.tokens.get(1) else {
-                    /* by deafult a function call is expected upon encountering an identifier  */
-                    return Err(ParserError::new(
-                        ParserErrorKind::ExpectedToken(TokenKind::Delimiter(Delimiter::OpenPar)),
-                        front_tok.span.clone(),
-                    )
-                    .into());
-                };
+                let mut reader =
+                    TokenReader::new(front_line.tokens.clone(), front_tok.span.clone());
+                let resolution = NodeAttrRes::new(&mut reader)?;
 
-                match &peek_2nd.kind {
-                    /* a function call */
-                    TokenKind::Delimiter(Delimiter::OpenPar) => {
-                        single_line_stmnt!(FuncCall, NodeFuncCall, chunk, spanner)
-                    }
-                    /* an assignment */
-                    TokenKind::Operator(Operator::Eq)
-                    | TokenKind::Operator(Operator::AddEq)
-                    | TokenKind::Operator(Operator::SubEq)
-                    | TokenKind::Operator(Operator::MulEq)
-                    | TokenKind::Operator(Operator::DivEq)
-                    | TokenKind::Operator(Operator::ModEq) => {
-                        single_line_stmnt!(Assign, NodeAssign, chunk, spanner)
-                    }
-                    recv_kind => Err(ParserError::new(
-                        ParserErrorKind::InvalidToken(
-                            TokenKind::Delimiter(Delimiter::OpenPar),
-                            recv_kind.clone(),
-                        ),
-                        peek_2nd.span.clone(),
-                    )
-                    .into()),
+                if reader.peek_is_exact(TokenKind::Newline) {
+                    return Ok(NodeProg::FuncCall(NodeFuncCallStmnt::try_from(resolution)?));
                 }
+
+                Ok(NodeProg::Assign(NodeAssign::new(resolution, reader)?))
             }
 
             _ => panic!(

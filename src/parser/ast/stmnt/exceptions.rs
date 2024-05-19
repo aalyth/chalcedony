@@ -83,7 +83,7 @@ impl NodeTryCatch {
         //     print("Encountered the error: " + exc)   > catch body
         //
 
-        let mut try_header = reader.advance_reader()?;
+        let mut try_header = reader.advance_reader();
         let try_span = try_header.current();
         try_header.expect_exact(TokenKind::Keyword(Keyword::Try))?;
         try_header.expect_exact(TokenKind::Special(Special::Colon))?;
@@ -96,7 +96,7 @@ impl NodeTryCatch {
             front.kind == TokenKind::Keyword(Keyword::Catch)
         })?;
 
-        let mut catch_header = reader.advance_reader()?;
+        let mut catch_header = reader.advance_reader();
         catch_header.expect_exact(TokenKind::Keyword(Keyword::Catch))?;
         catch_header.expect_exact(TokenKind::Delimiter(Delimiter::OpenPar))?;
 

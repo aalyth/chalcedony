@@ -21,6 +21,18 @@ pub enum CompileErrorKind {
     NonVoidFunctionStmnt(Type),
     /// `<filename>`
     ScriptNotFound(String),
+    /// `<class-name>`
+    ClassAlreadyExists(String),
+    /// `<class-name>`
+    UnknownClass(String),
+    /// `<member-names>`
+    MissingMembers(Vec<String>),
+    /// `<member-names>`
+    UndefinedMembers(Vec<String>),
+    /// `<member>`
+    UnknownMember(String),
+    /// `<namespace-name>`
+    UnknownNamespace(String),
     VoidFunctionExpr,
     NoDefaultReturnStmnt,
     MutatingExternalState,
@@ -34,6 +46,7 @@ pub enum CompileErrorKind {
     UnsafeCatch,
     ThrowInSafeFunc,
     MutatingConstant,
+    MemberAlreadyExists,
 }
 
 pub struct CompileError {
@@ -87,7 +100,47 @@ impl std::fmt::Display for CompileError {
             }
 
             CompileErrorKind::ScriptNotFound(name) => {
-                let msg = &format!("could not find the script `{:?}`", name);
+                let msg = &format!("could not find the script `{}`", name);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::ClassAlreadyExists(name) => {
+                let msg = &format!("class already exists `{}`", name);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::UnknownClass(name) => {
+                let msg = &format!("unknown class `{}`", name);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::MissingMembers(members) => {
+                let mut msg = "missing class members: \n".to_string();
+                for member in members {
+                    msg.push_str(&format!("  - {}\n", member))
+                }
+                /* remove the trailing newline */
+                msg.pop();
+                display_err(&self.span, f, &msg)
+            }
+
+            CompileErrorKind::UndefinedMembers(members) => {
+                let mut msg = "undefined class members: \n".to_string();
+                for member in members {
+                    msg.push_str(&format!("  - {}\n", member))
+                }
+                /* remove the trailing newline */
+                msg.pop();
+                display_err(&self.span, f, &msg)
+            }
+
+            CompileErrorKind::UnknownMember(name) => {
+                let msg = &format!("unknown member `{:?}`", name);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::UnknownNamespace(name) => {
+                let msg = &format!("unknown namespace `{}`", name);
                 display_err(&self.span, f, msg)
             }
 
@@ -147,6 +200,10 @@ impl std::fmt::Display for CompileError {
 
             CompileErrorKind::MutatingConstant => {
                 display_err(&self.span, f, "mutating a constant variable")
+            }
+
+            CompileErrorKind::MemberAlreadyExists => {
+                display_err(&self.span, f, "member already exists")
             }
         }
     }

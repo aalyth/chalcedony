@@ -138,7 +138,8 @@ impl Lexer {
             TokenKind::Keyword(Keyword::Fn)
             | TokenKind::Keyword(Keyword::If)
             | TokenKind::Keyword(Keyword::While)
-            | TokenKind::Keyword(Keyword::Try) => {
+            | TokenKind::Keyword(Keyword::Try)
+            | TokenKind::Keyword(Keyword::Class) => {
                 result.push_back(line);
                 result.extend(self.advance_chunk()?);
             }
@@ -180,6 +181,7 @@ impl Lexer {
         let indent_raw = self.reader.advance_while(|c: &char| *c == ' ');
         let indent = indent_raw.len() as u64;
 
+        let mut result = VecDeque::<Token>::new();
         let mut errors = Vec::<ChalError>::new();
 
         if indent % 4 != 0 {
@@ -192,8 +194,6 @@ impl Lexer {
                 .into(),
             );
         }
-
-        let mut result = VecDeque::<Token>::new();
 
         loop {
             if self.is_empty() {
@@ -210,7 +210,7 @@ impl Lexer {
             }
         }
 
-        if !errors.is_empty() {
+        if !errors.is_empty() && result.len() > 1 {
             return Err(errors.into());
         }
 
@@ -361,7 +361,7 @@ impl Lexer {
 
             match buffer.as_str() {
                 "+=" | "-=" | "*=" | "/=" | "%=" | "&&" | "||" | ">=" | "<=" | "==" | "!="
-                | "->" | ":=" => {
+                | "->" | ":=" | "::" => {
                     self.reader.advance();
                     end.advance_col();
                 }

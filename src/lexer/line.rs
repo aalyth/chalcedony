@@ -1,4 +1,4 @@
-use crate::lexer::Token;
+use crate::lexer::{Token, TokenKind};
 use std::collections::VecDeque;
 
 /// Represents a single line inside the source code, containing the indentation
@@ -17,6 +17,10 @@ impl Line {
 
     pub fn front_tok(&self) -> Option<&Token> {
         self.tokens.front()
+    }
+
+    pub fn peek_kind(&self) -> Option<&TokenKind> {
+        Some(&self.tokens.front()?.kind)
     }
 
     // NOTE: there is no need to implement an `is_empty()` method, since a line

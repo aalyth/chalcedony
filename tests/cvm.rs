@@ -2,6 +2,13 @@ use chalcedony::common::Bytecode;
 use chalcedony::interpreter::Chalcedony;
 use chalcedony::vm::Cvm;
 
+#[test]
+fn valid_features_set() {
+    if !cfg!(feature = "testing") {
+        panic!("The feature `testing` must be set in order for tests to be valid.")
+    }
+}
+
 // These 2 functions are crucial for testing since all CVM-based tests rely on
 // the proper functioning `Bytecode::Assert` instruction.
 #[test]
@@ -114,6 +121,50 @@ fn interpret_unhandled_exception() {
         // print("all according to plan")
         Bytecode::ConstS("all according to plan".to_string().into()),
         Bytecode::Print,
+    ];
+    vm.execute(code);
+}
+
+#[test]
+fn interpret_instance_creation_and_access() {
+    let mut vm = Cvm::new();
+
+    let code = vec![
+        // let a = Example {
+        Bytecode::ConstObj(3),
+        //     field1: 1,
+        Bytecode::ConstU(1),
+        Bytecode::SetAttr(0),
+        //     field2: -10,
+        Bytecode::ConstI(-10),
+        Bytecode::SetAttr(1),
+        //     words: OtherExample {
+        //         hello: "hello ",
+        //         world: "world"
+        //     },
+        Bytecode::ConstObj(2),
+        Bytecode::ConstS("hello ".to_string().into()),
+        Bytecode::SetAttr(0),
+        Bytecode::ConstS("world".to_string().into()),
+        Bytecode::SetAttr(1),
+        Bytecode::SetAttr(2),
+        Bytecode::SetLocal(0),
+        // }
+        // assert(-10, a.field2)
+        Bytecode::ConstI(-10),
+        Bytecode::GetLocal(0),
+        Bytecode::GetAttr(1),
+        Bytecode::Assert,
+        // assert("hello world", a.words.hello + a.words.world)
+        Bytecode::ConstS("hello world".to_string().into()),
+        Bytecode::GetLocal(0),
+        Bytecode::GetAttr(2),
+        Bytecode::GetAttr(0),
+        Bytecode::GetLocal(0),
+        Bytecode::GetAttr(2),
+        Bytecode::GetAttr(1),
+        Bytecode::Add,
+        Bytecode::Assert,
     ];
     vm.execute(code);
 }

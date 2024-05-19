@@ -1,5 +1,5 @@
-use crate::error::{span::Span, ChalError};
-use crate::lexer::{Keyword, Operator, Special, TokenKind};
+use crate::error::{span::Span, ChalError, ParserError, ParserErrorKind};
+use crate::lexer::{Keyword, Operator, Special, Token, TokenKind};
 use crate::parser::{ast::NodeExpr, TokenReader};
 
 use crate::common::Type;
@@ -19,6 +19,17 @@ pub struct NodeVarDef {
     pub name: String,
     pub value: NodeExpr,
     pub is_const: bool,
+    pub span: Span,
+}
+
+/// The node representing a variable's call. Essentialy boils down to a single
+/// `TokenKind::Identifier()` with the corresponding variable's name inside.
+///
+/// Syntax:
+/// \<var_name\>
+#[derive(Clone, Debug, PartialEq)]
+pub struct NodeVarCall {
+    pub name: String,
     pub span: Span,
 }
 
@@ -58,6 +69,23 @@ impl NodeVarDef {
             value,
             is_const,
             span,
+        })
+    }
+}
+
+impl NodeVarCall {
+    pub fn new(token: Token) -> Result<Self, ChalError> {
+        let kind = token.kind;
+        let TokenKind::Identifier(name) = kind else {
+            return Err(ParserError::new(
+                ParserErrorKind::InvalidToken(TokenKind::Identifier(String::new()), kind.clone()),
+                token.span,
+            )
+            .into());
+        };
+        Ok(NodeVarCall {
+            name: name.clone(),
+            span: token.span,
         })
     }
 }

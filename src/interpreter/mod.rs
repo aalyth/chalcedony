@@ -8,12 +8,13 @@ pub use codegen::ToBytecode;
 mod type_eval;
 
 use crate::error::{err, ChalError};
-use crate::parser::ast::{NodeProg, NodeVarDef};
+use crate::parser::ast::{NodeFuncDef, NodeProg, NodeVarDef};
 use crate::parser::Parser;
 use crate::vm::Cvm;
 
 use crate::common::{Bytecode, Type};
 
+use std::collections::VecDeque;
 use std::iter::zip;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -21,7 +22,7 @@ use std::rc::Rc;
 /* ahash is the fastest hashing algorithm in terms of hashing strings */
 use ahash::AHashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArgAnnotation {
     id: usize,
     ty: Type,
@@ -29,12 +30,12 @@ pub struct ArgAnnotation {
 }
 
 impl ArgAnnotation {
-    fn new(id: usize, name: String, ty: Type) -> Self {
+    pub fn new(id: usize, name: String, ty: Type) -> Self {
         ArgAnnotation { id, ty, name }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct VarAnnotation {
     id: usize,
     ty: Type,
@@ -47,7 +48,7 @@ impl VarAnnotation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FuncAnnotation {
     is_unsafe: bool,
     id: usize,
@@ -57,7 +58,7 @@ pub struct FuncAnnotation {
 }
 
 impl FuncAnnotation {
-    fn new(id: usize, args: Vec<ArgAnnotation>, ret_type: Type, is_unsafe: bool) -> Self {
+    pub fn new(id: usize, args: Vec<ArgAnnotation>, ret_type: Type, is_unsafe: bool) -> Self {
         let mut arg_lookup = AHashMap::<String, ArgAnnotation>::new();
         for arg in args.clone() {
             arg_lookup.insert(arg.name.clone(), arg);
@@ -109,6 +110,18 @@ impl ScriptPath {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct MemberAnnotation {
+    pub id: usize,
+    pub ty: Type,
+}
+
+#[derive(Default, Clone, Debug, PartialEq)]
+pub struct ClassNamespace {
+    pub members: AHashMap<String, MemberAnnotation>,
+    pub methods: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
+}
+
 /// The structure representing the interpreter, used to compile the received
 /// `AST` into a stream of `Bytecode` instructions and respectively interpret
 /// the instructions via the Chalcedony Virtual Machine (CVM).
@@ -127,7 +140,16 @@ pub struct Chalcedony {
 
     // Used to keep track of the functions inside the program.
     func_symtable: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
+
+    // Since functions and methods fundamentally are compiled to the bytecode
+    // instruction `CallFunc(usize)`, this variable keeps track of the next id
+    // across each function and method definition.
     func_id_counter: usize,
+
+    // Currently namespaces only refer to classes and contain their
+    // corresponding methods' definitions. This design approach is used to serve
+    // as a base for future implementation a complete namespace system.
+    namespaces: AHashMap<String, ClassNamespace>,
 
     // Contains the necessary information about the current function if inside a
     // function scope.
@@ -178,6 +200,7 @@ impl Chalcedony {
             builtins: get_builtins(),
             func_symtable: AHashMap::new(),
             func_id_counter: 0,
+            namespaces: AHashMap::new(),
             current_func: None,
             safety_scope: SafetyScope::Normal,
             current_loop: None,
@@ -237,38 +260,37 @@ impl Chalcedony {
         }
     }
 
-    // Used for tests to get the id of the next function so even if the standard
-    // library changes, the proper function id is used.
-    pub fn get_next_func_id(&self) -> usize {
-        self.func_id_counter
-    }
-
-    pub fn execute(&mut self, code: Vec<Bytecode>) {
-        self.vm.execute(code)
-    }
-
     /* builds the function and sets the currennt function scope */
-    fn create_function(&mut self, name: String, args: Vec<ArgAnnotation>, ret: Type) {
+    fn create_function(&mut self, node: &NodeFuncDef, args: Vec<ArgAnnotation>) {
         let func = Rc::new(FuncAnnotation::new(
             self.func_id_counter,
             args,
-            ret,
-            name.ends_with('!'),
+            node.ret_type.clone(),
+            node.name.ends_with('!'),
         ));
         self.func_id_counter += 1;
 
         self.current_func = Some(func.clone());
         self.locals = AHashMap::new();
 
-        match self.func_symtable.get_mut(&name) {
+        let mut func_symtable = &mut self.func_symtable;
+        if let Some(class) = node.namespace.clone() {
+            func_symtable = &mut self
+                .namespaces
+                .get_mut(&class)
+                .expect("classes should create their own namespaces")
+                .methods;
+        }
+
+        match func_symtable.get_mut(&node.name) {
             Some(func_bucket) => func_bucket.push(func),
             None => {
-                self.func_symtable.insert(name, vec![func]);
+                func_symtable.insert(node.name.clone(), vec![func]);
             }
         }
     }
 
-    fn get_builtin(&self, name: &str, arg_types: &Vec<Type>) -> Option<&BuiltinAnnotation> {
+    fn get_builtin(&self, name: &str, arg_types: &VecDeque<Type>) -> Option<&BuiltinAnnotation> {
         let bucket = self.builtins.get(name)?;
         /* inlining the clippy suggestion does not help due to the Rc inside */
         #[allow(clippy::manual_find)]
@@ -281,8 +303,22 @@ impl Chalcedony {
     }
 
     /* receives the proper overloaded function annotation from the passed argument types */
-    fn get_function(&self, name: &str, arg_types: &Vec<Type>) -> Option<&FuncAnnotation> {
-        let func_bucket = self.func_symtable.get(name)?;
+    fn get_function(
+        &self,
+        name: &str,
+        arg_types: &VecDeque<Type>,
+        namespace: Option<&String>,
+    ) -> Option<&FuncAnnotation> {
+        let mut func_symtable = &self.func_symtable;
+        if let Some(class) = namespace {
+            func_symtable = &self
+                .namespaces
+                .get(class)
+                .expect("classes should create their own namespaces")
+                .methods;
+        }
+
+        let func_bucket = func_symtable.get(name)?;
         /* inlining the clippy suggestion does not help due to the Rc inside */
         #[allow(clippy::manual_find)]
         for annotation in func_bucket {
@@ -295,7 +331,7 @@ impl Chalcedony {
 
     /* retrieves the global variable's id and creates it if it does not exist */
     fn get_global_id(&mut self, node: &NodeVarDef) -> usize {
-        self.get_global_id_internal(&node.name, node.ty, node.is_const)
+        self.get_global_id_internal(&node.name, node.ty.clone(), node.is_const)
     }
 
     fn get_global_id_internal(&mut self, name: &str, ty: Type, is_const: bool) -> usize {
@@ -311,7 +347,7 @@ impl Chalcedony {
 
     /* retrieves the local variable's id and creates it if it does not exist */
     fn get_local_id(&mut self, node: &NodeVarDef) -> usize {
-        self.get_local_id_internal(&node.name, node.ty, node.is_const)
+        self.get_local_id_internal(&node.name, node.ty.clone(), node.is_const)
     }
 
     fn get_local_id_internal(&mut self, name: &str, ty: Type, is_const: bool) -> usize {
@@ -334,8 +370,26 @@ impl Chalcedony {
     }
 }
 
+/// Wrapper functions, used for tests.
+#[cfg(feature = "testing")]
+impl Chalcedony {
+    // Used for tests to get the id of the next function so even if the standard
+    // library changes, the proper function id is used.
+    pub fn get_next_func_id(&self) -> usize {
+        self.func_id_counter
+    }
+
+    pub fn execute(&mut self, code: Vec<Bytecode>) {
+        self.vm.execute(code)
+    }
+
+    pub fn get_namespace(&self, name: &str) -> Option<&ClassNamespace> {
+        self.namespaces.get(name)
+    }
+}
+
 /* checks whether the passed arguments match the function annotation */
-fn valid_annotation(args: &Vec<ArgAnnotation>, received: &Vec<Type>) -> bool {
+fn valid_annotation(args: &Vec<ArgAnnotation>, received: &VecDeque<Type>) -> bool {
     if args.len() != received.len() {
         return false;
     }
