@@ -9,7 +9,9 @@ use std::collections::HashSet;
 
 impl ToBytecode for NodeClass {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        if interpreter.namespaces.contains_key(&self.name) {
+        if interpreter.namespaces.contains_key(&self.name)
+            || interpreter.builtins.contains_key(&self.name)
+        {
             return Err(CompileError::new(
                 CompileErrorKind::ClassAlreadyExists(self.name),
                 self.span,
@@ -20,6 +22,14 @@ impl ToBytecode for NodeClass {
         let mut namespace = ClassNamespace::default();
         let mut lookup = HashSet::<String>::new();
         for (id, member) in self.members.iter().enumerate() {
+            if member.ty == Type::Void {
+                return Err(
+                    CompileError::new(CompileErrorKind::VoidMember, member.span.clone()).into(),
+                );
+            }
+
+            interpreter.verify_type(&member.ty, &member.span)?;
+
             if !lookup.insert(member.name.clone()) {
                 return Err(CompileError::new(
                     CompileErrorKind::MemberAlreadyExists,
@@ -27,6 +37,7 @@ impl ToBytecode for NodeClass {
                 )
                 .into());
             }
+
             namespace.members.insert(
                 member.name.clone(),
                 MemberAnnotation {

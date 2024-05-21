@@ -1,10 +1,16 @@
 use crate::utils::PtrString;
-use crate::vm::{Cvm, CvmObject};
+use crate::vm::{Cvm, CvmList, CvmObject};
 
 use super::get_operands;
 
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+
 macro_rules! apply_bin_operator {
-    ( $cvm:ident, $current_idx:ident, $opr:tt, $str_opr_handler:ident ) => {{
+    ( $cvm:ident, $current_idx:ident, $opr:tt,
+      $str_opr_handler:ident, $list_opr_handler:ident)
+    => {{
         let (left, right) = get_operands($cvm);
         match (left, right) {
             (CvmObject::Int(lval), CvmObject::Int(rval))
@@ -31,6 +37,9 @@ macro_rules! apply_bin_operator {
             (CvmObject::Str(lval), right)
                 => $str_opr_handler($cvm, lval.clone(), right),
 
+            (CvmObject::List(lval), right)
+                => $list_opr_handler($cvm, lval.clone(), right),
+
             (left, right) => panic!(
                 "unchecked invalid binary operation - {:?} and {:?}",
                 left.as_type(),
@@ -45,38 +54,81 @@ pub fn add(cvm: &mut Cvm, current_idx: usize) -> usize {
     fn add_str(cvm: &mut Cvm, lval: PtrString, rval: CvmObject) {
         cvm.push(CvmObject::Str(format!("{}{}", lval, rval).into()))
     }
-    apply_bin_operator!(cvm, current_idx, +, add_str)
+    fn add_list(cvm: &mut Cvm, list: CvmList, rval: CvmObject) {
+        match rval {
+            CvmObject::List(rhs_list) => {
+                for el in rhs_list.borrow().clone().into_iter() {
+                    list.borrow_mut().push_back(el.deep_copy());
+                }
+                cvm.push(CvmObject::List(list));
+            }
+            rval => {
+                list.borrow_mut().push_back(rval);
+                cvm.push(CvmObject::List(list))
+            }
+        }
+    }
+    apply_bin_operator!(cvm, current_idx, +, add_str, add_list)
 }
 
 pub fn sub(cvm: &mut Cvm, current_idx: usize) -> usize {
     fn sub_str(_: &mut Cvm, _: PtrString, _: CvmObject) {
-        panic!("unchecked invalid string operation - string substitution")
+        panic!("unchecked invalid string operation - subtraction")
     }
-    apply_bin_operator!(cvm, current_idx, -, sub_str)
+    fn sub_list(_: &mut Cvm, _: CvmList, _: CvmObject) {
+        panic!("unchecked invalid list operation - subtraction")
+    }
+    apply_bin_operator!(cvm, current_idx, -, sub_str, sub_list)
 }
 
 pub fn mul(cvm: &mut Cvm, current_idx: usize) -> usize {
     fn mul_str(cvm: &mut Cvm, lval: PtrString, right: CvmObject) {
         match right {
             CvmObject::Uint(rval) => cvm.stack.push(CvmObject::Str(lval * (rval as usize))),
-            _ => panic!("unchecked invalid string operation - string multiplication with non-uint"),
+            _ => panic!("unchecked invalid string operation - multiplication with non-uint"),
         }
     }
-    apply_bin_operator!(cvm, current_idx, *, mul_str)
+    fn mul_list(cvm: &mut Cvm, list: CvmList, right: CvmObject) {
+        match right {
+            CvmObject::Uint(rval) => {
+                if rval == 0 {
+                    cvm.push(CvmObject::List(Rc::new(RefCell::new(VecDeque::new()))));
+                    return;
+                }
+                let CvmObject::List(iter) = CvmObject::List(list.clone()).deep_copy() else {
+                    unreachable!();
+                };
+                for _ in 0..(rval - 1) {
+                    for el in iter.borrow().clone().into_iter() {
+                        list.borrow_mut().push_back(el.deep_copy());
+                    }
+                }
+                cvm.stack.push(CvmObject::List(list));
+            }
+            _ => panic!("unchecked invalid list operation - list multiplication with non-uint"),
+        }
+    }
+    apply_bin_operator!(cvm, current_idx, *, mul_str, mul_list)
 }
 
 pub fn div(cvm: &mut Cvm, current_idx: usize) -> usize {
     fn div_str(_: &mut Cvm, _: PtrString, _: CvmObject) {
-        panic!("unchecked invalid string operation - string division")
+        panic!("unchecked invalid string operation - division")
     }
-    apply_bin_operator!(cvm, current_idx, /, div_str)
+    fn div_list(_: &mut Cvm, _: CvmList, _: CvmObject) {
+        panic!("unchecked invalid list operation - division")
+    }
+    apply_bin_operator!(cvm, current_idx, /, div_str, div_list)
 }
 
 pub fn modulo(cvm: &mut Cvm, current_idx: usize) -> usize {
     fn mod_str(_: &mut Cvm, _: PtrString, _: CvmObject) {
-        panic!("unchecked invalid string operation - string substitution")
+        panic!("unchecked invalid string operation - modulo ")
     }
-    apply_bin_operator!(cvm, current_idx, %, mod_str)
+    fn mod_list(_: &mut Cvm, _: CvmList, _: CvmObject) {
+        panic!("unchecked invalid list operation - modulo ")
+    }
+    apply_bin_operator!(cvm, current_idx, %, mod_str, mod_list)
 }
 
 macro_rules! apply_logic_operator {

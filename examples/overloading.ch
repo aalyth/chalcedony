@@ -30,8 +30,8 @@ if __name__ == '__main__':
     # print()
     func("Cyberia")
     # fib()
-    assert(55, func(10))
+    assert(55 == func(10))
     # sin()
-    assert(0.8660254450997811, func(pi/3))
+    assert(0.8660254450997811 == func(pi/3))
 
 

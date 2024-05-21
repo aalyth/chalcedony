@@ -10,6 +10,9 @@
 //!            of the operator being between the two operands, it is after the
 //!            operands.
 //!
+//! For more information on each type of the interpreting process refer to the
+//! modules `lexer`, `parser`, `interpreter` and `vm`.
+//!
 //! Optimizations:
 //! [-] reduce Bytecode instructions size (using unions instead of a big enum);
 //!     N.B.: tried and it does not work - smaller instructions does not indeed
@@ -18,21 +21,36 @@
 //!     constants boil down to a clone() of the value at the given index
 //! [x] remove the `arg_count` field from the `Cvm::CallFrame` struct
 //!
+//! to-do:
+//! [x] add continue and break to for loops
+//! [x] add iterators, instead of going through lists by index
+//!
+//! [x] add type checking for List builtins
+//! [x] automatic newlining when there is an open delimiter
+//! [x] list multiplication
+//! [x] change assert to work with booleans, instead of 2 args
+//! [x] emtpy variable '_'
+//! [x] check for repeated function arguments
+//! [x] disable unsafe function calls inside safe ones
+//!
 //! Future ideas:
 //! [x] function overloading
 //! [x] exceptions, try-catch blocks, and unsafe functions (ending with `!`)
 //! [x] script importing and the `__main__` constant working
-//! [ ] lists and functions for them (`set!()`, `get!()`, `push()`, `pop!()`,
+//! [x] lists and functions for them (`set!()`, `get!()`, `push()`, `pop!()`,
 //!     `insert!()` and `remove!())
-//! [ ] `for in` loops over lists and iterators
-//! [x] constants - variables that could not be changed
+//! [x] `for in` loops over lists and iterators
+//! [x] constants - the value can still be computed at runtime
 //! [x] classes and methods
-//! [ ] `len()` function for strings and lists
-//! [ ] generic functions
+//! [x] `len()` function for strings and lists
+//! [x] functions for type casts (such as `ftoi()`, `itou()`, `utof()`, etc.)
+//!
+//! [ ] traits
+//! [ ] generic functions and members, and type bounds
 //! [ ] hashmaps and  functions for them (`get!()`, `set!()`, etc.)
-//! [ ] functions for type casts (such as `ftoi()`, `itou()`, `stoi!()`, etc.)
 //! [ ] short circuit logic operators
 //! [ ] a Chalcedony `shell` for direct execution of user commands
+//! [ ] parallelism between lexer, parser, interpreter and vm
 
 use chalcedony::interpreter::Chalcedony;
 

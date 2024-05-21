@@ -17,10 +17,10 @@ class Calculator:
         return a + b
 
     fn new(a: uint, b: uint, bueno: Bueno) -> Calculator:
-        return Calculator {a: a, b: b, res: a + b, bueno: bueno} 
+        return Calculator {a, b, res: a + b, bueno: bueno} 
 
     fn new(a: uint, b: uint) -> Calculator:
-        return Calculator {a: a, b: b, res: 0, bueno: Bueno::default()} 
+        return Calculator {a, b, res: 0, bueno: Bueno::default()} 
 
     fn default() -> Calculator:
         return Calculator {a: 0, b: 0, res: 0, bueno: Bueno::default()}

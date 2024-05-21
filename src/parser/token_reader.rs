@@ -1,6 +1,6 @@
 use crate::error::span::{Span, Spanning};
 use crate::error::{ChalError, ParserError, ParserErrorKind};
-use crate::lexer::{Token, TokenKind};
+use crate::lexer::{Delimiter, Special, Token, TokenKind};
 
 use crate::common::Type;
 
@@ -123,21 +123,53 @@ impl TokenReader {
     /// };
     /// ```
     pub fn expect_type(&mut self) -> Result<Type, ChalError> {
-        let Some(tok) = self.advance() else {
+        let Some(peek) = self.peek().cloned() else {
             return Err(ParserError::new(
                 ParserErrorKind::ExpectedToken(TokenKind::Type(Type::Any)),
                 self.current.clone(),
             )
             .into());
         };
-        match tok.kind {
-            TokenKind::Type(ty) => Ok(ty),
-            TokenKind::Identifier(val) => Ok(Type::Custom(Box::new(val))),
-            recv => Err(ParserError::new(
-                ParserErrorKind::InvalidToken(TokenKind::Type(Type::Any), recv),
-                self.current.clone(),
-            )
-            .into()),
+
+        match peek.kind {
+            /* the type begins with a `[`, so we expect a list */
+            TokenKind::Delimiter(Delimiter::OpenBracket) => {
+                // this both overrides the immutable self borrow and advances the
+                // already checked opening delimiter
+
+                // let peek = self.advance().unwrap();
+                let start = self.current.start;
+                let mut scope = self.advance_scope_raw(
+                    TokenKind::Delimiter(Delimiter::OpenBracket),
+                    TokenKind::Delimiter(Delimiter::CloseBracket),
+                );
+
+                /* remove the opening and closing brackets */
+                scope.pop_front();
+                scope.pop_back();
+
+                if scope.is_empty() {
+                    /* SAFETY: the lexer guarantees that at least there is a matching closing delim */
+                    let closing_delim = scope.front().unwrap();
+                    let span = Span::new(start, closing_delim.span.end, peek.span.spanner.clone());
+                    return Err(ParserError::new(ParserErrorKind::UntypedList, span).into());
+                }
+
+                let mut inner_reader = TokenReader::new(scope, peek.span);
+
+                Ok(Type::List(Box::new(inner_reader.expect_type()?)))
+            }
+
+            /* default type expectation */
+            _ => match self.advance().unwrap().kind {
+                TokenKind::Type(ty) => Ok(ty),
+                TokenKind::Identifier(val) => Ok(Type::Custom(Box::new(val))),
+                recv => Err(ParserError::new(
+                    ParserErrorKind::InvalidToken(TokenKind::Type(Type::Any), recv),
+                    self.current.clone(),
+                )
+                .into()),
+            },
         }
     }
 
@@ -189,6 +221,41 @@ impl TokenReader {
             }
         }
 
+        result
+    }
+
+    // splits the remainder of the reader by `TokenKind::Special(Special::Comma)`
+    // NOTE: elements are possible to be empty
+    pub fn split_commas(mut self) -> Vec<VecDeque<Token>> {
+        let mut result = Vec::<VecDeque<Token>>::new();
+        let mut buffer = VecDeque::<Token>::new();
+        let mut open_delims = 0;
+
+        while let Some(token) = self.advance() {
+            match token.kind {
+                TokenKind::Delimiter(Delimiter::OpenPar)
+                | TokenKind::Delimiter(Delimiter::OpenBrace)
+                | TokenKind::Delimiter(Delimiter::OpenBracket) => {
+                    open_delims += 1;
+                    buffer.push_back(token);
+                }
+                TokenKind::Delimiter(Delimiter::ClosePar)
+                | TokenKind::Delimiter(Delimiter::CloseBrace)
+                | TokenKind::Delimiter(Delimiter::CloseBracket) => {
+                    open_delims -= 1;
+                    buffer.push_back(token);
+                }
+                TokenKind::Special(Special::Comma) if open_delims == 0 => {
+                    result.push(buffer);
+                    buffer = VecDeque::<Token>::new();
+                    continue;
+                }
+
+                _ => buffer.push_back(token),
+            }
+        }
+
+        result.push(buffer);
         result
     }
 

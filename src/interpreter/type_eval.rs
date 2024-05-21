@@ -36,7 +36,7 @@ fn get_eval_args(eval_stack: &mut Stack<Type>) -> (Type, Type) {
 /// let a = 1 / 2
 /// ```
 macro_rules! bin_opr_eval {
-    ($stack:ident, $str_handler:ident, $opr_name:expr, $span:ident) => {{
+    ($stack:ident, $str_handler:ident, $list_handler:ident, $opr_name:expr, $span:ident) => {{
         let (left, right) = get_eval_args($stack);
         match (left, right) {
             (Type::Int, Type::Int) => Ok(Type::Int),
@@ -52,6 +52,8 @@ macro_rules! bin_opr_eval {
             (Type::Float, Type::Float) => Ok(Type::Float),
 
             (Type::Str, right) => $str_handler(right, $span),
+            (Type::List(left), right) => $list_handler(*left, right, $span),
+
             (left, right) => Err(CompileError::new(
                 CompileErrorKind::InvalidBinOpr($opr_name.to_string(), left, right),
                 $span.clone(),
@@ -63,25 +65,42 @@ macro_rules! bin_opr_eval {
 
 fn opr_add(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
     /* anything added to a string returns a string */
-    fn add(_: Type, _: &Span) -> Result<Type, ChalError> {
+    fn add_str(_: Type, _: &Span) -> Result<Type, ChalError> {
         Ok(Type::Str)
     }
-    bin_opr_eval!(eval_stack, add, "+", span)
+    fn add_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        if left != right {
+            return Err(CompileError::new(
+                CompileErrorKind::InvalidType(left, right),
+                span.clone(),
+            )
+            .into());
+        }
+        Ok(Type::List(Box::new(left)))
+    }
+    bin_opr_eval!(eval_stack, add_str, add_list, "+", span)
 }
 
 fn opr_sub(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    fn sub(right: Type, span: &Span) -> Result<Type, ChalError> {
+    fn sub_str(right: Type, span: &Span) -> Result<Type, ChalError> {
         Err(CompileError::new(
             CompileErrorKind::InvalidBinOpr("-".to_string(), Type::Str, right),
             span.clone(),
         )
         .into())
     }
-    bin_opr_eval!(eval_stack, sub, "-", span)
+    fn sub_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr("-".to_string(), Type::List(Box::new(left)), right),
+            span.clone(),
+        )
+        .into())
+    }
+    bin_opr_eval!(eval_stack, sub_str, sub_list, "-", span)
 }
 
 fn opr_mul(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    fn mul(right: Type, span: &Span) -> Result<Type, ChalError> {
+    fn mul_str(right: Type, span: &Span) -> Result<Type, ChalError> {
         if right == Type::Uint {
             return Ok(Type::Str);
         }
@@ -91,29 +110,53 @@ fn opr_mul(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError>
         )
         .into())
     }
-    bin_opr_eval!(eval_stack, mul, "*", span)
+    fn mul_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        if right == Type::Uint {
+            return Ok(Type::List(Box::new(left)));
+        }
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr("*".to_string(), Type::List(Box::new(left)), right),
+            span.clone(),
+        )
+        .into())
+    }
+    bin_opr_eval!(eval_stack, mul_str, mul_list, "*", span)
 }
 
 fn opr_div(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    fn div(right: Type, span: &Span) -> Result<Type, ChalError> {
+    fn div_str(right: Type, span: &Span) -> Result<Type, ChalError> {
         Err(CompileError::new(
             CompileErrorKind::InvalidBinOpr("/".to_string(), Type::Str, right),
             span.clone(),
         )
         .into())
     }
-    bin_opr_eval!(eval_stack, div, "/", span)
+    fn div_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr("/".to_string(), Type::List(Box::new(left)), right),
+            span.clone(),
+        )
+        .into())
+    }
+    bin_opr_eval!(eval_stack, div_str, div_list, "/", span)
 }
 
 fn opr_mod(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    fn _mod(right: Type, span: &Span) -> Result<Type, ChalError> {
+    fn mod_str(right: Type, span: &Span) -> Result<Type, ChalError> {
         Err(CompileError::new(
             CompileErrorKind::InvalidBinOpr("mod".to_string(), Type::Str, right),
             span.clone(),
         )
         .into())
     }
-    bin_opr_eval!(eval_stack, _mod, "%", span)
+    fn mod_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr("mod".to_string(), Type::List(Box::new(left)), right),
+            span.clone(),
+        )
+        .into())
+    }
+    bin_opr_eval!(eval_stack, mod_str, mod_list, "%", span)
 }
 
 /* logical || or && */
@@ -273,7 +316,19 @@ impl NodeExprInner {
     ) -> Result<Type, ChalError> {
         match self {
             NodeExprInner::Value(node) => Ok(node.as_type()),
-            NodeExprInner::Resolution(node) => node.as_type(interpreter),
+            NodeExprInner::Resolution(node) => {
+                let res = node.as_type(interpreter)?;
+
+                /* only functions can return void type */
+                if res == Type::Void {
+                    return Err(CompileError::new(
+                        CompileErrorKind::VoidFunctionExpr,
+                        node.span.clone(),
+                    )
+                    .into());
+                }
+                Ok(res)
+            }
 
             NodeExprInner::BinOpr(opr) => opr.as_type(eval_stack, span),
             NodeExprInner::UnaryOpr(opr) => opr.as_type(eval_stack, span),
@@ -287,6 +342,34 @@ impl NodeExprInner {
                 }
 
                 Ok(Type::Custom(Box::new(class.class.clone())))
+            }
+
+            NodeExprInner::List(node) => {
+                /* an empty list is equal to `[Any]` */
+                if node.elements.is_empty() {
+                    return Ok(Type::List(Box::new(Type::Any)));
+                }
+
+                let mut list_ty = Type::Any;
+
+                for el in node.elements.iter() {
+                    let ty = el.as_type(interpreter)?;
+
+                    if !Type::implicit_eq(&ty, &list_ty) {
+                        return Err(CompileError::new(
+                            CompileErrorKind::IncoherentList(list_ty, ty),
+                            node.span.clone(),
+                        )
+                        .into());
+                    }
+
+                    if list_ty.root_type() == Type::Any {
+                        list_ty = ty;
+                    }
+                }
+
+                /* since each type should be the same, we can just return the last type */
+                Ok(Type::List(Box::new(list_ty)))
             }
         }
     }
@@ -387,22 +470,38 @@ impl NodeFuncCall {
         }
 
         if let Some(ns) = &namespace {
-            if !interpreter.namespaces.contains_key(ns) {
+            if !interpreter.namespaces.contains_key(ns) && !interpreter.builtins.contains_key(ns) {
                 return Err(CompileError::new(
                     CompileErrorKind::UnknownNamespace(ns.clone()),
                     self.span.clone(),
                 )
                 .into());
             }
-        } else if let Some(ann) = interpreter.get_builtin(&self.name, &arg_types) {
-            return Ok(ann.ret_type.clone());
         }
 
-        if let Some(func) = interpreter.get_function(&self.name, &arg_types, namespace.as_ref()) {
-            return Ok(func.ret_type.clone());
+        if let Some(ann) =
+            interpreter.get_function_universal(&self.name, &arg_types, namespace.as_ref())
+        {
+            return Ok(ann.ret_type);
         }
+
+        let mut func_name = self.name.clone() + "(";
+        if let Some(ns) = namespace {
+            func_name = ns + "::" + &func_name;
+        }
+
+        for ty in &arg_types {
+            func_name += &format!("{}, ", ty);
+        }
+
+        if !arg_types.is_empty() {
+            func_name.pop();
+            func_name.pop();
+        }
+        func_name += ")";
+
         Err(CompileError::new(
-            CompileErrorKind::UnknownFunction(self.name.clone()),
+            CompileErrorKind::UnknownFunction(func_name),
             self.span.clone(),
         )
         .into())

@@ -5,7 +5,7 @@ use crate::interpreter::Chalcedony;
 use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue};
 
 use crate::common::operators::{BinOprType, UnaryOprType};
-use crate::common::Bytecode;
+use crate::common::{Bytecode, Type};
 
 impl ToBytecode for NodeExpr {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
@@ -112,18 +112,20 @@ impl ToBytecode for NodeExprInner {
                     };
 
                     let expr_ty = expr.as_type(interpreter)?;
-                    if annotation.ty != expr_ty {
-                        return Err(CompileError::new(
-                            CompileErrorKind::InvalidType(annotation.ty.clone(), expr_ty),
-                            span.clone(),
-                        )
-                        .into());
-                    }
-
                     result.extend(expr.to_bytecode(interpreter)?);
+                    Type::verify(annotation.ty.clone(), expr_ty, &mut result, span)?;
                     result.push(Bytecode::SetAttr(annotation.id));
                 }
+                Ok(result)
+            }
 
+            NodeExprInner::List(node) => {
+                let mut result = Vec::<Bytecode>::new();
+                let list_len = node.elements.len();
+                for el in node.elements {
+                    result.extend(el.to_bytecode(interpreter)?);
+                }
+                result.push(Bytecode::ConstL(list_len));
                 Ok(result)
             }
         }

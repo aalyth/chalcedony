@@ -2,7 +2,7 @@ if exists('b:current_syntax')
     finish
 endif
 
-syntax keyword keywords fn return let if elif else while continue break try catch throw const import class
+syntax keyword keywords fn return let if elif else while continue break try catch for in throw const import class
 syntax keyword type uint int float str bool void exception
 syntax keyword boolean true false
 

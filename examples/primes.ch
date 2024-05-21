@@ -18,8 +18,8 @@ if __name__ == '__main__':
             print("" + i + " is prime")
         i += 1
 
-    assert(true, is_prime(2))
-    assert(true, is_prime(3))
-    assert(true, is_prime(17))
-    assert(false, is_prime(42))
+    assert(true  == is_prime(2))
+    assert(true  == is_prime(3))
+    assert(true  == is_prime(17))
+    assert(false == is_prime(42))
 

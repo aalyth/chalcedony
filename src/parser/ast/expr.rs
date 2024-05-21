@@ -1,8 +1,8 @@
 use crate::error::span::Span;
 use crate::error::{ChalError, ParserError, ParserErrorKind};
-use crate::lexer;
 use crate::lexer::{Delimiter, Special, Token, TokenKind};
-use crate::parser::ast::{NodeAttrRes, NodeValue};
+use crate::parser::ast::{NodeAttrRes, NodeAttribute, NodeValue, NodeVarCall};
+use crate::{lexer, vecdeq};
 
 use crate::common::operators::{BinOprType, UnaryOprType};
 use crate::utils::Stack;
@@ -23,6 +23,7 @@ pub enum NodeExprInner {
     Value(NodeValue),
     Resolution(NodeAttrRes),
     InlineClass(NodeInlineClass),
+    List(NodeList),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -30,6 +31,18 @@ pub struct NodeInlineClass {
     pub class: String,
     pub members: AHashMap<String, (NodeExpr, Span)>,
     pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct NodeList {
+    pub elements: Vec<NodeExpr>,
+    pub span: Span,
+}
+
+impl NodeList {
+    fn new(elements: Vec<NodeExpr>, span: Span) -> Self {
+        NodeList { elements, span }
+    }
 }
 
 /// A series of operations, which result in a single value. The operations
@@ -315,6 +328,45 @@ impl NodeExpr {
                     operators.pop();
                 }
 
+                /* building a list */
+                TokenKind::Delimiter(Delimiter::OpenBracket) => {
+                    let start_span = current.span.clone();
+                    reader.push_front(current.clone());
+                    let mut scope = reader.advance_scope_raw(
+                        TokenKind::Delimiter(Delimiter::OpenBracket),
+                        TokenKind::Delimiter(Delimiter::CloseBracket),
+                    );
+
+                    /* remove the brackets at the start and end */
+                    scope.pop_front();
+                    scope.pop_back();
+
+                    let elements = TokenReader::new(scope, start_span.clone()).split_commas();
+
+                    let mut list = Vec::<NodeExpr>::new();
+                    for el in elements {
+                        let Some(front) = el.front() else {
+                            return Err(
+                                ParserError::new(ParserErrorKind::EmptyExpr, current.span).into()
+                            );
+                        };
+                        /* this is necessary to shadow the immutable borrow of `el` */
+                        let span = front.span.clone();
+                        let reader = TokenReader::new(el, span);
+                        list.push(NodeExpr::new(reader)?);
+                    }
+
+                    let end = reader.current().end;
+                    let span = Span::new(start, end, reader.spanner());
+
+                    push_terminal!(
+                        NodeExprInner::List(NodeList::new(list, span)),
+                        output,
+                        prev_type,
+                        current
+                    );
+                }
+
                 TokenKind::Newline => break,
 
                 _ => {
@@ -369,6 +421,27 @@ fn advance_inline_class(
     let mut members = AHashMap::<String, (NodeExpr, Span)>::new();
     while !reader.is_empty() {
         let member = reader.expect_ident()?;
+
+        // using a comma after the member implies the value is the same as a
+        // variable call
+        if reader.peek_is_exact(TokenKind::Special(Special::Comma)) {
+            members.insert(
+                member.clone(),
+                var_call_method_entry(member.clone(), reader.current()),
+            );
+            reader.advance();
+            continue;
+        }
+
+        if reader.peek_is_exact(TokenKind::Delimiter(Delimiter::CloseBrace)) {
+            members.insert(
+                member.clone(),
+                var_call_method_entry(member.clone(), reader.current()),
+            );
+            reader.advance();
+            break;
+        }
+
         reader.expect_exact(TokenKind::Special(Special::Colon))?;
 
         let start = reader.current().start;
@@ -410,4 +483,21 @@ fn advance_inline_class(
         members,
         span,
     })
+}
+
+// used to build a method entry, only from the method's name
+fn var_call_method_entry(name: String, span: Span) -> (NodeExpr, Span) {
+    (
+        NodeExpr {
+            expr: vecdeq![NodeExprInner::Resolution(NodeAttrRes {
+                resolution: vec![NodeAttribute::VarCall(NodeVarCall {
+                    name,
+                    span: span.clone(),
+                })],
+                span: span.clone(),
+            })],
+            span: span.clone(),
+        },
+        span,
+    )
 }

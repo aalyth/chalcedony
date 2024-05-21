@@ -20,6 +20,7 @@ pub enum ParserErrorKind {
     InvalidStatement,
     InvalidExprEnd,
     EmptyExpr,
+    UntypedList,
     MissingCatchBlock,
     NonFuncCallResolution,
     FuncCallAssignment,
@@ -81,6 +82,9 @@ impl std::fmt::Display for ParserError {
             }
 
             ParserErrorKind::EmptyExpr => display_err(&self.span, f, "expected an expression"),
+            ParserErrorKind::UntypedList => {
+                display_err(&self.span, f, "expected a type to the list")
+            }
 
             ParserErrorKind::MissingCatchBlock => display_err(
                 &self.span,

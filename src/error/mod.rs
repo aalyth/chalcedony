@@ -16,12 +16,6 @@ pub use scopes::{
     CompileError, CompileErrorKind, LexerError, LexerErrorKind, ParserError, ParserErrorKind,
 };
 
-pub fn assertion_fail(exp: String, recv: String) {
-    let fail_msg = color(Colors::Blue, "Assertion fail");
-    eprintln!("{} - expected: {}, received: {}", fail_msg, exp, recv);
-    terminate_program();
-}
-
 pub fn unhandled_exception(exc: String) {
     let fail_msg = color(Colors::Blue, "Unhandled exception");
     eprintln!("{}: {}", fail_msg, exc);

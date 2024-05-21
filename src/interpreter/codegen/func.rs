@@ -1,9 +1,7 @@
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError, CompileErrorKind};
-use crate::interpreter::{
-    ArgAnnotation, BuiltinAnnotation, Chalcedony, FuncAnnotation, SafetyScope,
-};
+use crate::interpreter::{ArgAnnotation, Chalcedony, SafetyScope};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 
 use crate::common::{Bytecode, Type};
@@ -12,13 +10,24 @@ use std::collections::VecDeque;
 
 use ahash::AHashMap;
 
+fn arg_exists(args: &[ArgAnnotation], arg_name: &str) -> bool {
+    for arg in args {
+        if arg.name == arg_name {
+            return true;
+        }
+    }
+    false
+}
+
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let arg_types: VecDeque<Type> = self.args.iter().map(|arg| arg.ty.clone()).collect();
         if interpreter
             .get_function(&self.name, &arg_types, self.namespace.as_ref())
             .is_some()
-            || interpreter.get_builtin(&self.name, &arg_types).is_some()
+            || interpreter
+                .get_builtin(&self.name, &arg_types, self.namespace.as_deref())
+                .is_some()
         {
             return Err(CompileError::new(CompileErrorKind::OverwrittenFunction, self.span).into());
         }
@@ -29,10 +38,23 @@ impl ToBytecode for NodeFuncDef {
             if arg.ty == Type::Void {
                 return Err(CompileError::new(CompileErrorKind::VoidArgument, self.span).into());
             }
+
+            if arg_exists(&args, &arg.name) {
+                return Err(
+                    CompileError::new(CompileErrorKind::RedefiningFunctionArg, self.span).into(),
+                );
+            }
+
+            interpreter.verify_type(&arg.ty, &self.span)?;
             args.push(ArgAnnotation::new(idx, arg.name.clone(), arg.ty.clone()));
         }
 
         interpreter.create_function(&self, args);
+
+        /* if the function is safe, disable all unsafe oprations */
+        if !self.name.ends_with('!') {
+            interpreter.safety_scope = SafetyScope::Safe;
+        }
 
         /* compile the bytecode for each statement in the body */
         let mut body = Vec::<Bytecode>::new();
@@ -50,6 +72,9 @@ impl ToBytecode for NodeFuncDef {
         }
 
         if !errors.is_empty() {
+            interpreter.current_func = None;
+            interpreter.locals = AHashMap::new();
+            interpreter.safety_scope = SafetyScope::Normal;
             return Err(errors.into());
         }
 
@@ -82,31 +107,8 @@ impl ToBytecode for NodeFuncDef {
 
         interpreter.current_func = None;
         interpreter.locals = AHashMap::new();
+        interpreter.safety_scope = SafetyScope::Normal;
         Ok(result)
-    }
-}
-
-#[derive(Default)]
-struct RawFuncAnnotation {
-    args: Vec<ArgAnnotation>,
-    bytecode: Vec<Bytecode>,
-}
-
-impl From<&BuiltinAnnotation> for RawFuncAnnotation {
-    fn from(value: &BuiltinAnnotation) -> Self {
-        RawFuncAnnotation {
-            args: value.args.clone(),
-            bytecode: value.bytecode.clone(),
-        }
-    }
-}
-
-impl From<&FuncAnnotation> for RawFuncAnnotation {
-    fn from(value: &FuncAnnotation) -> Self {
-        RawFuncAnnotation {
-            args: value.args.clone(),
-            bytecode: vec![Bytecode::CallFunc(value.id)],
-        }
     }
 }
 
@@ -131,8 +133,6 @@ pub fn compile_func_call_inner(
         Err(err) => return Err(err),
     };
 
-    let mut annotation = RawFuncAnnotation::default();
-
     /* the function is called as a method */
     if let Some(ty) = &parent_type {
         arg_types.push_front(ty.clone());
@@ -143,41 +143,31 @@ pub fn compile_func_call_inner(
     }
 
     if let Some(namespace) = &node.namespace {
-        if !interpreter.namespaces.contains_key(namespace) {
+        if !interpreter.namespaces.contains_key(namespace)
+            && !interpreter.builtins.contains_key(namespace)
+        {
             return Err(CompileError::new(
                 CompileErrorKind::UnknownNamespace(namespace.clone()),
                 node.span,
             )
             .into());
         }
-
-    /* if the namespace is None, check whether the function is a builtin */
-    } else if let Some(ann) = interpreter.get_builtin(&node.name, &arg_types) {
-        annotation = ann.into();
     }
 
-    if let Some(ann) = interpreter.get_function(&node.name, &arg_types, node.namespace.as_ref()) {
-        annotation = ann.into();
+    /* SAFETY: the function must be checked before being compiled */
+    let mut annotation = interpreter
+        .get_function_universal(&node.name, &arg_types, node.namespace.as_ref())
+        .unwrap();
 
-    /* if the annotation is not of a builtin*/
-    } else if annotation.bytecode.is_empty() {
-        let mut func_name = node.name;
-        if let Some(class) = node.namespace {
-            func_name = class + "::" + &func_name;
-        }
-        return Err(
-            CompileError::new(CompileErrorKind::UnknownFunction(func_name), node.span).into(),
-        );
+    if node.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Safe {
+        return Err(CompileError::new(CompileErrorKind::UnsafeOpInSafeBlock, node.span).into());
     }
 
-    if node.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Catch {
-        return Err(CompileError::new(CompileErrorKind::UnsafeCatch, node.span).into());
-    }
-
-    let mut arguments = izip!(node.args, arg_types, annotation.args.clone());
     if parent_type.is_some() {
-        arguments.next();
+        arg_types.pop_front();
+        annotation.args.pop_front();
     }
+    let arguments = izip!(node.args, arg_types, annotation.args.clone());
 
     /* push on the stack each of the argument's expression value */
     let mut result = Vec::<Bytecode>::new();

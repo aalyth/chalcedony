@@ -5,12 +5,14 @@ use crate::error::{ChalError, CompileError, CompileErrorKind};
 use crate::interpreter::{Chalcedony, LoopScope, SafetyScope, VarAnnotation};
 use crate::parser::ast::{
     NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExprInner,
-    NodeFuncCallStmnt, NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeThrow, NodeTryCatch,
-    NodeWhileLoop,
+    NodeForLoop, NodeFuncCallStmnt, NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeThrow,
+    NodeTryCatch, NodeWhileLoop,
 };
 
 use crate::common::operators::{AssignOprType, BinOprType};
 use crate::common::{Bytecode, Type};
+
+use std::collections::VecDeque;
 
 /// Used for easier manipulation over the current while scope.
 fn increment_loop_scope(interpreter: &mut Chalcedony, val: usize) {
@@ -30,10 +32,30 @@ fn set_loop_scope(interpreter: &mut Chalcedony, val: usize) {
     }
 }
 
+/// Updates the loop scope to a new scope, returning the old one.
+fn update_loop_scope(interpreter: &mut Chalcedony) -> Option<LoopScope> {
+    let prev_loop_scope = interpreter.current_loop.clone();
+    interpreter.current_loop = Some(LoopScope::default());
+    prev_loop_scope
+}
+
 fn get_loop_scope_len(interpreter: &mut Chalcedony) -> usize {
     match interpreter.current_loop.as_ref() {
         Some(scope) => scope.current_length,
         None => 0,
+    }
+}
+
+fn fix_unfinished_breaks(interpreter: &Chalcedony, code: &mut Vec<Bytecode>) {
+    let scope = interpreter
+        .current_loop
+        .as_ref()
+        .expect("the while scope disappeared");
+    /* finish off any break statements */
+    for pos in &scope.unfinished_breaks {
+        /* the distance to terminate the while */
+        let distance: isize = (code.len() - pos) as isize;
+        *code.get_mut(*pos).unwrap() = Bytecode::Jmp(distance);
     }
 }
 
@@ -44,6 +66,13 @@ impl ToBytecode for NodeStmnt {
             // `NodeStmnt::VarDef()` represents a local variable, where the
             // `NodeProg::VarDef()` represents a global variable
             NodeStmnt::VarDef(mut node) => {
+                /* the empty variable is ignored */
+                if node.name == "_" {
+                    /* check for any potential invalid code */
+                    let _ = node.value.as_type(interpreter)?;
+                    return Ok(vec![]);
+                }
+
                 if interpreter.locals.contains_key(&node.name) {
                     return Err(CompileError::new(
                         CompileErrorKind::RedefiningVariable,
@@ -73,6 +102,12 @@ impl ToBytecode for NodeStmnt {
                         &mut result,
                         node.value.span.clone(),
                     )?;
+                } else if value_type.root_type() == Type::Any {
+                    return Err(CompileError::new(
+                        CompileErrorKind::UninferableType(value_type),
+                        node.value.span,
+                    )
+                    .into());
                 } else {
                     node.ty = value_type;
                 }
@@ -103,6 +138,7 @@ impl ToBytecode for NodeStmnt {
             NodeStmnt::WhileLoop(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::ContStmnt(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::BreakStmnt(node) => node.to_bytecode(interpreter)?,
+            NodeStmnt::ForLoop(node) => node.to_bytecode(interpreter)?,
 
             NodeStmnt::TryCatch(node) => node.to_bytecode(interpreter)?,
             NodeStmnt::Throw(node) => node.to_bytecode(interpreter)?,
@@ -136,7 +172,7 @@ impl ToBytecode for NodeElifStmnt {
             self.condition.span.clone(),
         )?;
 
-        increment_loop_scope(interpreter, result.len() + 1);
+        increment_loop_scope(interpreter, result.len());
 
         let body = self.body.to_bytecode(interpreter)?;
 
@@ -242,14 +278,7 @@ impl ToBytecode for NodeIfStmnt {
 
 impl ToBytecode for NodeWhileLoop {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let prev_loop_scope = interpreter.current_loop.clone();
-        interpreter.current_loop = Some(LoopScope::default());
-
-        /* for some reason nested while loops need an extra len */
-        if prev_loop_scope.is_some() {
-            increment_loop_scope(interpreter, 1);
-        }
-
+        let prev_loop_scope = update_loop_scope(interpreter);
         let mut result = self.condition.clone().to_bytecode(interpreter)?;
 
         let cond_ty = self.condition.as_type(interpreter)?;
@@ -268,23 +297,13 @@ impl ToBytecode for NodeWhileLoop {
         result.push(Bytecode::If(body_len));
         result.extend(body);
 
-        let scope = interpreter
-            .current_loop
-            .as_ref()
-            .expect("the while scope disappeared");
-
-        /* finish off any break statements */
-        for pos in &scope.unfinished_breaks {
-            /* the distance to terminate the while */
-            let distance: isize = (result.len() - pos) as isize;
-            *result.get_mut(*pos).unwrap() = Bytecode::Jmp(distance);
-        }
+        fix_unfinished_breaks(interpreter, &mut result);
+        interpreter.current_loop = prev_loop_scope;
 
         /* how much to go back when we have iterated the body */
         let dist = -(result.len() as isize) - 1;
         result.push(Bytecode::Jmp(dist));
 
-        interpreter.current_loop = prev_loop_scope;
         Ok(result)
     }
 }
@@ -404,7 +423,7 @@ impl ToBytecode for NodeBreakStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let Some(scope) = interpreter.current_loop.as_mut() else {
             return Err(CompileError::new(
-                CompileErrorKind::CtrlFlowOutsideWhile,
+                CompileErrorKind::CtrlFlowOutsideLoop,
                 self.span.clone(),
             )
             .into());
@@ -418,27 +437,134 @@ impl ToBytecode for NodeContStmnt {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let Some(scope) = interpreter.current_loop.as_mut() else {
             return Err(CompileError::new(
-                CompileErrorKind::CtrlFlowOutsideWhile,
+                CompileErrorKind::CtrlFlowOutsideLoop,
                 self.span.clone(),
             )
             .into());
         };
-        Ok(vec![Bytecode::Jmp(-(scope.current_length as isize))])
+        Ok(vec![Bytecode::Jmp(-(scope.current_length as isize) - 1)])
+    }
+}
+
+impl ToBytecode for NodeForLoop {
+    #[allow(non_upper_case_globals)]
+    fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
+        let prev_loop_scope = update_loop_scope(interpreter);
+
+        if interpreter.locals.contains_key(&self.iter.name) {
+            return Err(CompileError::new(
+                CompileErrorKind::RedefiningVariable,
+                self.iter.span.clone(),
+            )
+            .into());
+        }
+
+        /* check whether the variable exists as a function's argument */
+        if let Some(func) = interpreter.current_func.clone() {
+            if func.arg_lookup.get(&self.iter.name).is_some() {
+                return Err(CompileError::new(
+                    CompileErrorKind::RedefiningVariable,
+                    self.iter.span,
+                )
+                .into());
+            }
+        }
+
+        let iterable_ty = self.iterable.as_type(interpreter)?;
+        let iterable_class = iterable_ty.as_class();
+
+        let Some(iter_fn_ann) = interpreter.get_function_universal(
+            "__iter__",
+            &VecDeque::from([iterable_ty.clone()]),
+            Some(&iterable_class),
+        ) else {
+            return Err(CompileError::new(
+                CompileErrorKind::MethodNotImplemented(iterable_class + "::__iter__()"),
+                self.iterable.span,
+            )
+            .into());
+        };
+
+        let iter_gen_type = iter_fn_ann.ret_type;
+        let iter_gen_class = iter_gen_type.as_class();
+
+        let Some(next_fn_ann) = interpreter.get_function_universal(
+            "__next__!",
+            &VecDeque::from([iter_gen_type.clone()]),
+            Some(&iter_gen_class),
+        ) else {
+            return Err(CompileError::new(
+                CompileErrorKind::MethodNotImplemented(iter_gen_class + "::__next__!()"),
+                self.iterable.span,
+            )
+            .into());
+        };
+
+        let iterator_type = next_fn_ann.ret_type;
+        let iterator_id = interpreter.get_local_id_internal(&self.iter.name, iterator_type, false);
+        let iterator_gen_id = interpreter.globals_id_counter;
+        interpreter.globals_id_counter += 1;
+
+        // For loop structure:
+        // let iterator = <iterable>.__iter__()
+        // try:
+        //     <iterator-var> = iterator.__next__!()
+        // catch(_: exception):
+        //      jump(body_len + 1)
+        // <body>
+        // <jump-to-try-block>
+
+        let mut init_iterator = Vec::<Bytecode>::new();
+        init_iterator.extend(self.iterable.to_bytecode(interpreter)?);
+        init_iterator.extend(iter_fn_ann.bytecode);
+        init_iterator.push(Bytecode::SetGlobal(iterator_gen_id));
+
+        let mut for_loop = Vec::<Bytecode>::new();
+        for_loop.extend(vec![
+            Bytecode::TryScope(next_fn_ann.bytecode.len() + 3),
+            Bytecode::GetGlobal(iterator_gen_id),
+        ]);
+
+        for_loop.extend(next_fn_ann.bytecode);
+        for_loop.extend(vec![
+            Bytecode::SetLocal(iterator_id),
+            Bytecode::CatchJmp(1),
+            Bytecode::Nop,
+        ]);
+        let jump_over_idx = for_loop.len() - 1;
+
+        increment_loop_scope(interpreter, for_loop.len());
+
+        let body = self.body.to_bytecode(interpreter)?;
+        let body_len = body.len() as isize;
+        for_loop.extend(body);
+
+        fix_unfinished_breaks(interpreter, &mut for_loop);
+        interpreter.current_loop = prev_loop_scope;
+
+        for_loop.push(Bytecode::Jmp(-(for_loop.len() as isize) - 1));
+        *for_loop.get_mut(jump_over_idx).unwrap() = Bytecode::Jmp(body_len + 1);
+
+        interpreter.remove_local(&self.iter.name);
+        interpreter.globals_id_counter -= 1;
+        init_iterator.extend(for_loop);
+
+        Ok(init_iterator)
     }
 }
 
 impl ToBytecode for NodeTryCatch {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        if interpreter.safety_scope != SafetyScope::Normal {
+        if interpreter.safety_scope == SafetyScope::Guarded {
             return Err(CompileError::new(CompileErrorKind::NestedTryCatch, self.try_span).into());
         }
 
-        interpreter.safety_scope = SafetyScope::Try;
+        interpreter.safety_scope = SafetyScope::Guarded;
         /* this instruction will be overwritten by `Bytecode::TryScope()` */
         let mut result = vec![Bytecode::Nop];
         result.extend(self.try_body.to_bytecode(interpreter)?);
 
-        interpreter.safety_scope = SafetyScope::Catch;
+        interpreter.safety_scope = SafetyScope::Safe;
         if var_exists(&self.exception_var.name, interpreter) {
             return Err(CompileError::new(
                 CompileErrorKind::RedefiningVariable,
@@ -468,12 +594,14 @@ impl ToBytecode for NodeThrow {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
         let NodeThrow(exception) = self;
 
-        if interpreter.safety_scope == SafetyScope::Catch {
-            return Err(CompileError::new(CompileErrorKind::UnsafeCatch, exception.span).into());
+        if interpreter.safety_scope == SafetyScope::Safe {
+            return Err(
+                CompileError::new(CompileErrorKind::UnsafeOpInSafeBlock, exception.span).into(),
+            );
         }
 
         if let Some(func) = interpreter.current_func.clone() {
-            if !func.is_unsafe {
+            if !func.is_unsafe && interpreter.safety_scope != SafetyScope::Guarded {
                 return Err(
                     CompileError::new(CompileErrorKind::ThrowInSafeFunc, exception.span).into(),
                 );

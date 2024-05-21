@@ -1,4 +1,4 @@
-import "examples/math.ch"
+import "math.ch"
 
 const pi_half = pi / 2
 
@@ -18,7 +18,7 @@ fn tg!(x: float) -> float:
 
 
 fn assert_rounded(lhs: float, rhs: float, n: uint):
-    assert(round(lhs, n), round(rhs, n))
+    assert(round(lhs, n) == round(rhs, n))
 
 if __name__ == '__main__':
     try:

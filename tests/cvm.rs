@@ -15,17 +15,28 @@ fn valid_features_set() {
 #[should_panic]
 fn interpret_invalid_assert() {
     let mut vm = Cvm::new();
-    let invalid_assert = vec![Bytecode::ConstU(12), Bytecode::ConstI(22), Bytecode::Assert];
+    let invalid_assert = vec![
+        Bytecode::ConstU(12),
+        Bytecode::ConstI(22),
+        Bytecode::Eq,
+        Bytecode::Assert,
+    ];
     vm.execute(invalid_assert);
 }
 
 #[test]
 fn interpret_valid_assert() {
     let mut vm = Cvm::new();
-    let valid_assert = vec![Bytecode::ConstU(42), Bytecode::ConstU(42), Bytecode::Assert];
+    let valid_assert = vec![
+        Bytecode::ConstU(42),
+        Bytecode::ConstU(42),
+        Bytecode::Eq,
+        Bytecode::Assert,
+    ];
     let valid_assert2 = vec![
         Bytecode::ConstS("good".to_string().into()),
         Bytecode::ConstS("good".to_string().into()),
+        Bytecode::Eq,
         Bytecode::Assert,
     ];
     vm.execute(valid_assert);
@@ -67,6 +78,7 @@ fn interpret_fibonacci() {
         Bytecode::ConstI(10),
         Bytecode::CallFunc(fib_id),
         Bytecode::ConstU(55),
+        Bytecode::Eq,
         Bytecode::Assert,
     ];
 
@@ -154,6 +166,7 @@ fn interpret_instance_creation_and_access() {
         Bytecode::ConstI(-10),
         Bytecode::GetLocal(0),
         Bytecode::GetAttr(1),
+        Bytecode::Eq,
         Bytecode::Assert,
         // assert("hello world", a.words.hello + a.words.world)
         Bytecode::ConstS("hello world".to_string().into()),
@@ -164,6 +177,7 @@ fn interpret_instance_creation_and_access() {
         Bytecode::GetAttr(2),
         Bytecode::GetAttr(1),
         Bytecode::Add,
+        Bytecode::Eq,
         Bytecode::Assert,
     ];
     vm.execute(code);

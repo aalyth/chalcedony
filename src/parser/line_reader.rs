@@ -47,7 +47,7 @@ impl LineReader {
 
         /* we advance at least the first line */
         let Some(front_ln) = self.advance() else {
-            panic!("LexerReader::advance_chunk(): advancing an empty reader");
+            return Ok(result);
         };
         result.push_back(front_ln);
 
@@ -63,7 +63,7 @@ impl LineReader {
 
     pub fn advance_chunk(&mut self) -> Result<Self, ChalError> {
         let Some(front) = self.src.front() else {
-            panic!("LexerReader::advance_chunk(): advancing an empty reader");
+            panic!("LineReader::advance_chunk(): advancing an empty reader");
         };
         // NOTE: this line is necessary so front goes out of scope and the
         // borrow checker is happy

@@ -11,13 +11,18 @@
 mod builtins;
 mod object;
 
-use builtins::{add, and, assert, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, neg, not, or, sub};
-use object::{CvmObject, Gc};
+use builtins::{
+    add, and, div, eq, gt, gt_eq, list_get, list_insert, list_remove, list_set, lt, lt_eq, modulo,
+    mul, neg, not, or, sub,
+};
+use object::{CvmList, CvmObject, Gc};
 
 use crate::common::Bytecode;
 use crate::error::unhandled_exception;
 use crate::utils::Stack;
 
+use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -94,8 +99,19 @@ impl Cvm {
                 next_idx
             }
             Bytecode::ConstB(val) => push_constant!(self, Bool, val, next_idx),
+
+            Bytecode::ConstL(len) => {
+                let mut list = VecDeque::<CvmObject>::with_capacity(len);
+                for _ in 0..len {
+                    list.push_front(self.stack.pop().expect("expected a value on the stack"));
+                }
+                self.stack
+                    .push(CvmObject::List(Rc::new(RefCell::new(list))));
+                next_idx
+            }
+
             Bytecode::ConstObj(el_count) => {
-                self.stack.push(CvmObject::Instance(Gc::new(vec![
+                self.stack.push(CvmObject::Object(Gc::new(vec![
                     CvmObject::default();
                     el_count
                 ])));
@@ -103,7 +119,7 @@ impl Cvm {
             }
 
             Bytecode::ThrowException => {
-                let obj = self.stack.pop().expect("expected a value on the stack");
+                let obj = self.pop();
                 let CvmObject::Str(val) = obj else {
                     panic!("invalid exception type");
                 };
@@ -111,8 +127,25 @@ impl Cvm {
                 self.handle_exception()
             }
 
+            Bytecode::Dup => {
+                let val = self.stack.peek().expect("expected a value on the stack");
+                self.stack.push(val.clone());
+                next_idx
+            }
+
+            Bytecode::Copy => {
+                let val = self.pop();
+                self.stack.push(val.deep_copy());
+                next_idx
+            }
+
+            Bytecode::Pop => {
+                self.pop();
+                next_idx
+            }
+
             Bytecode::CastI => {
-                match self.stack.pop().expect("expected a value on the stack") {
+                match self.pop() {
                     CvmObject::Uint(val) => self.stack.push(CvmObject::Int(val as i64)),
                     CvmObject::Float(val) => self.stack.push(CvmObject::Int(val as i64)),
                     _ => panic!("invalid cast to Int"),
@@ -121,7 +154,7 @@ impl Cvm {
             }
 
             Bytecode::CastF => {
-                match self.stack.pop().expect("expected a value on the stack") {
+                match self.pop() {
                     CvmObject::Int(val) => self.stack.push(CvmObject::Float(val as f64)),
                     CvmObject::Uint(val) => self.stack.push(CvmObject::Float(val as f64)),
                     _ => panic!("invalid cast to Float"),
@@ -130,7 +163,7 @@ impl Cvm {
             }
 
             Bytecode::CastU => {
-                match self.stack.pop().expect("expected a value on the stack") {
+                match self.pop() {
                     CvmObject::Int(val) => self.stack.push(CvmObject::Uint(val as u64)),
                     CvmObject::Float(val) => self.stack.push(CvmObject::Uint(val as u64)),
                     _ => panic!("invalid cast to Uint"),
@@ -139,7 +172,7 @@ impl Cvm {
             }
 
             Bytecode::SetGlobal(var_id) => {
-                let var_value = self.stack.pop().expect("expected a value on the stack");
+                let var_value = self.pop();
                 while var_id >= self.globals.len() {
                     self.globals.push(CvmObject::Int(0));
                 }
@@ -161,7 +194,7 @@ impl Cvm {
                     var_id += frame.stack_len;
                 }
 
-                let value = self.stack.pop().expect("expected a value on the stack");
+                let value = self.pop();
                 if let Some(var) = self.stack.get_mut(var_id) {
                     *var = value;
                 } else {
@@ -182,7 +215,7 @@ impl Cvm {
             }
 
             Bytecode::GetAttr(attr_id) => {
-                let CvmObject::Instance(obj) =
+                let CvmObject::Object(obj) =
                     self.stack.pop().expect("expected a value on the stack")
                 else {
                     panic!("calling `GetAttr` on a non-object")
@@ -197,7 +230,7 @@ impl Cvm {
 
             Bytecode::SetAttr(attr_id) => {
                 let val = self.stack.pop().expect("expected a value on the stack");
-                let CvmObject::Instance(dest_obj) =
+                let CvmObject::Object(dest_obj) =
                     self.stack.top().expect("expected a value on the stack")
                 else {
                     panic!("calling `SetAttr` on a non-object");
@@ -207,7 +240,7 @@ impl Cvm {
                 let mut dest_obj = dest_obj.borrow_mut();
 
                 /* dest_obj = val_obj */
-                if let CvmObject::Instance(val_obj) = val {
+                if let CvmObject::Object(val_obj) = val {
                     let val_obj = val_obj.get_ref();
 
                     // The `depth > 1` check is so if an inline object is set as
@@ -215,13 +248,13 @@ impl Cvm {
                     // right after the parent object's initialization.
                     if dest_obj.depth == 0 && val_obj.borrow().depth == 0 {
                         *dest_obj.data.get_mut(attr_id).unwrap() =
-                            CvmObject::Instance(Gc::Strong(val_obj.clone()));
+                            CvmObject::Object(Gc::Strong(val_obj.clone()));
                     } else if dest_obj.depth <= val_obj.borrow().depth {
                         *dest_obj.data.get_mut(attr_id).unwrap() =
-                            CvmObject::Instance(Gc::Weak(Rc::downgrade(&val_obj)));
+                            CvmObject::Object(Gc::Weak(Rc::downgrade(&val_obj)));
                     } else {
                         *dest_obj.data.get_mut(attr_id).unwrap() =
-                            CvmObject::Instance(Gc::Strong(val_obj.clone()));
+                            CvmObject::Object(Gc::Strong(val_obj.clone()));
                         dest_obj.depth = val_obj.borrow().depth;
                     }
                 } else {
@@ -284,6 +317,7 @@ impl Cvm {
                 let value = self.stack.pop().unwrap();
                 let frame = self.call_stack.pop().unwrap();
                 self.stack.truncate(frame.stack_len);
+                self.catch_idx = frame.catch_idx;
                 self.stack.push(value);
                 self.catch_idx = frame.catch_idx;
                 frame.prev_idx
@@ -297,8 +331,7 @@ impl Cvm {
             }
 
             Bytecode::If(jmp) => {
-                let cond_raw = self.stack.pop().expect("expected a value on the stack");
-                let CvmObject::Bool(cond) = cond_raw else {
+                let CvmObject::Bool(cond) = self.pop() else {
                     panic!("expected a bool when checking if statements")
                 };
 
@@ -310,6 +343,23 @@ impl Cvm {
             }
 
             Bytecode::Jmp(dist) => (next_idx as isize + dist) as usize,
+
+            Bytecode::Len => {
+                let obj = self.pop();
+                match obj {
+                    CvmObject::List(list) => {
+                        self.stack.push(CvmObject::Uint(list.borrow().len() as u64))
+                    }
+                    CvmObject::Str(val) => self.stack.push(CvmObject::Uint(val.len() as u64)),
+                    _ => panic!("getting the length of non string/list"),
+                }
+                next_idx
+            }
+
+            Bytecode::ListInsert => list_insert(self, next_idx),
+            Bytecode::ListRemove => list_remove(self, next_idx),
+            Bytecode::ListSet => list_set(self, next_idx),
+            Bytecode::ListGet => list_get(self, next_idx),
 
             Bytecode::TryScope(offset) => {
                 /* SAFETY: it is guaranteed there are no nested try-catch blocks */
@@ -323,12 +373,26 @@ impl Cvm {
             }
 
             Bytecode::Print => {
-                let obj = self.stack.pop().expect("expected an object on the stack");
+                let obj = self.pop();
                 println!("{}", obj);
                 next_idx
             }
 
-            Bytecode::Assert => assert(self, next_idx),
+            Bytecode::Assert => {
+                let CvmObject::Bool(successful) = self.pop() else {
+                    self.stack
+                        .push(CvmObject::Exception("assertion failed".to_string().into()));
+                    return self.handle_exception();
+                };
+
+                if !successful {
+                    self.stack
+                        .push(CvmObject::Exception("assertion failed".to_string().into()));
+                    return self.handle_exception();
+                }
+
+                next_idx
+            }
 
             Bytecode::Nop => next_idx,
         }
@@ -337,6 +401,11 @@ impl Cvm {
     #[inline(always)]
     fn push(&mut self, val: CvmObject) {
         self.stack.push(val)
+    }
+
+    #[inline(always)]
+    fn pop(&mut self) -> CvmObject {
+        self.stack.pop().expect("expected a value on the stack")
     }
 
     /* returns the index of the next instruction */

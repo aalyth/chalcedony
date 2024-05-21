@@ -11,11 +11,13 @@ use std::ptr;
 pub struct PtrString(*const char);
 
 impl PtrString {
-    unsafe fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         let ptr = self.0;
         let mut i: usize = 0;
-        while *ptr.add(i) != '\0' {
-            i += 1;
+        unsafe {
+            while *ptr.add(i) != '\0' {
+                i += 1;
+            }
         }
         i
     }

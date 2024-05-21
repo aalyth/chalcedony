@@ -2,7 +2,11 @@ use crate::common::Type;
 use crate::utils::PtrString;
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
+
+pub type CvmList = Rc<RefCell<VecDeque<CvmObject>>>;
+pub type CvmObj = Gc<Vec<CvmObject>>;
 
 #[derive(Debug)]
 pub struct GcInner<Data> {
@@ -82,9 +86,9 @@ pub enum CvmObject {
     Float(f64),
     Str(PtrString),
     Bool(bool),
+    List(CvmList),
     Exception(PtrString),
-    /* an instance of a class */
-    Instance(Gc<Vec<CvmObject>>),
+    Object(CvmObj),
 }
 
 impl CvmObject {
@@ -96,8 +100,46 @@ impl CvmObject {
             CvmObject::Float(_) => Type::Float,
             CvmObject::Str(_) => Type::Str,
             CvmObject::Bool(_) => Type::Bool,
+            CvmObject::List(list) => {
+                let list = list.borrow();
+                if let Some(obj) = list.front() {
+                    return Type::List(Box::new(obj.as_type()));
+                }
+                Type::List(Box::new(Type::Any))
+            }
             CvmObject::Exception(_) => Type::Exception,
-            CvmObject::Instance(_) => Type::Custom(Box::new("Object".to_string())),
+            CvmObject::Object(_) => Type::Custom(Box::new("Object".to_string())),
+        }
+    }
+
+    pub fn deep_copy(self) -> Self {
+        match self {
+            CvmObject::List(data) => {
+                if Rc::strong_count(&data) == 1 {
+                    CvmObject::List(data)
+                } else {
+                    let data = data.borrow();
+                    let mut new_vec = VecDeque::<CvmObject>::with_capacity(data.len());
+                    for el in data.clone().into_iter() {
+                        new_vec.push_back(el.deep_copy());
+                    }
+                    CvmObject::List(Rc::new(RefCell::new(new_vec)))
+                }
+            }
+            CvmObject::Object(obj) => {
+                let obj_ref = obj.get_ref();
+                let obj_ref = obj_ref.borrow();
+                if obj_ref.depth == 0 {
+                    CvmObject::Object(obj)
+                } else {
+                    let mut new_vec = Vec::<CvmObject>::with_capacity(obj_ref.data.len());
+                    for el in obj_ref.data.clone().into_iter() {
+                        new_vec.push(el.deep_copy());
+                    }
+                    CvmObject::Object(Gc::new(new_vec))
+                }
+            }
+            _ => self,
         }
     }
 }
@@ -116,8 +158,20 @@ impl std::fmt::Display for CvmObject {
             CvmObject::Float(val) => write!(f, "{}", val),
             CvmObject::Str(val) => write!(f, "{}", val),
             CvmObject::Bool(val) => write!(f, "{}", val),
+            CvmObject::List(list) => {
+                write!(f, "[")?;
+                let list = list.borrow();
+                for el in list.iter() {
+                    write!(f, "{}, ", el)?;
+                }
+                /* `\x08` is the same as `\b` */
+                if !list.is_empty() {
+                    write!(f, "\x08\x08")?;
+                }
+                write!(f, "]")
+            }
             CvmObject::Exception(val) => write!(f, "{}", val),
-            CvmObject::Instance(obj) => {
+            CvmObject::Object(obj) => {
                 let obj = obj.get_ref();
                 let obj = obj.borrow();
                 write!(f, "{{")?;

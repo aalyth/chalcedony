@@ -7,6 +7,14 @@ pub enum Bytecode {
     /// Does nothing.
     Nop,
 
+    /// Copies the top of the stack.
+    Dup,
+    /// Pops the object at the top of the stack and pushes a new deeply copied
+    /// version of it back.
+    Copy,
+    /// Removes the top of the stack.
+    Pop,
+
     /// Pushes an `CvmObject::Int()` on the top of the stack.
     ConstI(i64),
     /// Pushes `CvmObject::Uint()` on the top of the stack.
@@ -20,6 +28,8 @@ pub enum Bytecode {
     /// Pushes `CvmObject::Object()` on the top of the stack with preallocated
     /// `N` elements inside;
     ConstObj(usize),
+    /// Pops the top N elements off the stack and builds a list out of them.
+    ConstL(usize),
     /// Converts the top of the stack from a `CvmObject::Str()` into a
     /// `CvmObject::Exception()`.
     ThrowException,
@@ -101,9 +111,30 @@ pub enum Bytecode {
     /// Used at the end of the `try` block to jump over the `catch` block.
     CatchJmp(usize),
 
+    /// Pops the top element off the stack and pushes back it's length. Used
+    /// for lists and strings.
+    Len,
+    /// Pops the `CvmObject::Int()` at the top off the stack and retrieves the
+    /// element at the index of the list at the top of the stack.
+    ListGet,
+    /// Pops the top off the stack, interprets it as a list index, and pops the
+    /// corresponding index off the list at the top of the stack. The removed
+    /// value is pushed on the stack. If the index is invalid an exception is
+    /// thrown.
+    ListRemove,
+    /// Pops the top off the stack, interprets it as a list index, pops the next
+    /// element as the value to be inserted, and inserts it in the list at the
+    /// top of the stack (`<list> <element> <idx>`). If the index is invalid an
+    /// exception is thrown.
+    ListInsert,
+    /// Pops the top off the stack, interprets it as a list index, pops the next
+    /// element as the value to be replaced, and sets it in the list at the top
+    /// of the stack (`<list> <element> <idx>`). If the index is invalid an
+    /// exception is thrown.
+    ListSet,
+
     /// Pops the top value off the stack and outputs it to `stdout`.
     Print,
-    /// Asserts the top 2 values on the stack are equal, else the script's
-    /// execution is terminated.
+    /// Asserts the top of the stack is true, else an exception is thrown.
     Assert,
 }

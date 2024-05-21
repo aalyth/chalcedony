@@ -33,20 +33,32 @@ pub enum CompileErrorKind {
     UnknownMember(String),
     /// `<namespace-name>`
     UnknownNamespace(String),
+    /// `<method-name>`
+    MethodNotImplemented(String),
+    /// `<custom-type>`
+    TypeDoesNotExits(String),
+    /// `<rhs-ty>`
+    UninferableType(Type),
+    /// `<exp>`, `<recv>`
+    IncoherentList(Type, Type),
+    InvalidIterable(Type),
     VoidFunctionExpr,
     NoDefaultReturnStmnt,
     MutatingExternalState,
     RedefiningFunctionArg,
     VoidArgument,
+    VoidVariable,
+    VoidMember,
     OverwrittenFunction,
     RedefiningVariable,
     ReturnOutsideFunc,
-    CtrlFlowOutsideWhile,
+    CtrlFlowOutsideLoop,
     NestedTryCatch,
-    UnsafeCatch,
+    UnsafeOpInSafeBlock,
     ThrowInSafeFunc,
     MutatingConstant,
     MemberAlreadyExists,
+    ExceptionTyOutsideCatch,
 }
 
 pub struct CompileError {
@@ -69,7 +81,7 @@ impl std::fmt::Display for CompileError {
             }
 
             CompileErrorKind::UnknownFunction(func) => {
-                let msg = &format!("unknown function '{}()'", func);
+                let msg = &format!("unknown function '{}'", func);
                 display_err(&self.span, f, msg)
             }
 
@@ -144,6 +156,31 @@ impl std::fmt::Display for CompileError {
                 display_err(&self.span, f, msg)
             }
 
+            CompileErrorKind::MethodNotImplemented(name) => {
+                let msg = &format!("the method `{}` is not implemented", name);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::TypeDoesNotExits(type_name) => {
+                let msg = &format!("the type `{}` does not exist", type_name);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::UninferableType(ty) => {
+                let msg = &format!("the type `{:?}` could not be infered", ty);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::IncoherentList(el1, el2) => {
+                let msg = &format!("incoherent list elements ('{:?}' and '{:?}')", el1, el2);
+                display_err(&self.span, f, msg)
+            }
+
+            CompileErrorKind::InvalidIterable(ty) => {
+                let msg = &format!("value of type `{:?}` is not iterable", ty);
+                display_err(&self.span, f, msg)
+            }
+
             CompileErrorKind::VoidFunctionExpr => display_err(
                 &self.span,
                 f,
@@ -168,6 +205,14 @@ impl std::fmt::Display for CompileError {
                 display_err(&self.span, f, "function arguments must be non-void")
             }
 
+            CompileErrorKind::VoidVariable => {
+                display_err(&self.span, f, "variables must be non-void")
+            }
+
+            CompileErrorKind::VoidMember => {
+                display_err(&self.span, f, "class members must be non-void")
+            }
+
             CompileErrorKind::OverwrittenFunction => {
                 display_err(&self.span, f, "overwriting already defined function")
             }
@@ -180,18 +225,18 @@ impl std::fmt::Display for CompileError {
                 display_err(&self.span, f, "return statement outside a function scope")
             }
 
-            CompileErrorKind::CtrlFlowOutsideWhile => {
-                display_err(&self.span, f, "control flow outside a while scope")
+            CompileErrorKind::CtrlFlowOutsideLoop => {
+                display_err(&self.span, f, "control flow outside loop scope")
             }
 
             CompileErrorKind::NestedTryCatch => {
                 display_err(&self.span, f, "redundant nested try-catch block")
             }
 
-            CompileErrorKind::UnsafeCatch => display_err(
+            CompileErrorKind::UnsafeOpInSafeBlock => display_err(
                 &self.span,
                 f,
-                "unsafe oprations are not allowed in `catch` blocks",
+                "unsafe oprations are not allowed in safe scopes",
             ),
 
             CompileErrorKind::ThrowInSafeFunc => {
@@ -204,6 +249,10 @@ impl std::fmt::Display for CompileError {
 
             CompileErrorKind::MemberAlreadyExists => {
                 display_err(&self.span, f, "member already exists")
+            }
+
+            CompileErrorKind::ExceptionTyOutsideCatch => {
+                display_err(&self.span, f, "the type `exception` is allowed only inside `catch` blocks")
             }
         }
     }

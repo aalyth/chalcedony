@@ -17,8 +17,8 @@ pub use expr::{NodeExpr, NodeExprInner, NodeInlineClass};
 pub use func::{NodeFuncCall, NodeFuncCallStmnt, NodeFuncDef};
 pub use program::{NodeImport, NodeProg};
 pub use stmnt::{
-    NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeIfBranch,
-    NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeThrow, NodeTryCatch, NodeWhileLoop,
+    NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeForLoop,
+    NodeIfBranch, NodeIfStmnt, NodeRetStmnt, NodeStmnt, NodeThrow, NodeTryCatch, NodeWhileLoop,
 };
 pub use var::{NodeVarCall, NodeVarDef};
 
