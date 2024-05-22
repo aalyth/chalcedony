@@ -120,9 +120,7 @@ class Graph:
         if orig >= max_node || dest >= max_node:
             throw "invalid orig/dest"
         
-        let traversed: [bool] = List::new()
-        for i in range(max_node):
-            traversed.push_back(false)
+        let traversed: [bool] = [false] * max_node
         traversed.set!(true, orig)
 
         let heap = NodeHeap::from(self.__get_neighbours!(orig))
