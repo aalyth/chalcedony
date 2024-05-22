@@ -191,7 +191,7 @@ fn opr_logical(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<T
 
 // Every comparison operator yields a boolean value.
 macro_rules! opr_cmp_internal {
-    ($stack:ident, $cmp_func:ident, $opr_name:expr, $span:ident) => {{
+    ($stack:ident, $cmp_func:ident, $cmp_list:ident, $opr_name:expr, $span:ident) => {{
         let right = $stack.pop().expect("expected a type on the eval stack");
         let left = $stack.pop().expect("expected a type on the eval stack");
 
@@ -213,6 +213,7 @@ macro_rules! opr_cmp_internal {
 
             (Type::Str, Type::Str) => Ok(Type::Bool),
             (Type::Bool, right) => $cmp_func(right, $span),
+            (Type::List(left), Type::List(right)) => $cmp_list(*left, *right, $span),
             (left, right) => Err(CompileError::new(
                 CompileErrorKind::InvalidBinOpr($opr_name.to_string(), left, right),
                 $span.clone(),
@@ -234,7 +235,21 @@ fn opr_eq(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, 
             .into()),
         }
     };
-    opr_cmp_internal!(eval_stack, cmp_eq, opr, span)
+    let cmp_list = |left: Type, right: Type, span: &Span| -> Result<Type, ChalError> {
+        if left != right {
+            return Err(CompileError::new(
+                CompileErrorKind::InvalidBinOpr(
+                    opr.to_string(),
+                    Type::List(Box::new(left)),
+                    Type::List(Box::new(right)),
+                ),
+                span.clone(),
+            )
+            .into());
+        }
+        Ok(Type::Bool)
+    };
+    opr_cmp_internal!(eval_stack, cmp_eq, cmp_list, opr, span)
 }
 
 // Matches the operators `<`, `>`, `<=`, `>=`.
@@ -246,7 +261,18 @@ fn opr_cmp(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type,
         )
         .into())
     };
-    opr_cmp_internal!(eval_stack, cmp_operator, opr, span)
+    let cmp_list = |left: Type, right: Type, span: &Span| -> Result<Type, ChalError> {
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr(
+                opr.to_string(),
+                Type::List(Box::new(left)),
+                Type::List(Box::new(right)),
+            ),
+            span.clone(),
+        )
+        .into())
+    };
+    opr_cmp_internal!(eval_stack, cmp_operator, cmp_list, opr, span)
 }
 
 impl BinOprType {
@@ -409,7 +435,7 @@ impl NodeVarCall {
                 .into());
             };
 
-            let Some(annotation) = class.members.get(&self.name) else {
+            let Some(annotation) = class.get_member(&self.name) else {
                 return Err(CompileError::new(
                     CompileErrorKind::UnknownMember(self.name.clone()),
                     self.span.clone(),

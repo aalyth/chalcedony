@@ -136,13 +136,21 @@ pub enum ScriptType {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MemberAnnotation {
     pub id: usize,
+    pub name: String,
     pub ty: Type,
 }
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct ClassNamespace {
-    pub members: AHashMap<String, MemberAnnotation>,
+    // pub members: AHashMap<String, MemberAnnotation>,
+    pub members: Vec<MemberAnnotation>,
     pub methods: AHashMap<String, Vec<Rc<FuncAnnotation>>>,
+}
+
+impl ClassNamespace {
+    fn get_member(&self, name: &str) -> Option<&MemberAnnotation> {
+        self.members.iter().find(|&member| member.name == name)
+    }
 }
 
 /// The structure representing the interpreter, used to compile the received

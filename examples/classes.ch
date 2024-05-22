@@ -1,39 +1,69 @@
 
-class Bueno:
-    v: str
-    w: str
+class Header:
+    header: str
+    value: str
 
-    fn default() -> Bueno:
-        return Bueno {v: "hello", w: "world"} 
+    fn new(header: str, value: str) -> Header:
+        return Header {header, value}
 
-class Calculator:
-    a: uint
-    b: uint 
-    res: uint 
+    fn display(self) -> str:
+        return self.header + ": " + self.value
 
-    bueno: Bueno
+class HttpRequestMock:
+    method: str
+    url: str
+    headers: [Header] 
+    body: str
 
-    fn example(a: uint, b: uint) -> uint:
-        return a + b
+    fn new() -> HttpRequestMock:
+        return HttpRequestMock {
+            method: "",
+            url: "",
+            headers: List::new(),
+            body: ""
+        }
 
-    fn new(a: uint, b: uint, bueno: Bueno) -> Calculator:
-        return Calculator {a, b, res: a + b, bueno: bueno} 
+    fn set_method!(self, method: str) -> HttpRequestMock:
+        if self.method != "":
+            throw "setting an already set method"
 
-    fn new(a: uint, b: uint) -> Calculator:
-        return Calculator {a, b, res: 0, bueno: Bueno::default()} 
-
-    fn default() -> Calculator:
-        return Calculator {a: 0, b: 0, res: 0, bueno: Bueno::default()}
-
-    fn compute(self) -> Calculator:
-        self.res = self.a + self.b
+        self.method = method
         return self
-                
-    fn display(self):
-        print(self)
 
-let example = Calculator {a: 1, b: 2, res: 15, bueno: Bueno {v: "hello", w: "world"}}
-Calculator::new(5, 6).compute().display()
-print(example.res)
-example.compute()
-print(example.res)
+    fn set_url!(self, url: str) -> HttpRequestMock:
+        if self.url != "":
+            throw "setting an already set url"
+            
+        self.url = url 
+        return self
+
+    fn set_body!(self, body: str) -> HttpRequestMock:
+        if self.body != "":
+            throw "setting an already set body"
+            
+        self.body = body 
+        return self
+
+    fn add_header!(self, header: Header) -> HttpRequestMock:
+        for h in self.headers:
+            if h.header == header.header:
+                throw "header " + header.header + " already exists"
+        
+        self.headers.push_back(header)
+        return self
+
+    fn send(self):
+        print(self.method + " " + self.url)
+        for header in self.headers:
+            print(header.display())
+        print(self.body)
+
+
+if __name__ == "__main__":
+    HttpRequestMock::new() \
+        .set_method!("GET") \
+        .set_url!("elsys-bg.org") \
+        .add_header!(Header::new("Bearer", "<some-token>")) \
+        .add_header!(Header::new("Expires", "1716390850")) \
+        .set_body!("Hello to Elsys") \
+        .send()

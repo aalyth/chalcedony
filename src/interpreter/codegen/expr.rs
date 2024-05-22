@@ -74,9 +74,9 @@ impl ToBytecode for NodeExprInner {
 
                 if node.members.len() < class.members.len() {
                     let mut missing_members = Vec::<String>::new();
-                    for member in class.members.into_keys() {
-                        if !node.members.contains_key(&member) {
-                            missing_members.push(member);
+                    for member in class.members {
+                        if !node.members.contains_key(&member.name) {
+                            missing_members.push(member.name);
                         }
                     }
 
@@ -88,8 +88,8 @@ impl ToBytecode for NodeExprInner {
                 }
 
                 if node.members.len() > class.members.len() {
-                    for member in class.members.keys() {
-                        node.members.remove(member);
+                    for member in class.members {
+                        node.members.remove(&member.name);
                     }
                     let undefined_members = node.members.into_keys().collect();
                     return Err(CompileError::new(
@@ -100,22 +100,31 @@ impl ToBytecode for NodeExprInner {
                 }
 
                 let mut result = Vec::<Bytecode>::new();
-                result.push(Bytecode::ConstObj(node.members.len()));
+                let members_count = class.members.len();
 
-                for (member, (expr, span)) in node.members.into_iter() {
-                    let Some(annotation) = class.members.get(&member) else {
-                        return Err(CompileError::new(
-                            CompileErrorKind::UnknownMember(member.clone()),
-                            node.span,
-                        )
-                        .into());
+                let mut missing_members = Vec::<String>::new();
+                for member in class.members {
+                    let Some((expr, span)) = node.members.remove(&member.name) else {
+                        missing_members.push(member.name);
+                        continue;
                     };
-
                     let expr_ty = expr.as_type(interpreter)?;
                     result.extend(expr.to_bytecode(interpreter)?);
-                    Type::verify(annotation.ty.clone(), expr_ty, &mut result, span)?;
-                    result.push(Bytecode::SetAttr(annotation.id));
+                    Type::verify(member.ty.clone(), expr_ty, &mut result, span)?;
                 }
+
+                if !missing_members.is_empty() {
+                    return Err(CompileError::new(
+                        CompileErrorKind::MissingMembers(missing_members),
+                        node.span,
+                    )
+                    .into());
+                }
+
+                // NOTE: the variable is required, since all node members are
+                // removed and the length is 0
+                result.push(Bytecode::ConstObj(members_count));
+
                 Ok(result)
             }
 

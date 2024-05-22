@@ -13,7 +13,7 @@ mod stmnt;
 mod var;
 
 pub use class::{NodeAttrRes, NodeAttribute, NodeClass};
-pub use expr::{NodeExpr, NodeExprInner, NodeInlineClass};
+pub use expr::{NodeExpr, NodeExprInner, NodeInlineClass, NodeList};
 pub use func::{NodeFuncCall, NodeFuncCallStmnt, NodeFuncDef};
 pub use program::{NodeImport, NodeProg};
 pub use stmnt::{

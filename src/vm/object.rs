@@ -3,6 +3,7 @@ use crate::utils::PtrString;
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::iter::zip;
 use std::rc::{Rc, Weak};
 
 pub type CvmList = Rc<RefCell<VecDeque<CvmObject>>>;
@@ -196,6 +197,34 @@ impl std::cmp::PartialEq for CvmObject {
             }
             (CvmObject::Str(lval), CvmObject::Str(rval)) => lval == rval,
             (CvmObject::Bool(lval), CvmObject::Bool(rval)) => lval == rval,
+            (CvmObject::List(left), CvmObject::List(right)) => {
+                let left = left.borrow();
+                let right = right.borrow();
+                if left.len() != right.len() {
+                    return false;
+                }
+
+                for (l, r) in zip(left.iter(), right.iter()) {
+                    if l != r {
+                        return false;
+                    }
+                }
+                true
+            }
+            (CvmObject::Object(left), CvmObject::Object(right)) => {
+                let left = left.get_ref();
+                let left = left.borrow();
+
+                let right = right.get_ref();
+                let right = right.borrow();
+
+                for (l, r) in zip(left.data.iter(), right.data.iter()) {
+                    if l != r {
+                        return false;
+                    }
+                }
+                true
+            }
             _ => false,
         }
     }

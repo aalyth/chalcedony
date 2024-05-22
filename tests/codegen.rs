@@ -4,8 +4,9 @@ use chalcedony::common::{Bytecode, Type};
 use chalcedony::parser::ast::{
     class::Member, func::Arg, NodeAssign, NodeAttrRes, NodeAttribute, NodeBreakStmnt, NodeClass,
     NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExpr, NodeExprInner, NodeFuncCall,
-    NodeFuncCallStmnt, NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeInlineClass, NodeRetStmnt,
-    NodeStmnt, NodeThrow, NodeTryCatch, NodeValue, NodeVarCall, NodeVarDef, NodeWhileLoop,
+    NodeFuncCallStmnt, NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeInlineClass, NodeList,
+    NodeRetStmnt, NodeStmnt, NodeThrow, NodeTryCatch, NodeValue, NodeVarCall, NodeVarDef,
+    NodeWhileLoop,
 };
 
 use chalcedony::interpreter::{
@@ -625,6 +626,70 @@ fn compile_try_catch() {
 }
 
 #[test]
+fn compile_list() {
+    // equivalent to the code (expression):
+    // ```
+    // [1, 2 * 3, (4 + 10) / 2] * 5
+    // ```
+
+    let code = NodeExpr {
+        expr: vecdeq![
+            NodeExprInner::List(NodeList {
+                elements: vec![
+                    NodeExpr {
+                        expr: vecdeq![NodeExprInner::Value(NodeValue::Uint(1))],
+                        span: SpanMock::new()
+                    },
+                    NodeExpr {
+                        expr: vecdeq![
+                            NodeExprInner::Value(NodeValue::Uint(2)),
+                            NodeExprInner::Value(NodeValue::Uint(3)),
+                            NodeExprInner::BinOpr(BinOprType::Mul)
+                        ],
+                        span: SpanMock::new()
+                    },
+                    NodeExpr {
+                        expr: vecdeq![
+                            NodeExprInner::Value(NodeValue::Uint(4)),
+                            NodeExprInner::Value(NodeValue::Uint(10)),
+                            NodeExprInner::BinOpr(BinOprType::Add),
+                            NodeExprInner::Value(NodeValue::Uint(2)),
+                            NodeExprInner::BinOpr(BinOprType::Div),
+                        ],
+                        span: SpanMock::new()
+                    }
+                ],
+                span: SpanMock::new(),
+            }),
+            NodeExprInner::Value(NodeValue::Uint(5)),
+            NodeExprInner::BinOpr(BinOprType::Mul),
+        ],
+        span: SpanMock::new(),
+    };
+
+    let recv = code
+        .to_bytecode(&mut Chalcedony::new())
+        .expect("could not compile list");
+
+    let exp = vec![
+        Bytecode::ConstU(1),
+        Bytecode::ConstU(2),
+        Bytecode::ConstU(3),
+        Bytecode::Mul,
+        Bytecode::ConstU(4),
+        Bytecode::ConstU(10),
+        Bytecode::Add,
+        Bytecode::ConstU(2),
+        Bytecode::Div,
+        Bytecode::ConstL(3),
+        Bytecode::ConstU(5),
+        Bytecode::Mul,
+    ];
+
+    assert_eq!(exp, recv);
+}
+
+#[test]
 fn compile_classes() {
     // equivalent to the code:
     // ```
@@ -727,16 +792,18 @@ fn compile_classes() {
     let example_new_id = interpreter.get_next_func_id();
 
     let exp_class_namespace = ClassNamespace {
-        members: hash_map!(
-        "result".to_string() => MemberAnnotation {id: 0, ty: Type::Uint},
-        ),
+        members: vec![MemberAnnotation {
+            id: 0,
+            name: "result".to_string(),
+            ty: Type::Uint,
+        }],
         methods: hash_map!(
-        "new".to_string() => vec![Rc::new(FuncAnnotation::new(
-                example_new_id,
-                vec![ArgAnnotation::new(0, "value".to_string(), Type::Uint)],
-                Type::Custom(Box::new("Example".to_string())),
-                false
-                ))]
+            "new".to_string() => vec![Rc::new(FuncAnnotation::new(
+                    example_new_id,
+                    vec![ArgAnnotation::new(0, "value".to_string(), Type::Uint)],
+                    Type::Custom(Box::new("Example".to_string())),
+                    false
+                    ))],
         ),
     };
 

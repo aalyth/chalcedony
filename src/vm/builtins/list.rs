@@ -5,11 +5,11 @@ use crate::utils::PtrString;
 /* returns the index of the next instruction */
 #[inline(always)]
 pub fn list_insert(cvm: &mut Cvm, next_idx: usize) -> usize {
-    let CvmObject::Int(idx) = cvm.pop() else {
+    let CvmObject::Int(idx) = cvm.stack.pop().unwrap() else {
         panic!("inserting in a non-int index");
     };
-    let val = cvm.pop();
-    let CvmObject::List(list) = cvm.pop() else {
+    let val = cvm.stack.pop().unwrap();
+    let CvmObject::List(list) = cvm.stack.pop().unwrap() else {
         panic!("inserting in a non-list");
     };
 
@@ -20,7 +20,7 @@ pub fn list_insert(cvm: &mut Cvm, next_idx: usize) -> usize {
             next_idx
         }
         Err(exc) => {
-            cvm.push(CvmObject::Exception(exc));
+            cvm.stack.push(CvmObject::Exception(exc));
             cvm.handle_exception()
         }
     }
@@ -29,21 +29,21 @@ pub fn list_insert(cvm: &mut Cvm, next_idx: usize) -> usize {
 /* returns the index of the next instruction */
 #[inline(always)]
 pub fn list_remove(cvm: &mut Cvm, next_idx: usize) -> usize {
-    let CvmObject::Int(idx) = cvm.pop() else {
+    let CvmObject::Int(idx) = cvm.stack.pop().unwrap() else {
         panic!("removing with a non-int index");
     };
-    let CvmObject::List(list) = cvm.pop() else {
+    let CvmObject::List(list) = cvm.stack.pop().unwrap() else {
         panic!("removing from a non-list");
     };
 
     let mut list = list.borrow_mut();
     match get_idx_strict(idx, list.len()) {
         Ok(idx) => {
-            cvm.push(list.remove(idx).unwrap());
+            cvm.stack.push(list.remove(idx).unwrap());
             next_idx
         }
         Err(exc) => {
-            cvm.push(CvmObject::Exception(exc));
+            cvm.stack.push(CvmObject::Exception(exc));
             cvm.handle_exception()
         }
     }
@@ -52,21 +52,21 @@ pub fn list_remove(cvm: &mut Cvm, next_idx: usize) -> usize {
 /* returns the index of the next instruction */
 #[inline(always)]
 pub fn list_get(cvm: &mut Cvm, next_idx: usize) -> usize {
-    let CvmObject::Int(idx) = cvm.pop() else {
+    let CvmObject::Int(idx) = cvm.stack.pop().unwrap() else {
         panic!("indexing with a non-int value");
     };
-    let CvmObject::List(list) = cvm.pop() else {
+    let CvmObject::List(list) = cvm.stack.pop().unwrap() else {
         panic!("getting from a non-list");
     };
 
     let list = list.borrow();
     match get_idx(idx, list.len()) {
         Ok(idx) => {
-            cvm.push(list.get(idx).unwrap().clone());
+            cvm.stack.push(list.get(idx).unwrap().clone());
             next_idx
         }
         Err(exc) => {
-            cvm.push(CvmObject::Exception(exc));
+            cvm.stack.push(CvmObject::Exception(exc));
             cvm.handle_exception()
         }
     }
@@ -75,11 +75,11 @@ pub fn list_get(cvm: &mut Cvm, next_idx: usize) -> usize {
 /* returns the index of the next instruction */
 #[inline(always)]
 pub fn list_set(cvm: &mut Cvm, next_idx: usize) -> usize {
-    let CvmObject::Int(idx) = cvm.pop() else {
+    let CvmObject::Int(idx) = cvm.stack.pop().unwrap() else {
         panic!("indexing with a non-int value");
     };
-    let val = cvm.pop();
-    let CvmObject::List(list) = cvm.pop() else {
+    let val = cvm.stack.pop().unwrap();
+    let CvmObject::List(list) = cvm.stack.pop().unwrap() else {
         panic!("setting a non-list");
     };
 
@@ -90,7 +90,7 @@ pub fn list_set(cvm: &mut Cvm, next_idx: usize) -> usize {
             next_idx
         }
         Err(exc) => {
-            cvm.push(CvmObject::Exception(exc));
+            cvm.stack.push(CvmObject::Exception(exc));
             cvm.handle_exception()
         }
     }

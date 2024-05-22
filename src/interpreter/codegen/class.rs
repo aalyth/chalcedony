@@ -38,13 +38,11 @@ impl ToBytecode for NodeClass {
                 .into());
             }
 
-            namespace.members.insert(
-                member.name.clone(),
-                MemberAnnotation {
-                    id,
-                    ty: member.ty.clone(),
-                },
-            );
+            namespace.members.push(MemberAnnotation {
+                id,
+                name: member.name.clone(),
+                ty: member.ty.clone(),
+            });
         }
 
         interpreter.namespaces.insert(self.name, namespace);
@@ -72,7 +70,7 @@ fn compile_attribute_access(
             .into());
         };
 
-        let Some(annotation) = class.members.get(&node.name) else {
+        let Some(annotation) = class.get_member(&node.name) else {
             return Err(CompileError::new(
                 CompileErrorKind::UnknownMember(node.name.clone()),
                 node.span,

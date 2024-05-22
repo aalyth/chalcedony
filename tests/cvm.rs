@@ -138,28 +138,65 @@ fn interpret_unhandled_exception() {
 }
 
 #[test]
+fn interpret_list_operations() {
+    let mut vm = Cvm::new();
+
+    let code = vec![
+        // let a = [1, 2, 3]
+        Bytecode::ConstU(1),
+        Bytecode::ConstU(2),
+        Bytecode::ConstU(3),
+        Bytecode::ConstL(3),
+        Bytecode::SetLocal(0),
+        // a.insert!(4, -1)
+        Bytecode::GetLocal(0),
+        Bytecode::ConstU(4),
+        Bytecode::ConstI(-1),
+        Bytecode::ListInsert,
+        // a.insert!(0, 0)
+        Bytecode::GetLocal(0),
+        Bytecode::ConstU(0),
+        Bytecode::ConstI(0),
+        Bytecode::ListInsert,
+        // assert([0, 1, 2, 3, 4] == a)
+        Bytecode::ConstU(0),
+        Bytecode::ConstU(1),
+        Bytecode::ConstU(2),
+        Bytecode::ConstU(3),
+        Bytecode::ConstU(4),
+        Bytecode::ConstL(5),
+        Bytecode::GetLocal(0),
+        Bytecode::Eq,
+        Bytecode::Assert,
+        // assert(3 == a.get!(3))
+        Bytecode::ConstU(3),
+        Bytecode::GetLocal(0),
+        Bytecode::ConstI(3),
+        Bytecode::ListGet,
+        Bytecode::Eq,
+        Bytecode::Assert,
+    ];
+    vm.execute(code);
+}
+
+#[test]
 fn interpret_instance_creation_and_access() {
     let mut vm = Cvm::new();
 
     let code = vec![
         // let a = Example {
-        Bytecode::ConstObj(3),
         //     field1: 1,
         Bytecode::ConstU(1),
-        Bytecode::SetAttr(0),
         //     field2: -10,
         Bytecode::ConstI(-10),
-        Bytecode::SetAttr(1),
         //     words: OtherExample {
         //         hello: "hello ",
         //         world: "world"
         //     },
-        Bytecode::ConstObj(2),
         Bytecode::ConstS("hello ".to_string().into()),
-        Bytecode::SetAttr(0),
         Bytecode::ConstS("world".to_string().into()),
-        Bytecode::SetAttr(1),
-        Bytecode::SetAttr(2),
+        Bytecode::ConstObj(2),
+        Bytecode::ConstObj(3),
         Bytecode::SetLocal(0),
         // }
         // assert(-10, a.field2)

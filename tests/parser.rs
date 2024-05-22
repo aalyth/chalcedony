@@ -5,8 +5,8 @@ use chalcedony::lexer::{Delimiter, Keyword, Operator, Special, TokenKind};
 use chalcedony::parser::ast::{
     class::Member, func::Arg, NodeAttrRes, NodeAttribute, NodeBreakStmnt, NodeClass, NodeContStmnt,
     NodeElifStmnt, NodeElseStmnt, NodeExpr, NodeExprInner, NodeFuncCall, NodeFuncCallStmnt,
-    NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeInlineClass, NodeRetStmnt, NodeStmnt, NodeThrow,
-    NodeTryCatch, NodeValue, NodeVarCall, NodeVarDef, NodeWhileLoop,
+    NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeInlineClass, NodeList, NodeRetStmnt, NodeStmnt,
+    NodeThrow, NodeTryCatch, NodeValue, NodeVarCall, NodeVarDef, NodeWhileLoop,
 };
 
 use chalcedony::mocks::{hash_map, line, line_reader, token_reader, vecdeq, SpanMock};
@@ -521,6 +521,82 @@ fn parse_try_catch_block() {
             })],
             span: SpanMock::new(),
         }))],
+    };
+
+    assert_eq!(exp, recv);
+}
+
+#[test]
+fn parse_list() {
+    // equivalent to the code:
+    // ```
+    // let a = [1, 2 * 3, (4 + 10) / 2] * 5
+    // ```
+
+    let code = token_reader!(
+        TokenKind::Keyword(Keyword::Let),
+        TokenKind::Identifier("a".to_string()),
+        TokenKind::Operator(Operator::Eq),
+        TokenKind::Delimiter(Delimiter::OpenBracket),
+        TokenKind::Uint(1),
+        TokenKind::Special(Special::Comma),
+        TokenKind::Uint(2),
+        TokenKind::Operator(Operator::Mul),
+        TokenKind::Uint(3),
+        TokenKind::Special(Special::Comma),
+        TokenKind::Delimiter(Delimiter::OpenPar),
+        TokenKind::Uint(4),
+        TokenKind::Operator(Operator::Add),
+        TokenKind::Uint(10),
+        TokenKind::Delimiter(Delimiter::ClosePar),
+        TokenKind::Operator(Operator::Div),
+        TokenKind::Uint(2),
+        TokenKind::Delimiter(Delimiter::CloseBracket),
+        TokenKind::Operator(Operator::Mul),
+        TokenKind::Uint(5)
+    );
+
+    let recv = NodeVarDef::new(code).expect("could not parse NodeVarDef");
+
+    let exp = NodeVarDef {
+        name: "a".to_string(),
+        ty: Type::Any,
+        is_const: false,
+        value: NodeExpr {
+            expr: vecdeq![
+                NodeExprInner::List(NodeList {
+                    elements: vec![
+                        NodeExpr {
+                            expr: vecdeq![NodeExprInner::Value(NodeValue::Uint(1))],
+                            span: SpanMock::new()
+                        },
+                        NodeExpr {
+                            expr: vecdeq![
+                                NodeExprInner::Value(NodeValue::Uint(2)),
+                                NodeExprInner::Value(NodeValue::Uint(3)),
+                                NodeExprInner::BinOpr(BinOprType::Mul)
+                            ],
+                            span: SpanMock::new()
+                        },
+                        NodeExpr {
+                            expr: vecdeq![
+                                NodeExprInner::Value(NodeValue::Uint(4)),
+                                NodeExprInner::Value(NodeValue::Uint(10)),
+                                NodeExprInner::BinOpr(BinOprType::Add),
+                                NodeExprInner::Value(NodeValue::Uint(2)),
+                                NodeExprInner::BinOpr(BinOprType::Div),
+                            ],
+                            span: SpanMock::new()
+                        }
+                    ],
+                    span: SpanMock::new(),
+                }),
+                NodeExprInner::Value(NodeValue::Uint(5)),
+                NodeExprInner::BinOpr(BinOprType::Mul),
+            ],
+            span: SpanMock::new(),
+        },
+        span: SpanMock::new(),
     };
 
     assert_eq!(exp, recv);

@@ -110,16 +110,23 @@ impl Cvm {
                 next_idx
             }
 
-            Bytecode::ConstObj(el_count) => {
-                self.stack.push(CvmObject::Object(Gc::new(vec![
-                    CvmObject::default();
-                    el_count
-                ])));
+            Bytecode::ConstObj(member_count) => {
+                let mut list = Vec::<CvmObject>::with_capacity(member_count);
+                for _ in 0..member_count {
+                    match self.stack.pop().unwrap() {
+                        CvmObject::Object(obj) => {
+                            list.push(CvmObject::Object(Gc::Strong(obj.get_ref().clone())))
+                        }
+                        val => list.push(val),
+                    }
+                }
+                list.reverse();
+                self.stack.push(CvmObject::Object(Gc::new(list)));
                 next_idx
             }
 
             Bytecode::ThrowException => {
-                let obj = self.pop();
+                let obj = self.stack.pop().unwrap();
                 let CvmObject::Str(val) = obj else {
                     panic!("invalid exception type");
                 };
@@ -134,18 +141,18 @@ impl Cvm {
             }
 
             Bytecode::Copy => {
-                let val = self.pop();
+                let val = self.stack.pop().unwrap();
                 self.stack.push(val.deep_copy());
                 next_idx
             }
 
             Bytecode::Pop => {
-                self.pop();
+                self.stack.pop().unwrap();
                 next_idx
             }
 
             Bytecode::CastI => {
-                match self.pop() {
+                match self.stack.pop().unwrap() {
                     CvmObject::Uint(val) => self.stack.push(CvmObject::Int(val as i64)),
                     CvmObject::Float(val) => self.stack.push(CvmObject::Int(val as i64)),
                     _ => panic!("invalid cast to Int"),
@@ -154,7 +161,7 @@ impl Cvm {
             }
 
             Bytecode::CastF => {
-                match self.pop() {
+                match self.stack.pop().unwrap() {
                     CvmObject::Int(val) => self.stack.push(CvmObject::Float(val as f64)),
                     CvmObject::Uint(val) => self.stack.push(CvmObject::Float(val as f64)),
                     _ => panic!("invalid cast to Float"),
@@ -163,7 +170,7 @@ impl Cvm {
             }
 
             Bytecode::CastU => {
-                match self.pop() {
+                match self.stack.pop().unwrap() {
                     CvmObject::Int(val) => self.stack.push(CvmObject::Uint(val as u64)),
                     CvmObject::Float(val) => self.stack.push(CvmObject::Uint(val as u64)),
                     _ => panic!("invalid cast to Uint"),
@@ -172,7 +179,7 @@ impl Cvm {
             }
 
             Bytecode::SetGlobal(var_id) => {
-                let var_value = self.pop();
+                let var_value = self.stack.pop().unwrap();
                 while var_id >= self.globals.len() {
                     self.globals.push(CvmObject::Int(0));
                 }
@@ -194,7 +201,7 @@ impl Cvm {
                     var_id += frame.stack_len;
                 }
 
-                let value = self.pop();
+                let value = self.stack.pop().unwrap();
                 if let Some(var) = self.stack.get_mut(var_id) {
                     *var = value;
                 } else {
@@ -243,15 +250,13 @@ impl Cvm {
                 if let CvmObject::Object(val_obj) = val {
                     let val_obj = val_obj.get_ref();
 
-                    // The `depth > 1` check is so if an inline object is set as
-                    // an object's attribute, the subobject is not deallocated
-                    // right after the parent object's initialization.
-                    if dest_obj.depth == 0 && val_obj.borrow().depth == 0 {
-                        *dest_obj.data.get_mut(attr_id).unwrap() =
-                            CvmObject::Object(Gc::Strong(val_obj.clone()));
-                    } else if dest_obj.depth <= val_obj.borrow().depth {
+                    // the referenced object has the same or a greater lifetime
+                    if dest_obj.depth <= val_obj.borrow().depth {
                         *dest_obj.data.get_mut(attr_id).unwrap() =
                             CvmObject::Object(Gc::Weak(Rc::downgrade(&val_obj)));
+
+                    // the referenced object's lifetime must be extended via
+                    // strong link
                     } else {
                         *dest_obj.data.get_mut(attr_id).unwrap() =
                             CvmObject::Object(Gc::Strong(val_obj.clone()));
@@ -331,7 +336,7 @@ impl Cvm {
             }
 
             Bytecode::If(jmp) => {
-                let CvmObject::Bool(cond) = self.pop() else {
+                let CvmObject::Bool(cond) = self.stack.pop().unwrap() else {
                     panic!("expected a bool when checking if statements")
                 };
 
@@ -345,7 +350,7 @@ impl Cvm {
             Bytecode::Jmp(dist) => (next_idx as isize + dist) as usize,
 
             Bytecode::Len => {
-                let obj = self.pop();
+                let obj = self.stack.pop().unwrap();
                 match obj {
                     CvmObject::List(list) => {
                         self.stack.push(CvmObject::Uint(list.borrow().len() as u64))
@@ -373,13 +378,13 @@ impl Cvm {
             }
 
             Bytecode::Print => {
-                let obj = self.pop();
+                let obj = self.stack.pop().unwrap();
                 println!("{}", obj);
                 next_idx
             }
 
             Bytecode::Assert => {
-                let CvmObject::Bool(successful) = self.pop() else {
+                let CvmObject::Bool(successful) = self.stack.pop().unwrap() else {
                     self.stack
                         .push(CvmObject::Exception("assertion failed".to_string().into()));
                     return self.handle_exception();
@@ -396,16 +401,6 @@ impl Cvm {
 
             Bytecode::Nop => next_idx,
         }
-    }
-
-    #[inline(always)]
-    fn push(&mut self, val: CvmObject) {
-        self.stack.push(val)
-    }
-
-    #[inline(always)]
-    fn pop(&mut self) -> CvmObject {
-        self.stack.pop().expect("expected a value on the stack")
     }
 
     /* returns the index of the next instruction */

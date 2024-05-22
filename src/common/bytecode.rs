@@ -25,8 +25,7 @@ pub enum Bytecode {
     ConstS(PtrString),
     /// Pushes `CvmObject::Bool()` on the top of the stack.
     ConstB(bool),
-    /// Pushes `CvmObject::Object()` on the top of the stack with preallocated
-    /// `N` elements inside;
+    /// Pops the top N elements off the stack and builds an Object out of them.
     ConstObj(usize),
     /// Pops the top N elements off the stack and builds a list out of them.
     ConstL(usize),

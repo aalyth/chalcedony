@@ -42,4 +42,3 @@ if __name__ == '__main__':
     print("Odd numbers to 16:")
     for i in range(1, 16, 2):
         print(i)
-
