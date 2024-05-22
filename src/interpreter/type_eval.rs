@@ -1,10 +1,14 @@
 use super::Chalcedony;
 use crate::error::{span::Span, ChalError, CompileError, CompileErrorKind};
-use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue};
+use crate::parser::ast::{
+    NodeAttrRes, NodeAttribute, NodeExpr, NodeExprInner, NodeFuncCall, NodeValue, NodeVarCall,
+};
 
 use crate::common::operators::{BinOprType, UnaryOprType};
 use crate::common::Type;
 use crate::utils::Stack;
+
+use std::collections::VecDeque;
 
 impl NodeValue {
     fn as_type(&self) -> Type {
@@ -32,7 +36,7 @@ fn get_eval_args(eval_stack: &mut Stack<Type>) -> (Type, Type) {
 /// let a = 1 / 2
 /// ```
 macro_rules! bin_opr_eval {
-    ($stack:ident, $str_handler:ident, $opr_name:expr, $span:ident) => {{
+    ($stack:ident, $str_handler:ident, $list_handler:ident, $opr_name:expr, $span:ident) => {{
         let (left, right) = get_eval_args($stack);
         match (left, right) {
             (Type::Int, Type::Int) => Ok(Type::Int),
@@ -48,6 +52,8 @@ macro_rules! bin_opr_eval {
             (Type::Float, Type::Float) => Ok(Type::Float),
 
             (Type::Str, right) => $str_handler(right, $span),
+            (Type::List(left), right) => $list_handler(*left, right, $span),
+
             (left, right) => Err(CompileError::new(
                 CompileErrorKind::InvalidBinOpr($opr_name.to_string(), left, right),
                 $span.clone(),
@@ -59,25 +65,42 @@ macro_rules! bin_opr_eval {
 
 fn opr_add(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
     /* anything added to a string returns a string */
-    fn add(_: Type, _: &Span) -> Result<Type, ChalError> {
+    fn add_str(_: Type, _: &Span) -> Result<Type, ChalError> {
         Ok(Type::Str)
     }
-    bin_opr_eval!(eval_stack, add, "+", span)
+    fn add_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        if left != right {
+            return Err(CompileError::new(
+                CompileErrorKind::InvalidType(left, right),
+                span.clone(),
+            )
+            .into());
+        }
+        Ok(Type::List(Box::new(left)))
+    }
+    bin_opr_eval!(eval_stack, add_str, add_list, "+", span)
 }
 
 fn opr_sub(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    fn sub(right: Type, span: &Span) -> Result<Type, ChalError> {
+    fn sub_str(right: Type, span: &Span) -> Result<Type, ChalError> {
         Err(CompileError::new(
             CompileErrorKind::InvalidBinOpr("-".to_string(), Type::Str, right),
             span.clone(),
         )
         .into())
     }
-    bin_opr_eval!(eval_stack, sub, "-", span)
+    fn sub_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr("-".to_string(), Type::List(Box::new(left)), right),
+            span.clone(),
+        )
+        .into())
+    }
+    bin_opr_eval!(eval_stack, sub_str, sub_list, "-", span)
 }
 
 fn opr_mul(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    fn mul(right: Type, span: &Span) -> Result<Type, ChalError> {
+    fn mul_str(right: Type, span: &Span) -> Result<Type, ChalError> {
         if right == Type::Uint {
             return Ok(Type::Str);
         }
@@ -87,29 +110,53 @@ fn opr_mul(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError>
         )
         .into())
     }
-    bin_opr_eval!(eval_stack, mul, "*", span)
+    fn mul_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        if right == Type::Uint {
+            return Ok(Type::List(Box::new(left)));
+        }
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr("*".to_string(), Type::List(Box::new(left)), right),
+            span.clone(),
+        )
+        .into())
+    }
+    bin_opr_eval!(eval_stack, mul_str, mul_list, "*", span)
 }
 
 fn opr_div(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    fn div(right: Type, span: &Span) -> Result<Type, ChalError> {
+    fn div_str(right: Type, span: &Span) -> Result<Type, ChalError> {
         Err(CompileError::new(
             CompileErrorKind::InvalidBinOpr("/".to_string(), Type::Str, right),
             span.clone(),
         )
         .into())
     }
-    bin_opr_eval!(eval_stack, div, "/", span)
+    fn div_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr("/".to_string(), Type::List(Box::new(left)), right),
+            span.clone(),
+        )
+        .into())
+    }
+    bin_opr_eval!(eval_stack, div_str, div_list, "/", span)
 }
 
 fn opr_mod(eval_stack: &mut Stack<Type>, span: &Span) -> Result<Type, ChalError> {
-    fn _mod(right: Type, span: &Span) -> Result<Type, ChalError> {
+    fn mod_str(right: Type, span: &Span) -> Result<Type, ChalError> {
         Err(CompileError::new(
             CompileErrorKind::InvalidBinOpr("mod".to_string(), Type::Str, right),
             span.clone(),
         )
         .into())
     }
-    bin_opr_eval!(eval_stack, _mod, "%", span)
+    fn mod_list(left: Type, right: Type, span: &Span) -> Result<Type, ChalError> {
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr("mod".to_string(), Type::List(Box::new(left)), right),
+            span.clone(),
+        )
+        .into())
+    }
+    bin_opr_eval!(eval_stack, mod_str, mod_list, "%", span)
 }
 
 /* logical || or && */
@@ -144,7 +191,7 @@ fn opr_logical(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<T
 
 // Every comparison operator yields a boolean value.
 macro_rules! opr_cmp_internal {
-    ($stack:ident, $cmp_func:ident, $opr_name:expr, $span:ident) => {{
+    ($stack:ident, $cmp_func:ident, $cmp_list:ident, $opr_name:expr, $span:ident) => {{
         let right = $stack.pop().expect("expected a type on the eval stack");
         let left = $stack.pop().expect("expected a type on the eval stack");
 
@@ -166,6 +213,7 @@ macro_rules! opr_cmp_internal {
 
             (Type::Str, Type::Str) => Ok(Type::Bool),
             (Type::Bool, right) => $cmp_func(right, $span),
+            (Type::List(left), Type::List(right)) => $cmp_list(*left, *right, $span),
             (left, right) => Err(CompileError::new(
                 CompileErrorKind::InvalidBinOpr($opr_name.to_string(), left, right),
                 $span.clone(),
@@ -187,7 +235,21 @@ fn opr_eq(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type, 
             .into()),
         }
     };
-    opr_cmp_internal!(eval_stack, cmp_eq, opr, span)
+    let cmp_list = |left: Type, right: Type, span: &Span| -> Result<Type, ChalError> {
+        if left != right {
+            return Err(CompileError::new(
+                CompileErrorKind::InvalidBinOpr(
+                    opr.to_string(),
+                    Type::List(Box::new(left)),
+                    Type::List(Box::new(right)),
+                ),
+                span.clone(),
+            )
+            .into());
+        }
+        Ok(Type::Bool)
+    };
+    opr_cmp_internal!(eval_stack, cmp_eq, cmp_list, opr, span)
 }
 
 // Matches the operators `<`, `>`, `<=`, `>=`.
@@ -199,7 +261,18 @@ fn opr_cmp(eval_stack: &mut Stack<Type>, opr: &str, span: &Span) -> Result<Type,
         )
         .into())
     };
-    opr_cmp_internal!(eval_stack, cmp_operator, opr, span)
+    let cmp_list = |left: Type, right: Type, span: &Span| -> Result<Type, ChalError> {
+        Err(CompileError::new(
+            CompileErrorKind::InvalidBinOpr(
+                opr.to_string(),
+                Type::List(Box::new(left)),
+                Type::List(Box::new(right)),
+            ),
+            span.clone(),
+        )
+        .into())
+    };
+    opr_cmp_internal!(eval_stack, cmp_operator, cmp_list, opr, span)
 }
 
 impl BinOprType {
@@ -269,68 +342,33 @@ impl NodeExprInner {
     ) -> Result<Type, ChalError> {
         match self {
             NodeExprInner::Value(node) => Ok(node.as_type()),
-            NodeExprInner::VarCall(node) => {
-                if let Some(func) = interpreter.current_func.clone() {
-                    if let Some(var) = func.arg_lookup.get(&node.name) {
-                        return Ok(var.ty.clone());
-                    }
-                }
+            NodeExprInner::Resolution(node) => {
+                let res = node.as_type(interpreter)?;
 
-                if let Some(var) = interpreter.locals.get(&node.name) {
-                    return Ok(var.ty.clone());
+                /* only functions can return void type */
+                if res == Type::Void {
+                    return Err(CompileError::new(
+                        CompileErrorKind::VoidFunctionExpr,
+                        node.span.clone(),
+                    )
+                    .into());
                 }
-
-                if let Some(var) = interpreter.globals.get(&node.name) {
-                    return Ok(var.ty.clone());
-                }
-
-                Err(CompileError::new(
-                    CompileErrorKind::UnknownVariable(node.name.clone()),
-                    node.span.clone(),
-                )
-                .into())
-            }
-
-            NodeExprInner::FuncCall(node) => {
-                let arg_types: Result<Vec<Type>, ChalError> = node
-                    .args
-                    .iter()
-                    .map(|arg| arg.as_type(interpreter))
-                    .collect();
-                let arg_types = match arg_types {
-                    Ok(ok) => ok,
-                    Err(err) => return Err(err),
-                };
-                if let Some(builtin) = interpreter.get_builtin(&node.name, &arg_types) {
-                    if builtin.ret_type == Type::Void {
-                        return Err(CompileError::new(
-                            CompileErrorKind::VoidFunctionExpr,
-                            node.span.clone(),
-                        )
-                        .into());
-                    }
-                    return Ok(builtin.ret_type.clone());
-                }
-
-                if let Some(func) = interpreter.get_function(&node.name, &arg_types) {
-                    if func.ret_type == Type::Void {
-                        return Err(CompileError::new(
-                            CompileErrorKind::VoidFunctionExpr,
-                            node.span.clone(),
-                        )
-                        .into());
-                    }
-                    return Ok(func.ret_type.clone());
-                }
-                Err(CompileError::new(
-                    CompileErrorKind::UnknownFunction(node.name.clone()),
-                    node.span.clone(),
-                )
-                .into())
+                Ok(res)
             }
 
             NodeExprInner::BinOpr(opr) => opr.as_type(eval_stack, span),
             NodeExprInner::UnaryOpr(opr) => opr.as_type(eval_stack, span),
+            NodeExprInner::InlineClass(class) => {
+                if !interpreter.namespaces.contains_key(&class.class) {
+                    return Err(CompileError::new(
+                        CompileErrorKind::UnknownClass(class.class.clone()),
+                        class.span.clone(),
+                    )
+                    .into());
+                }
+
+                Ok(Type::Custom(Box::new(class.class.clone())))
+            }
 
             NodeExprInner::List(node) => {
                 /* an empty list is equal to `[Any]` */
@@ -378,5 +416,139 @@ impl NodeExpr {
             panic!("expected only 1 element from the expression")
         }
         Ok(eval_stack.pop().expect("expected a value on the stack"))
+    }
+}
+
+impl NodeVarCall {
+    pub fn as_type(
+        &self,
+        interpreter: &Chalcedony,
+        parent_type: Option<Type>,
+    ) -> Result<Type, ChalError> {
+        if let Some(ty) = parent_type {
+            let class_name = ty.as_class();
+            let Some(class) = interpreter.namespaces.get(&class_name) else {
+                return Err(CompileError::new(
+                    CompileErrorKind::UnknownNamespace(class_name),
+                    self.span.clone(),
+                )
+                .into());
+            };
+
+            let Some(annotation) = class.get_member(&self.name) else {
+                return Err(CompileError::new(
+                    CompileErrorKind::UnknownMember(self.name.clone()),
+                    self.span.clone(),
+                )
+                .into());
+            };
+
+            return Ok(annotation.ty.clone());
+        }
+
+        if let Some(func) = &interpreter.current_func {
+            if let Some(annotation) = func.arg_lookup.get(&self.name) {
+                return Ok(annotation.ty.clone());
+            }
+        }
+
+        if let Some(annotation) = interpreter.globals.get(&self.name) {
+            return Ok(annotation.ty.clone());
+        }
+
+        if let Some(annotation) = interpreter.locals.get(&self.name) {
+            return Ok(annotation.ty.clone());
+        }
+
+        Err(CompileError::new(
+            CompileErrorKind::UnknownVariable(self.name.clone()),
+            self.span.clone(),
+        )
+        .into())
+    }
+}
+
+impl NodeFuncCall {
+    pub fn as_type(
+        &self,
+        interpreter: &Chalcedony,
+        parent_type: Option<Type>,
+    ) -> Result<Type, ChalError> {
+        let arg_types: Result<VecDeque<Type>, ChalError> = self
+            .args
+            .iter()
+            .map(|arg| arg.as_type(interpreter))
+            .collect();
+        let mut arg_types = match arg_types {
+            Ok(ok) => ok,
+            Err(err) => return Err(err),
+        };
+
+        let mut namespace = self.namespace.clone();
+
+        /* the function is called as a method */
+        if let Some(ty) = &parent_type {
+            arg_types.push_front(ty.clone());
+            if self.namespace.is_some() {
+                panic!("calling a namespace function also as a method");
+            }
+            namespace = Some(ty.as_class());
+        }
+
+        if let Some(ns) = &namespace {
+            if !interpreter.namespaces.contains_key(ns) && !interpreter.builtins.contains_key(ns) {
+                return Err(CompileError::new(
+                    CompileErrorKind::UnknownNamespace(ns.clone()),
+                    self.span.clone(),
+                )
+                .into());
+            }
+        }
+
+        if let Some(ann) =
+            interpreter.get_function_universal(&self.name, &arg_types, namespace.as_ref())
+        {
+            return Ok(ann.ret_type);
+        }
+
+        let mut func_name = self.name.clone() + "(";
+        if let Some(ns) = namespace {
+            func_name = ns + "::" + &func_name;
+        }
+
+        for ty in &arg_types {
+            func_name += &format!("{}, ", ty);
+        }
+
+        if !arg_types.is_empty() {
+            func_name.pop();
+            func_name.pop();
+        }
+        func_name += ")";
+
+        Err(CompileError::new(
+            CompileErrorKind::UnknownFunction(func_name),
+            self.span.clone(),
+        )
+        .into())
+    }
+}
+
+impl NodeAttrRes {
+    pub fn as_type(&self, interpreter: &Chalcedony) -> Result<Type, ChalError> {
+        let mut parent_type: Option<Type> = None;
+
+        for node in &self.resolution {
+            match node {
+                NodeAttribute::VarCall(node) => {
+                    parent_type = Some(node.as_type(interpreter, parent_type.clone())?);
+                }
+                NodeAttribute::FuncCall(node) => {
+                    parent_type = Some(node.as_type(interpreter, parent_type.clone())?);
+                }
+            }
+        }
+
+        Ok(parent_type.unwrap())
     }
 }

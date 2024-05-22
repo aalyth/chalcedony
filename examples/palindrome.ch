@@ -42,11 +42,11 @@ fn is_palindrome(n: uint) -> bool:
     return true
 
 if __name__ == '__main__':
-    assert(true,  is_palindrome(7))
-    assert(false, is_palindrome(12))
-    assert(true,  is_palindrome(11))
-    assert(false, is_palindrome(123))
-    assert(true,  is_palindrome(121))
+    assert(true  == is_palindrome(7))
+    assert(false == is_palindrome(12))
+    assert(true  == is_palindrome(11))
+    assert(false == is_palindrome(123))
+    assert(true  == is_palindrome(121))
 
-    assert(false, is_palindrome(123421))
-    assert(true,  is_palindrome(1337331))
+    assert(false == is_palindrome(123421))
+    assert(true  == is_palindrome(1337331))

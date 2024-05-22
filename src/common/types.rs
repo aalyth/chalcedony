@@ -1,6 +1,8 @@
 use super::Bytecode;
 use crate::error::{span::Span, ChalError, CompileError, CompileErrorKind};
 
+use std::fmt;
+
 /// The structure, representing a type inside the interpreter. Used to assert
 /// the type strictness of the script before it's execution.
 #[derive(PartialEq, Debug, Clone, Default)]
@@ -15,6 +17,7 @@ pub enum Type {
     Void,
     List(Box<Type>),
     Exception,
+    Custom(Box<String>),
 }
 
 impl Type {
@@ -78,6 +81,7 @@ impl Type {
             | (Type::Float, Type::Float)
             | (Type::Str, Type::Str)
             | (Type::Bool, Type::Bool) => true,
+            (Type::Custom(lhs), Type::Custom(rhs)) => lhs == rhs,
             (Type::List(lhs), Type::List(rhs)) => Type::implicit_eq(lhs, rhs),
             /* implicit type casts */
             (Type::Int, Type::Uint) => true,
@@ -85,6 +89,20 @@ impl Type {
         }
     }
 
+    pub fn as_class(&self) -> String {
+        match self {
+            Type::Int => "Int".to_string(),
+            Type::Uint => "Uint".to_string(),
+            Type::Float => "Float".to_string(),
+            Type::Str => "String".to_string(),
+            Type::Bool => "Bool".to_string(),
+            Type::Exception => "Exception".to_string(),
+            Type::List(_) => "List".to_string(),
+            Type::Custom(class) => *class.clone(),
+            Type::Any => "Any".to_string(),
+            Type::Void => "Void".to_string(),
+        }
+    }
     // Used to retrieve the bottom type of a list type.
     pub fn root_type(&self) -> Type {
         match self {
@@ -97,9 +115,26 @@ impl Type {
     // type expectation (Type::List(Type::Any)).
     fn list_eq(left: &Type, right: &Type) -> bool {
         match (left, right) {
-            (Type::Any, _) => true,
+            (Type::Any, _) | (_, Type::Any) => true,
             (Type::List(lhs), Type::List(rhs)) => Type::list_eq(lhs, rhs),
             (left, right) => left == right,
+        }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::Int => write!(f, "int"),
+            Type::Uint => write!(f, "uint"),
+            Type::Float => write!(f, "float"),
+            Type::Str => write!(f, "str"),
+            Type::Bool => write!(f, "bool"),
+            Type::Any => write!(f, "any"),
+            Type::Void => write!(f, "void"),
+            Type::Exception => write!(f, "exception"),
+            Type::List(ty) => write!(f, "[{}]", ty),
+            Type::Custom(ty) => write!(f, "{}", ty),
         }
     }
 }

@@ -2,23 +2,41 @@ use chalcedony::common::Bytecode;
 use chalcedony::interpreter::Chalcedony;
 use chalcedony::vm::Cvm;
 
+#[test]
+fn valid_features_set() {
+    if !cfg!(feature = "testing") {
+        panic!("The feature `testing` must be set in order for tests to be valid.")
+    }
+}
+
 // These 2 functions are crucial for testing since all CVM-based tests rely on
 // the proper functioning `Bytecode::Assert` instruction.
 #[test]
 #[should_panic]
 fn interpret_invalid_assert() {
     let mut vm = Cvm::new();
-    let invalid_assert = vec![Bytecode::ConstU(12), Bytecode::ConstI(22), Bytecode::Assert];
+    let invalid_assert = vec![
+        Bytecode::ConstU(12),
+        Bytecode::ConstI(22),
+        Bytecode::Eq,
+        Bytecode::Assert,
+    ];
     vm.execute(invalid_assert);
 }
 
 #[test]
 fn interpret_valid_assert() {
     let mut vm = Cvm::new();
-    let valid_assert = vec![Bytecode::ConstU(42), Bytecode::ConstU(42), Bytecode::Assert];
+    let valid_assert = vec![
+        Bytecode::ConstU(42),
+        Bytecode::ConstU(42),
+        Bytecode::Eq,
+        Bytecode::Assert,
+    ];
     let valid_assert2 = vec![
         Bytecode::ConstS("good".to_string().into()),
         Bytecode::ConstS("good".to_string().into()),
+        Bytecode::Eq,
         Bytecode::Assert,
     ];
     vm.execute(valid_assert);
@@ -60,6 +78,7 @@ fn interpret_fibonacci() {
         Bytecode::ConstI(10),
         Bytecode::CallFunc(fib_id),
         Bytecode::ConstU(55),
+        Bytecode::Eq,
         Bytecode::Assert,
     ];
 
@@ -114,6 +133,89 @@ fn interpret_unhandled_exception() {
         // print("all according to plan")
         Bytecode::ConstS("all according to plan".to_string().into()),
         Bytecode::Print,
+    ];
+    vm.execute(code);
+}
+
+#[test]
+fn interpret_list_operations() {
+    let mut vm = Cvm::new();
+
+    let code = vec![
+        // let a = [1, 2, 3]
+        Bytecode::ConstU(1),
+        Bytecode::ConstU(2),
+        Bytecode::ConstU(3),
+        Bytecode::ConstL(3),
+        Bytecode::SetLocal(0),
+        // a.insert!(4, -1)
+        Bytecode::GetLocal(0),
+        Bytecode::ConstU(4),
+        Bytecode::ConstI(-1),
+        Bytecode::ListInsert,
+        // a.insert!(0, 0)
+        Bytecode::GetLocal(0),
+        Bytecode::ConstU(0),
+        Bytecode::ConstI(0),
+        Bytecode::ListInsert,
+        // assert([0, 1, 2, 3, 4] == a)
+        Bytecode::ConstU(0),
+        Bytecode::ConstU(1),
+        Bytecode::ConstU(2),
+        Bytecode::ConstU(3),
+        Bytecode::ConstU(4),
+        Bytecode::ConstL(5),
+        Bytecode::GetLocal(0),
+        Bytecode::Eq,
+        Bytecode::Assert,
+        // assert(3 == a.get!(3))
+        Bytecode::ConstU(3),
+        Bytecode::GetLocal(0),
+        Bytecode::ConstI(3),
+        Bytecode::ListGet,
+        Bytecode::Eq,
+        Bytecode::Assert,
+    ];
+    vm.execute(code);
+}
+
+#[test]
+fn interpret_instance_creation_and_access() {
+    let mut vm = Cvm::new();
+
+    let code = vec![
+        // let a = Example {
+        //     field1: 1,
+        Bytecode::ConstU(1),
+        //     field2: -10,
+        Bytecode::ConstI(-10),
+        //     words: OtherExample {
+        //         hello: "hello ",
+        //         world: "world"
+        //     },
+        Bytecode::ConstS("hello ".to_string().into()),
+        Bytecode::ConstS("world".to_string().into()),
+        Bytecode::ConstObj(2),
+        Bytecode::ConstObj(3),
+        Bytecode::SetLocal(0),
+        // }
+        // assert(-10, a.field2)
+        Bytecode::ConstI(-10),
+        Bytecode::GetLocal(0),
+        Bytecode::GetAttr(1),
+        Bytecode::Eq,
+        Bytecode::Assert,
+        // assert("hello world", a.words.hello + a.words.world)
+        Bytecode::ConstS("hello world".to_string().into()),
+        Bytecode::GetLocal(0),
+        Bytecode::GetAttr(2),
+        Bytecode::GetAttr(0),
+        Bytecode::GetLocal(0),
+        Bytecode::GetAttr(2),
+        Bytecode::GetAttr(1),
+        Bytecode::Add,
+        Bytecode::Eq,
+        Bytecode::Assert,
     ];
     vm.execute(code);
 }

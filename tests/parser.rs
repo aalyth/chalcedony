@@ -3,13 +3,13 @@ use chalcedony::common::Type;
 
 use chalcedony::lexer::{Delimiter, Keyword, Operator, Special, TokenKind};
 use chalcedony::parser::ast::{
-    func::Arg, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeExpr,
-    NodeExprInner, NodeFuncCall, NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeThrow, NodeTryCatch,
-    NodeValue, NodeVarDef, NodeWhileLoop,
+    class::Member, func::Arg, NodeAttrRes, NodeAttribute, NodeBreakStmnt, NodeClass, NodeContStmnt,
+    NodeElifStmnt, NodeElseStmnt, NodeExpr, NodeExprInner, NodeFuncCall, NodeFuncCallStmnt,
+    NodeFuncDef, NodeIfBranch, NodeIfStmnt, NodeInlineClass, NodeList, NodeRetStmnt, NodeStmnt,
+    NodeThrow, NodeTryCatch, NodeValue, NodeVarCall, NodeVarDef, NodeWhileLoop,
 };
-use chalcedony::parser::ast::{NodeRetStmnt, NodeStmnt, NodeVarCall};
 
-use chalcedony::mocks::{line, line_reader, token_reader, vecdeq, SpanMock};
+use chalcedony::mocks::{hash_map, line, line_reader, token_reader, vecdeq, SpanMock};
 
 #[test]
 fn parse_var_def() {
@@ -41,12 +41,16 @@ fn parse_var_def() {
         name: "a".to_string(),
         value: NodeExpr {
             expr: vecdeq![
-                NodeExprInner::FuncCall(NodeFuncCall {
-                    name: "fib".to_string(),
-                    args: vec![NodeExpr {
-                        expr: vecdeq!(NodeExprInner::Value(NodeValue::Uint(10))),
-                        span: SpanMock::new()
-                    }],
+                NodeExprInner::Resolution(NodeAttrRes {
+                    resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                        name: "fib".to_string(),
+                        namespace: None,
+                        args: vec![NodeExpr {
+                            expr: vecdeq!(NodeExprInner::Value(NodeValue::Uint(10))),
+                            span: SpanMock::new()
+                        }],
+                        span: SpanMock::new(),
+                    })],
                     span: SpanMock::new(),
                 }),
                 NodeExprInner::UnaryOpr(UnaryOprType::Neg),
@@ -117,18 +121,22 @@ fn parse_func_def() {
 
     let exp = NodeFuncDef {
         name: "fib".to_string(),
-        args: vec![Arg {
+        args: vecdeq![Arg {
             name: "n".to_string(),
             ty: Type::Int,
         }],
+        namespace: None,
         ret_type: Type::Uint,
         body: vec![
             /* if n > 2: */
             NodeStmnt::IfStmnt(NodeIfStmnt {
                 condition: NodeExpr {
                     expr: vecdeq![
-                        NodeExprInner::VarCall(NodeVarCall {
-                            name: "n".to_string(),
+                        NodeExprInner::Resolution(NodeAttrRes {
+                            resolution: vec![NodeAttribute::VarCall(NodeVarCall {
+                                name: "n".to_string(),
+                                span: SpanMock::new()
+                            })],
                             span: SpanMock::new()
                         }),
                         NodeExprInner::Value(NodeValue::Uint(2)),
@@ -140,34 +148,52 @@ fn parse_func_def() {
                 body: vec![NodeStmnt::RetStmnt(NodeRetStmnt {
                     value: NodeExpr {
                         expr: vecdeq![
-                            NodeExprInner::FuncCall(NodeFuncCall {
-                                name: "fib".to_string(),
-                                args: vec![NodeExpr {
-                                    expr: vecdeq![
-                                        NodeExprInner::VarCall(NodeVarCall {
-                                            name: "n".to_string(),
-                                            span: SpanMock::new(),
-                                        }),
-                                        NodeExprInner::Value(NodeValue::Uint(2)),
-                                        NodeExprInner::BinOpr(BinOprType::Sub)
-                                    ],
-                                    span: SpanMock::new()
-                                }],
+                            NodeExprInner::Resolution(NodeAttrRes {
+                                resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                                    name: "fib".to_string(),
+                                    namespace: None,
+                                    args: vec![NodeExpr {
+                                        expr: vecdeq![
+                                            NodeExprInner::Resolution(NodeAttrRes {
+                                                resolution: vec![NodeAttribute::VarCall(
+                                                    NodeVarCall {
+                                                        name: "n".to_string(),
+                                                        span: SpanMock::new(),
+                                                    }
+                                                )],
+                                                span: SpanMock::new(),
+                                            }),
+                                            NodeExprInner::Value(NodeValue::Uint(2)),
+                                            NodeExprInner::BinOpr(BinOprType::Sub)
+                                        ],
+                                        span: SpanMock::new()
+                                    }],
+                                    span: SpanMock::new(),
+                                })],
                                 span: SpanMock::new(),
                             }),
-                            NodeExprInner::FuncCall(NodeFuncCall {
-                                name: "fib".to_string(),
-                                args: vec![NodeExpr {
-                                    expr: vecdeq![
-                                        NodeExprInner::VarCall(NodeVarCall {
-                                            name: "n".to_string(),
-                                            span: SpanMock::new(),
-                                        }),
-                                        NodeExprInner::Value(NodeValue::Uint(1)),
-                                        NodeExprInner::BinOpr(BinOprType::Sub)
-                                    ],
-                                    span: SpanMock::new()
-                                }],
+                            NodeExprInner::Resolution(NodeAttrRes {
+                                resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                                    name: "fib".to_string(),
+                                    namespace: None,
+                                    args: vec![NodeExpr {
+                                        expr: vecdeq![
+                                            NodeExprInner::Resolution(NodeAttrRes {
+                                                resolution: vec![NodeAttribute::VarCall(
+                                                    NodeVarCall {
+                                                        name: "n".to_string(),
+                                                        span: SpanMock::new(),
+                                                    }
+                                                )],
+                                                span: SpanMock::new(),
+                                            }),
+                                            NodeExprInner::Value(NodeValue::Uint(1)),
+                                            NodeExprInner::BinOpr(BinOprType::Sub)
+                                        ],
+                                        span: SpanMock::new()
+                                    }],
+                                    span: SpanMock::new(),
+                                })],
                                 span: SpanMock::new(),
                             }),
                             NodeExprInner::BinOpr(BinOprType::Add)
@@ -260,14 +286,18 @@ fn parse_if_statement() {
             ],
             span: SpanMock::new(),
         },
-        body: vec![NodeStmnt::FuncCall(NodeFuncCall {
-            name: "print".to_string(),
-            args: vec![NodeExpr {
-                expr: vecdeq![NodeExprInner::Value(NodeValue::Str("one".to_string()))],
+        body: vec![NodeStmnt::FuncCall(NodeFuncCallStmnt(NodeAttrRes {
+            resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                name: "print".to_string(),
+                namespace: None,
+                args: vec![NodeExpr {
+                    expr: vecdeq![NodeExprInner::Value(NodeValue::Str("one".to_string()))],
+                    span: SpanMock::new(),
+                }],
                 span: SpanMock::new(),
-            }],
+            })],
             span: SpanMock::new(),
-        })],
+        }))],
         branches: vec![
             NodeIfBranch::Elif(NodeElifStmnt {
                 condition: NodeExpr {
@@ -278,24 +308,34 @@ fn parse_if_statement() {
                     ],
                     span: SpanMock::new(),
                 },
-                body: vec![NodeStmnt::FuncCall(NodeFuncCall {
-                    name: "print".to_string(),
-                    args: vec![NodeExpr {
-                        expr: vecdeq![NodeExprInner::Value(NodeValue::Str("two".to_string()))],
+                body: vec![NodeStmnt::FuncCall(NodeFuncCallStmnt(NodeAttrRes {
+                    resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                        name: "print".to_string(),
+                        namespace: None,
+                        args: vec![NodeExpr {
+                            expr: vecdeq![NodeExprInner::Value(NodeValue::Str("two".to_string()))],
+                            span: SpanMock::new(),
+                        }],
                         span: SpanMock::new(),
-                    }],
+                    })],
                     span: SpanMock::new(),
-                })],
+                }))],
             }),
             NodeIfBranch::Else(NodeElseStmnt {
-                body: vec![NodeStmnt::FuncCall(NodeFuncCall {
-                    name: "print".to_string(),
-                    args: vec![NodeExpr {
-                        expr: vecdeq![NodeExprInner::Value(NodeValue::Str("default".to_string()))],
+                body: vec![NodeStmnt::FuncCall(NodeFuncCallStmnt(NodeAttrRes {
+                    resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                        name: "print".to_string(),
+                        namespace: None,
+                        args: vec![NodeExpr {
+                            expr: vecdeq![NodeExprInner::Value(NodeValue::Str(
+                                "default".to_string()
+                            ))],
+                            span: SpanMock::new(),
+                        }],
                         span: SpanMock::new(),
-                    }],
+                    })],
                     span: SpanMock::new(),
-                })],
+                }))],
             }),
         ],
     };
@@ -348,16 +388,20 @@ fn parse_while_statement() {
             span: SpanMock::new(),
         },
         body: vec![
-            NodeStmnt::FuncCall(NodeFuncCall {
-                name: "print".to_string(),
-                args: vec![NodeExpr {
-                    expr: vecdeq![NodeExprInner::Value(NodeValue::Str(
-                        "something's wrong".to_string()
-                    ))],
+            NodeStmnt::FuncCall(NodeFuncCallStmnt(NodeAttrRes {
+                resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                    name: "print".to_string(),
+                    namespace: None,
+                    args: vec![NodeExpr {
+                        expr: vecdeq![NodeExprInner::Value(NodeValue::Str(
+                            "something's wrong".to_string()
+                        ))],
+                        span: SpanMock::new(),
+                    }],
                     span: SpanMock::new(),
-                }],
+                })],
                 span: SpanMock::new(),
-            }),
+            })),
             NodeStmnt::BreakStmnt(NodeBreakStmnt {
                 span: SpanMock::new(),
             }),
@@ -425,18 +469,22 @@ fn parse_try_catch_block() {
 
     let exp = NodeTryCatch {
         try_body: vec![
-            NodeStmnt::FuncCall(NodeFuncCall {
-                name: "print".to_string(),
-                args: vec![NodeExpr {
-                    expr: vecdeq![
-                        NodeExprInner::Value(NodeValue::Uint(21)),
-                        NodeExprInner::Value(NodeValue::Uint(2)),
-                        NodeExprInner::BinOpr(BinOprType::Mul)
-                    ],
+            NodeStmnt::FuncCall(NodeFuncCallStmnt(NodeAttrRes {
+                resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                    name: "print".to_string(),
+                    namespace: None,
+                    args: vec![NodeExpr {
+                        expr: vecdeq![
+                            NodeExprInner::Value(NodeValue::Uint(21)),
+                            NodeExprInner::Value(NodeValue::Uint(2)),
+                            NodeExprInner::BinOpr(BinOprType::Mul)
+                        ],
+                        span: SpanMock::new(),
+                    }],
                     span: SpanMock::new(),
-                }],
+                })],
                 span: SpanMock::new(),
-            }),
+            })),
             NodeStmnt::Throw(NodeThrow(NodeExpr {
                 expr: vecdeq![NodeExprInner::Value(NodeValue::Str(
                     "unexpected error".to_string()
@@ -449,21 +497,270 @@ fn parse_try_catch_block() {
             name: "exc".to_string(),
             span: SpanMock::new(),
         },
-        catch_body: vec![NodeStmnt::FuncCall(NodeFuncCall {
-            name: "print".to_string(),
-            args: vec![NodeExpr {
-                expr: vecdeq![
-                    NodeExprInner::Value(NodeValue::Str("Received the exception: ".to_string())),
-                    NodeExprInner::VarCall(NodeVarCall {
-                        name: "exc".to_string(),
-                        span: SpanMock::new()
-                    }),
-                    NodeExprInner::BinOpr(BinOprType::Add)
-                ],
+        catch_body: vec![NodeStmnt::FuncCall(NodeFuncCallStmnt(NodeAttrRes {
+            resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                name: "print".to_string(),
+                namespace: None,
+                args: vec![NodeExpr {
+                    expr: vecdeq![
+                        NodeExprInner::Value(NodeValue::Str(
+                            "Received the exception: ".to_string()
+                        )),
+                        NodeExprInner::Resolution(NodeAttrRes {
+                            resolution: vec![NodeAttribute::VarCall(NodeVarCall {
+                                name: "exc".to_string(),
+                                span: SpanMock::new()
+                            })],
+                            span: SpanMock::new(),
+                        }),
+                        NodeExprInner::BinOpr(BinOprType::Add)
+                    ],
+                    span: SpanMock::new(),
+                }],
                 span: SpanMock::new(),
-            }],
+            })],
             span: SpanMock::new(),
-        })],
+        }))],
+    };
+
+    assert_eq!(exp, recv);
+}
+
+#[test]
+fn parse_list() {
+    // equivalent to the code:
+    // ```
+    // let a = [1, 2 * 3, (4 + 10) / 2] * 5
+    // ```
+
+    let code = token_reader!(
+        TokenKind::Keyword(Keyword::Let),
+        TokenKind::Identifier("a".to_string()),
+        TokenKind::Operator(Operator::Eq),
+        TokenKind::Delimiter(Delimiter::OpenBracket),
+        TokenKind::Uint(1),
+        TokenKind::Special(Special::Comma),
+        TokenKind::Uint(2),
+        TokenKind::Operator(Operator::Mul),
+        TokenKind::Uint(3),
+        TokenKind::Special(Special::Comma),
+        TokenKind::Delimiter(Delimiter::OpenPar),
+        TokenKind::Uint(4),
+        TokenKind::Operator(Operator::Add),
+        TokenKind::Uint(10),
+        TokenKind::Delimiter(Delimiter::ClosePar),
+        TokenKind::Operator(Operator::Div),
+        TokenKind::Uint(2),
+        TokenKind::Delimiter(Delimiter::CloseBracket),
+        TokenKind::Operator(Operator::Mul),
+        TokenKind::Uint(5)
+    );
+
+    let recv = NodeVarDef::new(code).expect("could not parse NodeVarDef");
+
+    let exp = NodeVarDef {
+        name: "a".to_string(),
+        ty: Type::Any,
+        is_const: false,
+        value: NodeExpr {
+            expr: vecdeq![
+                NodeExprInner::List(NodeList {
+                    elements: vec![
+                        NodeExpr {
+                            expr: vecdeq![NodeExprInner::Value(NodeValue::Uint(1))],
+                            span: SpanMock::new()
+                        },
+                        NodeExpr {
+                            expr: vecdeq![
+                                NodeExprInner::Value(NodeValue::Uint(2)),
+                                NodeExprInner::Value(NodeValue::Uint(3)),
+                                NodeExprInner::BinOpr(BinOprType::Mul)
+                            ],
+                            span: SpanMock::new()
+                        },
+                        NodeExpr {
+                            expr: vecdeq![
+                                NodeExprInner::Value(NodeValue::Uint(4)),
+                                NodeExprInner::Value(NodeValue::Uint(10)),
+                                NodeExprInner::BinOpr(BinOprType::Add),
+                                NodeExprInner::Value(NodeValue::Uint(2)),
+                                NodeExprInner::BinOpr(BinOprType::Div),
+                            ],
+                            span: SpanMock::new()
+                        }
+                    ],
+                    span: SpanMock::new(),
+                }),
+                NodeExprInner::Value(NodeValue::Uint(5)),
+                NodeExprInner::BinOpr(BinOprType::Mul),
+            ],
+            span: SpanMock::new(),
+        },
+        span: SpanMock::new(),
+    };
+
+    assert_eq!(exp, recv);
+}
+
+#[test]
+fn parse_class_def() {
+    // equivalent to the code:
+    // ```
+    // class Example:
+    //     arg: uint
+    //
+    //     fn new(val: uint) -> Example:
+    //         return Example { arg: val }
+    //
+    //     fn compute(self) -> uint:
+    //         return fib(self.arg)
+    // ```
+
+    let code = line_reader!(
+        line!(
+            0,
+            TokenKind::Keyword(Keyword::Class),
+            TokenKind::Identifier("Example".to_string()),
+            TokenKind::Special(Special::Colon)
+        ),
+        line!(
+            4,
+            TokenKind::Identifier("arg".to_string()),
+            TokenKind::Special(Special::Colon),
+            TokenKind::Type(Type::Uint)
+        ),
+        line!(
+            4,
+            TokenKind::Keyword(Keyword::Fn),
+            TokenKind::Identifier("new".to_string()),
+            TokenKind::Delimiter(Delimiter::OpenPar),
+            TokenKind::Identifier("val".to_string()),
+            TokenKind::Special(Special::Colon),
+            TokenKind::Type(Type::Uint),
+            TokenKind::Delimiter(Delimiter::ClosePar),
+            TokenKind::Special(Special::RightArrow),
+            TokenKind::Identifier("Example".to_string()),
+            TokenKind::Special(Special::Colon)
+        ),
+        line!(
+            8,
+            TokenKind::Keyword(Keyword::Return),
+            TokenKind::Identifier("Example".to_string()),
+            TokenKind::Delimiter(Delimiter::OpenBrace),
+            TokenKind::Identifier("arg".to_string()),
+            TokenKind::Special(Special::Colon),
+            TokenKind::Identifier("val".to_string()),
+            TokenKind::Delimiter(Delimiter::CloseBrace)
+        ),
+        line!(
+            4,
+            TokenKind::Keyword(Keyword::Fn),
+            TokenKind::Identifier("compute".to_string()),
+            TokenKind::Delimiter(Delimiter::OpenPar),
+            TokenKind::Identifier("self".to_string()),
+            TokenKind::Delimiter(Delimiter::ClosePar),
+            TokenKind::Special(Special::RightArrow),
+            TokenKind::Type(Type::Uint),
+            TokenKind::Special(Special::Colon)
+        ),
+        line!(
+            8,
+            TokenKind::Keyword(Keyword::Return),
+            TokenKind::Identifier("fib".to_string()),
+            TokenKind::Delimiter(Delimiter::OpenPar),
+            TokenKind::Identifier("self".to_string()),
+            TokenKind::Special(Special::Dot),
+            TokenKind::Identifier("arg".to_string()),
+            TokenKind::Delimiter(Delimiter::ClosePar)
+        )
+    );
+
+    let recv = NodeClass::new(code).expect("did not parse NodeClass");
+
+    let exp = NodeClass {
+        name: "Example".to_string(),
+        members: vec![Member {
+            name: "arg".to_string(),
+            ty: Type::Uint,
+            span: SpanMock::new(),
+        }],
+        methods: vec![
+            NodeFuncDef {
+                name: "new".to_string(),
+                ret_type: Type::Custom(Box::new("Example".to_string())),
+                namespace: Some("Example".to_string()),
+                args: vecdeq![Arg {
+                    name: "val".to_string(),
+                    ty: Type::Uint
+                }],
+                body: vec![NodeStmnt::RetStmnt(NodeRetStmnt {
+                    value: NodeExpr {
+                        expr: vecdeq![NodeExprInner::InlineClass(NodeInlineClass {
+                            class: "Example".to_string(),
+                            members: hash_map!(
+                            "arg".to_string() => (NodeExpr {
+                                expr: vecdeq![NodeExprInner::Resolution(NodeAttrRes{
+                                    resolution: vec![NodeAttribute::VarCall(
+                                                    NodeVarCall {
+                                                        name: "val".to_string(),
+                                                        span: SpanMock::new(),
+                                                    }
+                                                    )],
+                                    span: SpanMock::new(),
+                                })],
+                                span: SpanMock::new(),
+                            }, SpanMock::new())
+                            ),
+                            span: SpanMock::new(),
+                        })],
+                        span: SpanMock::new(),
+                    },
+                    span: SpanMock::new(),
+                })],
+                span: SpanMock::new(),
+            },
+            NodeFuncDef {
+                name: "compute".to_string(),
+                ret_type: Type::Uint,
+                namespace: Some("Example".to_string()),
+                args: vecdeq![Arg {
+                    name: "self".to_string(),
+                    ty: Type::Custom(Box::new("Example".to_string()))
+                }],
+                body: vec![NodeStmnt::RetStmnt(NodeRetStmnt {
+                    value: NodeExpr {
+                        expr: vecdeq![NodeExprInner::Resolution(NodeAttrRes {
+                            resolution: vec![NodeAttribute::FuncCall(NodeFuncCall {
+                                name: "fib".to_string(),
+                                namespace: None,
+                                args: vec![NodeExpr {
+                                    expr: vecdeq![NodeExprInner::Resolution(NodeAttrRes {
+                                        resolution: vec![
+                                            NodeAttribute::VarCall(NodeVarCall {
+                                                name: "self".to_string(),
+                                                span: SpanMock::new(),
+                                            }),
+                                            NodeAttribute::VarCall(NodeVarCall {
+                                                name: "arg".to_string(),
+                                                span: SpanMock::new()
+                                            })
+                                        ],
+                                        span: SpanMock::new(),
+                                    })],
+                                    span: SpanMock::new(),
+                                }],
+                                span: SpanMock::new(),
+                            })],
+                            span: SpanMock::new(),
+                        })],
+                        span: SpanMock::new(),
+                    },
+                    span: SpanMock::new(),
+                })],
+                span: SpanMock::new(),
+            },
+        ],
+        span: SpanMock::new(),
     };
 
     assert_eq!(exp, recv);

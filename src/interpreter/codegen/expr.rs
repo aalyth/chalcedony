@@ -1,11 +1,11 @@
 use super::ToBytecode;
 
-use crate::error::ChalError;
+use crate::error::{ChalError, CompileError, CompileErrorKind};
 use crate::interpreter::Chalcedony;
 use crate::parser::ast::{NodeExpr, NodeExprInner, NodeValue};
 
 use crate::common::operators::{BinOprType, UnaryOprType};
-use crate::common::Bytecode;
+use crate::common::{Bytecode, Type};
 
 impl ToBytecode for NodeExpr {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
@@ -60,9 +60,73 @@ impl ToBytecode for NodeExprInner {
                 NodeValue::Bool(val) => Ok(vec![Bytecode::ConstB(val)]),
             },
 
-            NodeExprInner::VarCall(node) => node.to_bytecode(interpreter),
+            NodeExprInner::Resolution(node) => node.to_bytecode(interpreter),
 
-            NodeExprInner::FuncCall(node) => node.to_bytecode(interpreter),
+            NodeExprInner::InlineClass(mut node) => {
+                // TODO: try to remove the clone
+                let Some(class) = interpreter.namespaces.get(&node.class).cloned() else {
+                    return Err(CompileError::new(
+                        CompileErrorKind::UnknownClass(node.class),
+                        node.span,
+                    )
+                    .into());
+                };
+
+                if node.members.len() < class.members.len() {
+                    let mut missing_members = Vec::<String>::new();
+                    for member in class.members {
+                        if !node.members.contains_key(&member.name) {
+                            missing_members.push(member.name);
+                        }
+                    }
+
+                    return Err(CompileError::new(
+                        CompileErrorKind::MissingMembers(missing_members),
+                        node.span,
+                    )
+                    .into());
+                }
+
+                if node.members.len() > class.members.len() {
+                    for member in class.members {
+                        node.members.remove(&member.name);
+                    }
+                    let undefined_members = node.members.into_keys().collect();
+                    return Err(CompileError::new(
+                        CompileErrorKind::UndefinedMembers(undefined_members),
+                        node.span,
+                    )
+                    .into());
+                }
+
+                let mut result = Vec::<Bytecode>::new();
+                let members_count = class.members.len();
+
+                let mut missing_members = Vec::<String>::new();
+                for member in class.members {
+                    let Some((expr, span)) = node.members.remove(&member.name) else {
+                        missing_members.push(member.name);
+                        continue;
+                    };
+                    let expr_ty = expr.as_type(interpreter)?;
+                    result.extend(expr.to_bytecode(interpreter)?);
+                    Type::verify(member.ty.clone(), expr_ty, &mut result, span)?;
+                }
+
+                if !missing_members.is_empty() {
+                    return Err(CompileError::new(
+                        CompileErrorKind::MissingMembers(missing_members),
+                        node.span,
+                    )
+                    .into());
+                }
+
+                // NOTE: the variable is required, since all node members are
+                // removed and the length is 0
+                result.push(Bytecode::ConstObj(members_count));
+
+                Ok(result)
+            }
 
             NodeExprInner::List(node) => {
                 let mut result = Vec::<Bytecode>::new();

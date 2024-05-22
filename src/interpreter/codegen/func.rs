@@ -1,21 +1,33 @@
 use super::ToBytecode;
 
 use crate::error::{ChalError, CompileError, CompileErrorKind};
-use crate::interpreter::{
-    ArgAnnotation, BuiltinAnnotation, Chalcedony, FuncAnnotation, SafetyScope,
-};
+use crate::interpreter::{ArgAnnotation, Chalcedony, SafetyScope};
 use crate::parser::ast::{NodeFuncCall, NodeFuncDef, NodeStmnt};
 
 use crate::common::{Bytecode, Type};
 use itertools::izip;
+use std::collections::VecDeque;
 
 use ahash::AHashMap;
 
+fn arg_exists(args: &[ArgAnnotation], arg_name: &str) -> bool {
+    for arg in args {
+        if arg.name == arg_name {
+            return true;
+        }
+    }
+    false
+}
+
 impl ToBytecode for NodeFuncDef {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let arg_types: Vec<Type> = self.args.iter().map(|arg| arg.ty.clone()).collect();
-        if interpreter.get_function(&self.name, &arg_types).is_some()
-            || interpreter.get_builtin(&self.name, &arg_types).is_some()
+        let arg_types: VecDeque<Type> = self.args.iter().map(|arg| arg.ty.clone()).collect();
+        if interpreter
+            .get_function(&self.name, &arg_types, self.namespace.as_ref())
+            .is_some()
+            || interpreter
+                .get_builtin(&self.name, &arg_types, self.namespace.as_deref())
+                .is_some()
         {
             return Err(CompileError::new(CompileErrorKind::OverwrittenFunction, self.span).into());
         }
@@ -26,10 +38,23 @@ impl ToBytecode for NodeFuncDef {
             if arg.ty == Type::Void {
                 return Err(CompileError::new(CompileErrorKind::VoidArgument, self.span).into());
             }
+
+            if arg_exists(&args, &arg.name) {
+                return Err(
+                    CompileError::new(CompileErrorKind::RedefiningFunctionArg, self.span).into(),
+                );
+            }
+
+            interpreter.verify_type(&arg.ty, &self.span)?;
             args.push(ArgAnnotation::new(idx, arg.name.clone(), arg.ty.clone()));
         }
 
-        interpreter.create_function(self.name.clone(), args, self.ret_type.clone());
+        interpreter.create_function(&self, args);
+
+        /* if the function is safe, disable all unsafe oprations */
+        if !self.name.ends_with('!') {
+            interpreter.safety_scope = SafetyScope::Safe;
+        }
 
         /* compile the bytecode for each statement in the body */
         let mut body = Vec::<Bytecode>::new();
@@ -47,6 +72,9 @@ impl ToBytecode for NodeFuncDef {
         }
 
         if !errors.is_empty() {
+            interpreter.current_func = None;
+            interpreter.locals = AHashMap::new();
+            interpreter.safety_scope = SafetyScope::Normal;
             return Err(errors.into());
         }
 
@@ -70,7 +98,7 @@ impl ToBytecode for NodeFuncDef {
         }
 
         let Some(annotation) = interpreter.current_func.clone() else {
-            panic!("CVM::create_function() did not set the annotation properly");
+            panic!("Chalcedony::create_function() did not set the annotation properly");
         };
 
         let mut result = Vec::<Bytecode>::with_capacity(body.len() + 1);
@@ -79,128 +107,78 @@ impl ToBytecode for NodeFuncDef {
 
         interpreter.current_func = None;
         interpreter.locals = AHashMap::new();
+        interpreter.safety_scope = SafetyScope::Normal;
         Ok(result)
-    }
-}
-
-#[derive(Default)]
-struct RawFuncAnnotation {
-    args: Vec<ArgAnnotation>,
-    ret_type: Type,
-    bytecode: Vec<Bytecode>,
-}
-
-impl From<&BuiltinAnnotation> for RawFuncAnnotation {
-    fn from(value: &BuiltinAnnotation) -> Self {
-        RawFuncAnnotation {
-            args: value.args.clone(),
-            ret_type: value.ret_type.clone(),
-            bytecode: value.bytecode.clone(),
-        }
-    }
-}
-
-impl From<&FuncAnnotation> for RawFuncAnnotation {
-    fn from(value: &FuncAnnotation) -> Self {
-        RawFuncAnnotation {
-            args: value.args.clone(),
-            ret_type: value.ret_type.clone(),
-            bytecode: vec![Bytecode::CallFunc(value.id)],
-        }
     }
 }
 
 impl ToBytecode for NodeFuncCall {
     fn to_bytecode(self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
-        let arg_types: Result<Vec<Type>, ChalError> = self
-            .args
-            .iter()
-            .map(|expr| expr.as_type(interpreter))
-            .collect();
-        let arg_types = match arg_types {
-            Ok(ok) => ok,
-            Err(err) => return Err(err),
-        };
-
-        let mut annotation = RawFuncAnnotation::default();
-
-        if let Some(ann) = interpreter.get_builtin(&self.name, &arg_types) {
-            annotation = ann.into();
-        }
-
-        if let Some(ann) = interpreter.get_function(&self.name, &arg_types) {
-            annotation = ann.into();
-
-        /* if the annotation is not of a builtin*/
-        } else if annotation.bytecode.is_empty() {
-            return Err(
-                CompileError::new(CompileErrorKind::UnknownFunction(self.name), self.span).into(),
-            );
-        }
-
-        if self.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Catch {
-            return Err(CompileError::new(CompileErrorKind::UnsafeCatch, self.span).into());
-        }
-
-        if annotation.ret_type != Type::Void && interpreter.inside_stmnt {
-            return Err(CompileError::new(
-                CompileErrorKind::NonVoidFunctionStmnt(annotation.ret_type),
-                self.span.clone(),
-            )
-            .into());
-        }
-
-        /* TODO
-        if self.name == "set!" {
-            self.check_list_adding(interpreter)?;
-        }
-        */
-
-        /* push on the stack each of the argument's expression value */
-        let mut result = Vec::<Bytecode>::new();
-        for (arg, arg_ty, exp) in izip!(self.args, arg_types, annotation.args) {
-            result.extend(arg.clone().to_bytecode(interpreter)?);
-            /* used for the implicit type casts */
-            Type::verify(exp.ty, arg_ty, &mut result, arg.span.clone())?;
-        }
-
-        /* complete the function call instruction */
-        result.extend(annotation.bytecode);
-
-        Ok(result)
+        compile_func_call_inner(self, interpreter, None)
     }
-
-    // get!<V>(list: [V], idx: int) -> V
-    // remove!<V>(list: [V], idx: int) -> V
-    // pop!<V>(list: [V]) -> V
 }
 
-impl NodeFuncCall {
-    // set!<V>(list: [V], val: V, idx: int)
-    // insert!<V>(list: [V], val: V, idx: int)
-    // push!<V>(list: [V], val: V)
-    /* simulating bounded polymorphism (generics) */
-    /*
-    fn check_list_adding(&self, interpreter: &mut Chalcedony) -> Result<(), ChalError> {
-        let list = self.args.get(0).unwrap();
-        let list_ty = list.as_type(interpreter)?;
-        let val = self.args.get(1).unwrap();
-        let val_ty = val.as_type(interpreter)?;
+pub fn compile_func_call_inner(
+    mut node: NodeFuncCall,
+    interpreter: &mut Chalcedony,
+    parent_type: Option<Type>,
+) -> Result<Vec<Bytecode>, ChalError> {
+    let arg_types: Result<VecDeque<Type>, ChalError> = node
+        .args
+        .iter()
+        .map(|expr| expr.as_type(interpreter))
+        .collect();
+    let mut arg_types = match arg_types {
+        Ok(ok) => ok,
+        Err(err) => return Err(err),
+    };
 
-        let Type::List(ty) = list_ty else {
-            return Err(CompileError::invalid_type(
-                Type::List(Box::new(Type::Any)),
-                list_ty,
-                list.span.clone(),
+    /* the function is called as a method */
+    if let Some(ty) = &parent_type {
+        arg_types.push_front(ty.clone());
+        if node.namespace.is_some() {
+            panic!("calling a namespace function also as a method");
+        }
+        node.namespace = Some(ty.clone().as_class());
+    }
+
+    if let Some(namespace) = &node.namespace {
+        if !interpreter.namespaces.contains_key(namespace)
+            && !interpreter.builtins.contains_key(namespace)
+        {
+            return Err(CompileError::new(
+                CompileErrorKind::UnknownNamespace(namespace.clone()),
+                node.span,
             )
             .into());
-        };
-
-        if *ty != val_ty {
-            return Err(CompileError::invalid_type(*ty, val_ty, val.span.clone()).into());
         }
-
-        Ok(())
     }
-    */
+
+    /* SAFETY: the function must be checked before being compiled */
+    let mut annotation = interpreter
+        .get_function_universal(&node.name, &arg_types, node.namespace.as_ref())
+        .unwrap();
+
+    if node.name.ends_with('!') && interpreter.safety_scope == SafetyScope::Safe {
+        return Err(CompileError::new(CompileErrorKind::UnsafeOpInSafeBlock, node.span).into());
+    }
+
+    if parent_type.is_some() {
+        arg_types.pop_front();
+        annotation.args.pop_front();
+    }
+    let arguments = izip!(node.args, arg_types, annotation.args.clone());
+
+    /* push on the stack each of the argument's expression value */
+    let mut result = Vec::<Bytecode>::new();
+    for (arg, arg_ty, exp) in arguments {
+        result.extend(arg.clone().to_bytecode(interpreter)?);
+        /* used for the implicit type casts */
+        Type::verify(exp.ty, arg_ty, &mut result, arg.span.clone())?;
+    }
+
+    /* complete the function call instruction */
+    result.extend(annotation.bytecode);
+
+    Ok(result)
 }

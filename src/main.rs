@@ -10,35 +10,27 @@
 //!            of the operator being between the two operands, it is after the
 //!            operands.
 //!
-//! Optimizations:
-//! [-] reduce Bytecode instructions size (using unions instead of a big enum);
-//!     N.B.: tried and it does not work - smaller instructions does not indeed
-//!     mean a faster execution; the used method was the same as in python - the
-//!     global constants are stored in a list inside the VM and the bytecode
-//!     constants boil down to a clone() of the value at the given index
-//! [x] remove the `arg_count` field from the `Cvm::CallFrame` struct
-//!
-//! to-do:
-//! [ ] replace PtrString with a Box<String>
-//! [ ] add continue and break to for loops
-//! [ ] add iterators, instead of going through lists by index
+//! For more information on each type of the interpreting process refer to the
+//! modules `lexer`, `parser`, `vm` and `interpreter` (in that order).
 //!
 //! Future ideas:
 //! [x] function overloading
 //! [x] exceptions, try-catch blocks, and unsafe functions (ending with `!`)
 //! [x] script importing and the `__main__` constant working
-//! [%] lists and functions for them (`set!()`, `get!()`, `push()`, `pop!()`,
+//! [x] lists and functions for them (`set!()`, `get!()`, `push()`, `pop!()`,
 //!     `insert!()` and `remove!())
-//! [%] `for in` loops over lists and iterators
-//! [x] constants - variables that could not be changed
-//! [ ] classes and methods
+//! [x] `for in` loops over lists and iterators
+//! [x] constants - the value can still be computed at runtime
+//! [x] classes and methods
 //! [x] `len()` function for strings and lists
-//! [ ] generic functions
+//! [x] functions for type casts (such as `ftoi()`, `itou()`, `utof()`, etc.)
+//!
+//! [ ] traits
+//! [ ] generic functions and members, and type bounds
 //! [ ] hashmaps and  functions for them (`get!()`, `set!()`, etc.)
-//! [x] functions for type casts (such as `ftoi()`, `itou()`, `stoi!()`, etc.)
-//! [ ] type casts from strings to primitive types
 //! [ ] short circuit logic operators
 //! [ ] a Chalcedony `shell` for direct execution of user commands
+//! [ ] parallelism between lexer, parser, interpreter and vm
 
 use chalcedony::interpreter::Chalcedony;
 

@@ -22,6 +22,6 @@ if __name__ == '__main__':
         let res_rec = fib_rec(n)
 
         print('Fib (' + n + '): ' + res + '; exp: ' + res_rec)
-        assert(res, res_rec)
+        assert(res == res_rec)
 
         n += 1

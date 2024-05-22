@@ -5,14 +5,16 @@
 //! For a detailed explanation of each node's syntax refer to the corresponding
 //! node's structure definition.
 
+pub mod class;
 mod expr;
 pub mod func;
 mod program;
 mod stmnt;
 mod var;
 
-pub use expr::{NodeExpr, NodeExprInner};
-pub use func::{NodeFuncCall, NodeFuncDef};
+pub use class::{NodeAttrRes, NodeAttribute, NodeClass};
+pub use expr::{NodeExpr, NodeExprInner, NodeInlineClass, NodeList};
+pub use func::{NodeFuncCall, NodeFuncCallStmnt, NodeFuncDef};
 pub use program::{NodeImport, NodeProg};
 pub use stmnt::{
     NodeAssign, NodeBreakStmnt, NodeContStmnt, NodeElifStmnt, NodeElseStmnt, NodeForLoop,

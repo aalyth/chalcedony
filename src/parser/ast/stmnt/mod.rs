@@ -10,10 +10,10 @@ pub use if_stmnt::{NodeElifStmnt, NodeElseStmnt, NodeIfBranch, NodeIfStmnt};
 pub use loops::{NodeForLoop, NodeWhileLoop};
 pub use return_stmnt::NodeRetStmnt;
 
-use super::{NodeFuncCall, NodeVarDef};
+use super::{NodeAttrRes, NodeFuncCallStmnt, NodeVarDef};
 
 use crate::error::{span::Span, ChalError, ParserError, ParserErrorKind};
-use crate::lexer::{Delimiter, Keyword, TokenKind};
+use crate::lexer::{Keyword, TokenKind};
 use crate::parser::{LineReader, TokenReader};
 
 /// The node representing a single statement in the program. A statement is a
@@ -23,7 +23,7 @@ use crate::parser::{LineReader, TokenReader};
 #[derive(Debug, PartialEq)]
 pub enum NodeStmnt {
     VarDef(NodeVarDef),
-    FuncCall(NodeFuncCall),
+    FuncCall(NodeFuncCallStmnt),
     Assign(NodeAssign),
     RetStmnt(NodeRetStmnt),
 
@@ -53,37 +53,27 @@ pub struct NodeBreakStmnt {
 
 macro_rules! single_line_statement {
     ($reader:ident, $result:ident, $errors:ident, $node_type:ident, $stmnt_type:ident) => {{
-        let tok_reader_raw = $reader.advance_reader();
-        let Ok(tok_reader) = tok_reader_raw else {
-            $errors.push(tok_reader_raw.err().unwrap());
-            continue;
-        };
-
-        let node_raw = $node_type::new(tok_reader);
-        let Ok(node) = node_raw else {
-            $errors.push(node_raw.err().unwrap());
-            continue;
-        };
-
-        $result.push(NodeStmnt::$stmnt_type(node));
+        match $node_type::new($reader.advance_reader()) {
+            Ok(node) => $result.push(NodeStmnt::$stmnt_type(node)),
+            Err(err) => $errors.push(err),
+        }
     }};
 }
 
 macro_rules! multiline_statement {
     ($reader:ident, $result:ident, $errors:ident, $node_type:ident, $stmnt_type:ident) => {{
-        let line_reader_raw = $reader.advance_chunk();
-        let Ok(line_reader) = line_reader_raw else {
-            $errors.push(line_reader_raw.err().unwrap());
-            continue;
+        let line_reader = match $reader.advance_chunk() {
+            Ok(reader) => reader,
+            Err(err) => {
+                $errors.push(err);
+                continue;
+            }
         };
 
-        let node_raw = $node_type::new(line_reader);
-        let Ok(node) = node_raw else {
-            $errors.push(node_raw.err().unwrap());
-            continue;
-        };
-
-        $result.push(NodeStmnt::$stmnt_type(node));
+        match $node_type::new(line_reader) {
+            Ok(node) => $result.push(NodeStmnt::$stmnt_type(node)),
+            Err(err) => $errors.push(err),
+        }
     }};
 }
 
@@ -133,35 +123,22 @@ impl TryFrom<LineReader> for Vec<NodeStmnt> {
 
                 /* Function calls and assignments */
                 TokenKind::Identifier(_) => {
-                    let Some(line) = reader.advance() else {
-                        panic!("NodeStmnt::parse_body(): could not advance a peeked reader")
-                    };
+                    let mut token_reader = reader.advance_reader();
+                    let resolution = NodeAttrRes::new(&mut token_reader)?;
 
-                    // check whether the identifier should be treated as a function
-                    // call or a variable assignment. SAFETY: there are always at
-                    // least 2 elements in the line (the identifer + newline)
-                    if let Some(peek) = line.tokens.get(1) {
-                        if peek.kind == TokenKind::Delimiter(Delimiter::OpenPar) {
-                            let node_reader =
-                                TokenReader::new(line.into(), Span::from(reader.spanner()));
-                            let node_raw = NodeFuncCall::new(node_reader);
-                            let Ok(node) = node_raw else {
-                                errors.push(node_raw.err().unwrap());
-                                continue;
-                            };
-                            result.push(NodeStmnt::FuncCall(node));
-                            continue;
+                    /* there is a single resolution on the line, so try to parse it as func call */
+                    if token_reader.peek_is_exact(TokenKind::Newline) {
+                        match NodeFuncCallStmnt::try_from(resolution) {
+                            Ok(node) => result.push(NodeStmnt::FuncCall(node)),
+                            Err(err) => errors.push(err),
                         }
+                        continue;
                     }
 
-                    let token_reader = TokenReader::new(line.into(), Span::from(reader.spanner()));
-                    let node_raw = NodeAssign::new(token_reader);
-                    let Ok(node) = node_raw else {
-                        errors.push(node_raw.err().unwrap());
-                        continue;
-                    };
-
-                    result.push(NodeStmnt::Assign(node));
+                    match NodeAssign::new(resolution, token_reader) {
+                        Ok(node) => result.push(NodeStmnt::Assign(node)),
+                        Err(err) => errors.push(err),
+                    }
                 }
 
                 _ => {

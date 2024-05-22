@@ -27,11 +27,26 @@ impl ToBytecode for NodeVarCall {
 // variables, i.e. it is called only from `NodeProg::VarDef(NodeVarDef)`.
 impl ToBytecode for NodeVarDef {
     fn to_bytecode(mut self, interpreter: &mut Chalcedony) -> Result<Vec<Bytecode>, ChalError> {
+        /* the empty variable is ignored */
+        if self.name == "_" {
+            /* check for any potential invalid code */
+            let _ = self.value.as_type(interpreter)?;
+            return Ok(vec![]);
+        }
+
         if var_exists(&self.name, interpreter) {
             return Err(
                 CompileError::new(CompileErrorKind::RedefiningVariable, self.span.clone()).into(),
             );
         }
+
+        if self.ty == Type::Void {
+            return Err(
+                CompileError::new(CompileErrorKind::VoidVariable, self.span.clone()).into(),
+            );
+        }
+
+        interpreter.verify_type(&self.ty, &self.span)?;
 
         let mut result = self.value.clone().to_bytecode(interpreter)?;
 
@@ -39,11 +54,19 @@ impl ToBytecode for NodeVarDef {
         if self.ty != Type::Any {
             Type::verify(
                 self.ty.clone(),
-                value_type,
+                value_type.clone(),
                 &mut result,
                 self.value.span.clone(),
             )?;
-        } else if value_type != Type::Void {
+        } else if value_type.root_type() == Type::Any {
+            return Err(CompileError::new(
+                CompileErrorKind::UninferableType(value_type),
+                self.value.span,
+            )
+            .into());
+        }
+
+        if value_type != Type::Void {
             self.ty = value_type;
         } else {
             /* check whether no value was provided */

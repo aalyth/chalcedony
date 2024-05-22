@@ -138,8 +138,9 @@ impl Lexer {
             TokenKind::Keyword(Keyword::Fn)
             | TokenKind::Keyword(Keyword::If)
             | TokenKind::Keyword(Keyword::While)
+            | TokenKind::Keyword(Keyword::Try)
             | TokenKind::Keyword(Keyword::For)
-            | TokenKind::Keyword(Keyword::Try) => {
+            | TokenKind::Keyword(Keyword::Class) => {
                 result.push_back(line);
                 result.extend(self.advance_chunk()?);
             }
@@ -181,6 +182,7 @@ impl Lexer {
         let indent_raw = self.reader.advance_while(|c: &char| *c == ' ');
         let indent = indent_raw.len() as u64;
 
+        let mut result = VecDeque::<Token>::new();
         let mut errors = Vec::<ChalError>::new();
 
         if indent % 4 != 0 {
@@ -193,8 +195,6 @@ impl Lexer {
                 .into(),
             );
         }
-
-        let mut result = VecDeque::<Token>::new();
 
         loop {
             if self.is_empty() {
@@ -211,7 +211,7 @@ impl Lexer {
             }
         }
 
-        if !errors.is_empty() {
+        if !errors.is_empty() && result.len() > 1 {
             return Err(errors.into());
         }
 
@@ -362,7 +362,7 @@ impl Lexer {
 
             match buffer.as_str() {
                 "+=" | "-=" | "*=" | "/=" | "%=" | "&&" | "||" | ">=" | "<=" | "==" | "!="
-                | "->" | ":=" => {
+                | "->" | ":=" | "::" => {
                     self.reader.advance();
                     end.advance_col();
                 }
@@ -387,11 +387,17 @@ impl Lexer {
             return self.advance();
         }
 
+        // If the current is a newline, but there are open delimiters, the lexer
+        // moves on as if there is no newline - this is one of the newer
+        // features of the Python language
         // NOTE: the position of the newline is actually wrong - it is on the
         // start of the next line, but that doesn't matter since it's only
         // purpose is for end of line checks
         if current == '\n' {
-            return self.advance_tok(String::from(current), start, start);
+            if self.delim_stack.is_empty() {
+                return self.advance_tok(String::from(current), start, start);
+            }
+            return self.advance();
         }
 
         /* any string */

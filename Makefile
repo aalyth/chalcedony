@@ -1,7 +1,7 @@
+.PHONY: release syntax test examples clean
 
-executable = './target/release/chalcedony'
+EXEC = './target/release/chalcedony'
 
-.PHONY: release
 release: Cargo.toml ./src ./src/main.rs
 	if [ -z $(shell which cargo) ]; then \
 		echo 'Error: you need to have cargo installed'; \
@@ -16,7 +16,6 @@ release: Cargo.toml ./src ./src/main.rs
 	cp ./target/release/chalcedony /usr/local/bin/chal
 
 # adds syntax highlighting for *.ch files
-.PHONY: syntax
 syntax: ./utils/syntax/chal.vim
 	# for vim:
 	mkdir -p ~/.vim/syntax 
@@ -30,11 +29,9 @@ syntax: ./utils/syntax/chal.vim
 	mkdir -p ~/.config/nvim/syntax 
 	cp ./utils/syntax/chal.vim ~/.config/nvim/syntax/chalcedony.vim
 
-.PHONY: test 
 test:
-	cargo test --features panicking-asserts
+	cargo test --features testing
 
-.PHONY: examples 
 examples:
 	if [ ! -f  ${executable} ]; then \
 		echo "Error: the ${executable} does not exist"; \
@@ -42,9 +39,8 @@ examples:
 	fi
 	for file in $(shell find ./examples -type f -printf "%f\n"); do \
 		echo "Running example script: $${file}"; \
-		${executable} ./examples/$${file} 1> /dev/null || true; \
+		${EXEC} ./examples/$${file} 1> /dev/null || true; \
 	done
 
-.PHONY: clean
 clean:
 	cargo clean

@@ -18,7 +18,7 @@ fn tg!(x: float) -> float:
 
 
 fn assert_rounded(lhs: float, rhs: float, n: uint):
-    assert(round(lhs, n), round(rhs, n))
+    assert(round(lhs, n) == round(rhs, n))
 
 if __name__ == '__main__':
     try:
@@ -33,4 +33,3 @@ if __name__ == '__main__':
     assert_rounded(1.0 / sqrt_3, tg!(pi/6), 3)
     assert_rounded(1.0, tg!(pi/4), 3)
     assert_rounded(sqrt_3, tg!(pi/3), 3)
-

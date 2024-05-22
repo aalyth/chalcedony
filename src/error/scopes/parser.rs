@@ -16,11 +16,14 @@ pub enum ParserErrorKind {
     InvalidAssignmentOperator,
     RepeatedExprTerminal,
     RepeatedExprOperator,
+    InvalidUnaryOperator,
     InvalidStatement,
     InvalidExprEnd,
     EmptyExpr,
     UntypedList,
     MissingCatchBlock,
+    NonFuncCallResolution,
+    FuncCallAssignment,
 }
 
 pub struct ParserError {
@@ -67,6 +70,12 @@ impl std::fmt::Display for ParserError {
                 display_err(&self.span, f, "repeated expression operator")
             }
 
+            ParserErrorKind::InvalidUnaryOperator => display_err(
+                &self.span,
+                f,
+                "unary operators must always follow after binary ones",
+            ),
+
             ParserErrorKind::InvalidStatement => display_err(&self.span, f, "invalid statement"),
             ParserErrorKind::InvalidExprEnd => {
                 display_err(&self.span, f, "expressions must end with a terminal")
@@ -81,6 +90,18 @@ impl std::fmt::Display for ParserError {
                 &self.span,
                 f,
                 "`try` blocks must be followed by `catch` blocks",
+            ),
+
+            ParserErrorKind::NonFuncCallResolution => display_err(
+                &self.span,
+                f,
+                "expected an attribute resolution, ending with a function call",
+            ),
+
+            ParserErrorKind::FuncCallAssignment => display_err(
+                &self.span,
+                f,
+                "function calls are not allowed in assignment attribute resolutions",
             ),
         }
     }

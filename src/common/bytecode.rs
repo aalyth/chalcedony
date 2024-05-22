@@ -7,6 +7,14 @@ pub enum Bytecode {
     /// Does nothing.
     Nop,
 
+    /// Copies the top of the stack.
+    Dup,
+    /// Pops the object at the top of the stack and pushes a new deeply copied
+    /// version of it back.
+    Copy,
+    /// Removes the top of the stack.
+    Pop,
+
     /// Pushes an `CvmObject::Int()` on the top of the stack.
     ConstI(i64),
     /// Pushes `CvmObject::Uint()` on the top of the stack.
@@ -17,6 +25,8 @@ pub enum Bytecode {
     ConstS(PtrString),
     /// Pushes `CvmObject::Bool()` on the top of the stack.
     ConstB(bool),
+    /// Pops the top N elements off the stack and builds an Object out of them.
+    ConstObj(usize),
     /// Pops the top N elements off the stack and builds a list out of them.
     ConstL(usize),
     /// Converts the top of the stack from a `CvmObject::Str()` into a
@@ -71,6 +81,9 @@ pub enum Bytecode {
     /// Sets/gets variables at the position on the stack.
     SetLocal(usize),
     GetLocal(usize),
+    /// Sets/gets the attribute with `id` at from the top of the stack.
+    SetAttr(usize),
+    GetAttr(usize),
 
     /// Creates a new function, whose body is the remaining of the passed
     /// bytecode instructions. The argument describes the number of arguments
@@ -113,10 +126,14 @@ pub enum Bytecode {
     /// top of the stack (`<list> <element> <idx>`). If the index is invalid an
     /// exception is thrown.
     ListInsert,
+    /// Pops the top off the stack, interprets it as a list index, pops the next
+    /// element as the value to be replaced, and sets it in the list at the top
+    /// of the stack (`<list> <element> <idx>`). If the index is invalid an
+    /// exception is thrown.
+    ListSet,
 
     /// Pops the top value off the stack and outputs it to `stdout`.
     Print,
-    /// Asserts the top 2 values on the stack are equal, else the script's
-    /// execution is terminated.
+    /// Asserts the top of the stack is true, else an exception is thrown.
     Assert,
 }
