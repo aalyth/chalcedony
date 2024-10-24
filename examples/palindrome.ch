@@ -1,3 +1,4 @@
+#!/usr/local/bin/chal
 
 # esentially, the length of the digit
 fn log10(n: uint) -> uint:

@@ -1,3 +1,4 @@
+#!/usr/local/bin/chal
 
 fn is_prime(n: uint) -> bool:
     if n <= 1:

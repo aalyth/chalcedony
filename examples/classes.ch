@@ -1,3 +1,4 @@
+#!/usr/local/bin/chal
 
 class Header:
     header: str

@@ -1,3 +1,4 @@
+#!/usr/local/bin/chal
 
 fn fizzbuzz(n: uint) -> str:
     let res = ""

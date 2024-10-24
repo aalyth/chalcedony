@@ -49,6 +49,11 @@ impl ToBytecode for NodeImport {
             .into());
         }
 
+        if interpreter.imported_scripts.contains(&script_path) {
+            return Ok(Vec::new());
+        }
+        interpreter.imported_scripts.insert(script_path.clone());
+
         let parent_script_type = interpreter.script_type;
         interpreter.script_type = ScriptType::Imported;
         let parent_path = interpreter.current_path.clone();

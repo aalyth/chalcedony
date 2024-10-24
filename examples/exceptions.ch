@@ -1,3 +1,4 @@
+#!/usr/local/bin/chal
 
 fn test!():
     let a = "some example value"

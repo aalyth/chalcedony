@@ -1,3 +1,5 @@
+#!/usr/local/bin/chal
+
 import "iter.ch"
 
 class Edge:

@@ -1,3 +1,4 @@
+#!/usr/local/bin/chal
 
 let pi = 3.141_592_653_589_793
 

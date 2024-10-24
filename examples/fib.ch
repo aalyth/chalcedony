@@ -1,4 +1,4 @@
-
+#!/usr/local/bin/chal
 
 fn fib_rec(n: int) -> int:
     if n > 2:

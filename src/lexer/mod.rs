@@ -394,7 +394,7 @@ impl Lexer {
         // start of the next line, but that doesn't matter since it's only
         // purpose is for end of line checks
         if current == '\n' {
-            if self.delim_stack.is_empty() {
+            if self.delim_stack.is_empty() || self.is_empty() {
                 return self.advance_tok(String::from(current), start, start);
             }
             return self.advance();

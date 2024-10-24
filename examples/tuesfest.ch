@@ -1,3 +1,5 @@
+#!/usr/local/bin/chal
+
 import "math.ch"
 
 const pi_half = pi / 2

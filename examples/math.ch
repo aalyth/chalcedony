@@ -1,3 +1,4 @@
+#!/usr/local/bin/chal
 
 const pi = 3.141_592_653_589_793
 

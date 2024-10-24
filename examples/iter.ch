@@ -1,3 +1,5 @@
+#!/usr/local/bin/chal
+
 class Range:
     current: int
     end: int

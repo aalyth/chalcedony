@@ -12,17 +12,18 @@ mod builtins;
 mod object;
 
 use builtins::{
-    add, and, div, eq, gt, gt_eq, list_get, list_insert, list_remove, list_set, lt, lt_eq, modulo,
-    mul, neg, not, or, sub,
+    assert,
+    bin_opr::{add, and, div, eq, gt, gt_eq, lt, lt_eq, modulo, mul, or, sub},
+    list::{list_create, list_get, list_insert, list_remove, list_set},
+    print,
+    un_opr::{neg, not},
 };
 use object::{CvmList, CvmObject, Gc};
 
 use crate::common::Bytecode;
 use crate::error::unhandled_exception;
-use crate::utils::Stack;
+use crate::utils::{PtrString, Stack};
 
-use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -57,6 +58,11 @@ macro_rules! push_constant {
     }};
 }
 
+fn push_string(cvm: &mut Cvm, val: PtrString, next_idx: usize) -> usize {
+    cvm.stack.push(CvmObject::Str(val));
+    next_idx
+}
+
 impl Cvm {
     pub fn new() -> Self {
         Cvm {
@@ -77,7 +83,6 @@ impl Cvm {
         self.stack.truncate(0);
     }
 
-    #[inline(always)]
     fn execute_next(&mut self, current_idx: usize, code: &[Bytecode]) -> usize {
         let next_instr: Bytecode;
         if let Some(frame) = self.call_stack.peek() {
@@ -94,21 +99,10 @@ impl Cvm {
             Bytecode::ConstI(val) => push_constant!(self, Int, val, next_idx),
             Bytecode::ConstU(val) => push_constant!(self, Uint, val, next_idx),
             Bytecode::ConstF(val) => push_constant!(self, Float, val, next_idx),
-            Bytecode::ConstS(val) => {
-                self.stack.push(CvmObject::Str(val.clone()));
-                next_idx
-            }
+            Bytecode::ConstS(val) => push_string(self, val.clone(), next_idx),
             Bytecode::ConstB(val) => push_constant!(self, Bool, val, next_idx),
 
-            Bytecode::ConstL(len) => {
-                let mut list = VecDeque::<CvmObject>::with_capacity(len);
-                for _ in 0..len {
-                    list.push_front(self.stack.pop().expect("expected a value on the stack"));
-                }
-                self.stack
-                    .push(CvmObject::List(Rc::new(RefCell::new(list))));
-                next_idx
-            }
+            Bytecode::ConstL(len) => list_create(self, len, next_idx),
 
             Bytecode::ConstObj(member_count) => {
                 let mut list = Vec::<CvmObject>::with_capacity(member_count);
@@ -377,28 +371,8 @@ impl Cvm {
                 next_idx + dist
             }
 
-            Bytecode::Print => {
-                let obj = self.stack.pop().unwrap();
-                println!("{}", obj);
-                next_idx
-            }
-
-            Bytecode::Assert => {
-                let CvmObject::Bool(successful) = self.stack.pop().unwrap() else {
-                    self.stack
-                        .push(CvmObject::Exception("assertion failed".to_string().into()));
-                    return self.handle_exception();
-                };
-
-                if !successful {
-                    self.stack
-                        .push(CvmObject::Exception("assertion failed".to_string().into()));
-                    return self.handle_exception();
-                }
-
-                next_idx
-            }
-
+            Bytecode::Print => print(self, next_idx),
+            Bytecode::Assert => assert(self, next_idx),
             Bytecode::Nop => next_idx,
         }
     }

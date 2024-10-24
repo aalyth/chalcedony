@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 /* ahash is the fastest hashing algorithm in terms of hashing strings */
-use ahash::AHashMap;
+use ahash::{AHashMap, AHashSet};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ArgAnnotation {
@@ -165,6 +165,10 @@ pub struct Chalcedony {
     script_type: ScriptType,
     current_path: PathBuf,
 
+    // Used to resolve issues around multiple imports of the same script
+    // (similar to the Multiple Inheritance problem).
+    imported_scripts: AHashSet<PathBuf>,
+
     // Used to keep track of the globally declared variables.
     globals: AHashMap<String, VarAnnotation>,
     // Used to keep track of internal for loop iterators.
@@ -233,6 +237,7 @@ impl Chalcedony {
             vm: Cvm::new(),
             script_type: ScriptType::Main,
             current_path: PathBuf::new(),
+            imported_scripts: AHashSet::new(),
             globals: AHashMap::new(),
             globals_id_counter: 1, // the `__main__` constant
             builtins: get_builtins(),

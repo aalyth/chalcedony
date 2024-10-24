@@ -2,8 +2,20 @@ use super::{Cvm, CvmObject};
 
 use crate::utils::PtrString;
 
+use std::cell::RefCell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+
+pub fn list_create(cvm: &mut Cvm, len: usize, next_idx: usize) -> usize {
+    let mut list = VecDeque::<CvmObject>::with_capacity(len);
+    for _ in 0..len {
+        list.push_front(cvm.stack.pop().expect("expected a value on the stack"));
+    }
+    cvm.stack.push(CvmObject::List(Rc::new(RefCell::new(list))));
+    next_idx
+}
+
 /* returns the index of the next instruction */
-#[inline(always)]
 pub fn list_insert(cvm: &mut Cvm, next_idx: usize) -> usize {
     let CvmObject::Int(idx) = cvm.stack.pop().unwrap() else {
         panic!("inserting in a non-int index");
@@ -27,7 +39,6 @@ pub fn list_insert(cvm: &mut Cvm, next_idx: usize) -> usize {
 }
 
 /* returns the index of the next instruction */
-#[inline(always)]
 pub fn list_remove(cvm: &mut Cvm, next_idx: usize) -> usize {
     let CvmObject::Int(idx) = cvm.stack.pop().unwrap() else {
         panic!("removing with a non-int index");
@@ -50,7 +61,6 @@ pub fn list_remove(cvm: &mut Cvm, next_idx: usize) -> usize {
 }
 
 /* returns the index of the next instruction */
-#[inline(always)]
 pub fn list_get(cvm: &mut Cvm, next_idx: usize) -> usize {
     let CvmObject::Int(idx) = cvm.stack.pop().unwrap() else {
         panic!("indexing with a non-int value");
@@ -73,7 +83,6 @@ pub fn list_get(cvm: &mut Cvm, next_idx: usize) -> usize {
 }
 
 /* returns the index of the next instruction */
-#[inline(always)]
 pub fn list_set(cvm: &mut Cvm, next_idx: usize) -> usize {
     let CvmObject::Int(idx) = cvm.stack.pop().unwrap() else {
         panic!("indexing with a non-int value");
